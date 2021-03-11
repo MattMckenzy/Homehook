@@ -48,7 +48,7 @@ namespace Homehook
             services.AddHttpClient<StaticTokenCaller<JellyfinServiceAppProvider>>();
             services.AddSingleton<JellyfinServiceAppProvider>();
             services.AddSingleton<JellyfinService>();
-            services.AddHttpClient<AnonymousCaller<HomeassistantServiceAppProvider>>();
+            services.AddHttpClient<StaticTokenCaller<HomeassistantServiceAppProvider>>();
             services.AddSingleton<HomeassistantServiceAppProvider>();
             services.AddSingleton<HomeAssistantService>();
             services.AddSingleton<LanguageService>();

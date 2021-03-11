@@ -6,13 +6,13 @@ namespace Homehook.Services
     {
         private readonly IRestServiceCaller _homeAssistantCaller;
 
-        public HomeAssistantService(AnonymousCaller<HomeassistantServiceAppProvider> homeAssistantCaller)
+        public HomeAssistantService(StaticTokenCaller<HomeassistantServiceAppProvider> homeAssistantCaller)
         {
             _homeAssistantCaller = homeAssistantCaller;
         }
 
-        public async Task PostHook(string webhookId, string content = null) =>
-            await _homeAssistantCaller.PostRequestAsync<string>($"api/webhook/{webhookId}", content: content);
+        public async Task PlayMedia(string content) =>
+            await _homeAssistantCaller.PostRequestAsync<string>($"api/services/media_player/play_media", content: content);
         
     }
 }

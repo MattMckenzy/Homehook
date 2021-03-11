@@ -35,9 +35,9 @@ namespace Homehook.Services
         private async Task Log(LogLevel logLevel, string title, string message, object extraObject, Exception exception, int gotifyPriority)
         {
             if (extraObject != null)
-                message = $"{message}{Environment.NewLine}Object: {JsonConvert.SerializeObject(extraObject)}";
+                message = $"{message}{Environment.NewLine}Object: {JsonConvert.SerializeObject(extraObject, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore })}";
             if (exception != null)
-                message = $"{message}{Environment.NewLine}Exception: {JsonConvert.SerializeObject(exception)}";
+                message = $"{message}{Environment.NewLine}Exception: {JsonConvert.SerializeObject(exception, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore })}";
 
             if (_configuration.GetValue<int>("Services:Gotify:Priority") <= (int)logLevel)
                 await _gotifyService.PushMessage(new() { Title = title, Message = message, Priority = gotifyPriority });

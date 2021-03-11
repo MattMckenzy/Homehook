@@ -25,6 +25,6 @@ namespace Homehook.Services
             new(_configuration["Services:Gotify:ServiceUri"]);
 
         public string GetToken() =>
-             _configuration["Services:Gotify:Token"];
+             _configuration["Services:Gotify:AccessToken"];
     }
 }

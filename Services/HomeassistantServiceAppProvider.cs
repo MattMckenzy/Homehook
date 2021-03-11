@@ -12,11 +12,9 @@ namespace Homehook.Services
             _configuration = configuration;
         }
 
-        public string GetHeader()
-        {
-            throw new NotImplementedException();
-        }
-        
+        public string GetHeader() =>
+            _configuration["Services:Homeassistant:Header"];
+
 
         public string GetScope()
         {
@@ -26,9 +24,7 @@ namespace Homehook.Services
         public Uri GetServiceUri() =>
             new(_configuration["Services:Homeassistant:ServiceUri"]);
 
-        public string GetToken()
-        {
-            throw new NotImplementedException();
-        }
+        public string GetToken() =>
+            _configuration["Services:Homeassistant:AccessToken"];
     }
 }

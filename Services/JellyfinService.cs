@@ -22,7 +22,7 @@ namespace Homehook.Services
             _configuration = configuration;
         }
 
-        public async Task<IEnumerable<JellyItem>> GetItems(JellyPhrase jellyPhrase)    
+        public async Task<HomeAssistantMedia> GetItems(JellyPhrase jellyPhrase)    
         {           
             // Get UserId from username
             CallResult<string> usernameCallResult = await _jellyfinCaller.GetRequestAsync<string>("users");
@@ -89,19 +89,53 @@ namespace Homehook.Services
                 _ => items.OrderByDescending(item => item.DateCreated),
             };
 
-            return items.Select((item, index) => new JellyItem 
+            return new HomeAssistantMedia
             {
-                Index = index,
-                Device = jellyPhrase.JellyDevice,
-                Url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?Static=true&api_key={userId}",
-                ImageUrl = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}",
-                Title = item.Name,
-                Description = item.Overview,
-                MediaType = item.MediaType,
-                JellyAudioMetadata = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? new JellyAudioMetadata { Song = item.IndexNumber, Disc = item.ParentIndexNumber, Album = item.Album, AlbumArtist = item.AlbumArtist, ProductionYear = item.ProductionYear } : null,
-                JellyPhotoMetadata = item.MediaType.Equals("Photo", StringComparison.InvariantCultureIgnoreCase) ? new JellyPhotoMetadata { DateCreated = item.DateCreated } : null,
-                JellyVideoMetadata = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? new JellyVideoMetadata { SeriesName = item.SeriesName, Episode = item.IndexNumber, Season = item.ParentIndexNumber, PremiereDate = item.PremiereDate } : null,
-            });
+                items = items.Take(_configuration.GetValue<int>("Services:Jellyfin:MaximumQueueSize")).Select((item, index) => new HomeAssistantMediaItem
+                {
+                    entity_id = $"media_player.{jellyPhrase.JellyDevice}",
+                    media_content_type = item.MediaType,
+                    media_content_id = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?Static=true&api_key={userId}",
+                    extra = new HomeAssistantExtra
+                    {
+                        enqueue = index != 0 ? true : null,
+                        metadata = new HomeAssistantMedadata
+                        {
+                            title = item.Name,
+                            images = new HomeAssistantImages[]
+                            {
+                                new HomeAssistantImages
+                                {
+                                    url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
+                                }
+                            },
+                            metadataType = GetMetadataTypeId(item.MediaType),
+                            subtitle = item.Overview,
+                            seriesTitle = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.SeriesName : null,
+                            season = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
+                            episode = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
+                            originalAirDate = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.PremiereDate : null,
+                            albumName = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.Album : null,
+                            albumArtist = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.AlbumArtist : null,
+                            trackNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
+                            discNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
+                            releaseDate = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? (item.ProductionYear != null ? (DateTime?)new DateTime((int)item.ProductionYear, 12, 31) : null) : null,
+                            creationDateTime = item.MediaType.Equals("Photo", StringComparison.InvariantCultureIgnoreCase) ? item.DateCreated : null
+                        }
+                    }
+                })
+            };
+        }
+
+        private static int GetMetadataTypeId(string mediaType)
+        {
+            switch (mediaType)
+            {
+                case "Video": return 2;
+                case "Audio": return 3;
+                case "Photo": return 4;
+                default: return 0;
+            }
         }
 
         private async Task<IEnumerable<BaseItemDto>> GetItems(string searchTerm, string parentId, string userId, bool isContinueOrder, JellyMediaType jellyMediaType)

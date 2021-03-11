@@ -25,6 +25,6 @@ namespace Homehook.Services
             new(_configuration["Services:Jellyfin:ServiceUri"]);
 
         public string GetToken() =>
-             _configuration["Services:Jellyfin:Token"];
+             _configuration["Services:Jellyfin:AccessToken"];
     }
 }

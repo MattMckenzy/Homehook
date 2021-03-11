@@ -153,8 +153,8 @@ rest_command:
 
 Configuring the API is done either the appsettings.json found at root, or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 
-Variable | Default | Description
----------|---------|------------
+Variable | Default | Description|
+---|---|---
 Logging:LogLevel:Default | Debug | Default .NET logging level.
 Logging:LogLevel:Microsoft | Warning | Default .NET Microsoft logging level.
 Logging:LogLevel:Microsoft.Hosting.Lifetime | Information |  Default .NET Microsoft Hosting logging level.
@@ -181,8 +181,8 @@ Services:Jellyfin:OrderTerms:Oldest | Oldest,First | Alternative terms that can 
 Services:Jellyfin:OrderTerms:Newest | Last,Latest,Newest,Recent | Alternative terms that can be used to order media items by newest created date.
 Services:Jellyfin:OrderTerms:Shortest | Shortest,Quickest,Fastest | Alternative terms that can be used to order media items by lowest runtime.
 Services:Jellyfin:OrderTerms:Longest | Longest,Slowest | Alternative terms that can be used to order media items by lomgest runtime.
-Services:Jellyfin:MediaTypeTerms:Audio | Song,Songs,Music,Track,Tracks,Audio | Alternative terms that can be used to specify audio media items.
-Services:Jellyfin:MediaTypeTerms:Video | Video,Videos,Movies,Movie,Show,Shows,Episode,Episodes | Alternative terms that can be used to specify video media items.
+Services:Jellyfin:MediaTypeTerms:Audio | Song,Songs,Music,Track,<br />Tracks,Audio | Alternative terms that can be used to specify audio media items.
+Services:Jellyfin:MediaTypeTerms:Video | Video,Videos,Movies,Movie,<br />Show,Shows,Episode,Episodes | Alternative terms that can be used to specify video media items.
 Services:Jellyfin:MediaTypeTerms:Photo | Photo,Photos,Pictures,Picture | Alternative terms that can be used to specify photo media items.
 Services:Jellyfin:MaximumQueueSize | 100 | Maximum media item queue size to post to Home Assistant.
 Services:IFTTT:Token | | Authentication token used to post to Homehook.

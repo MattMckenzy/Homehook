@@ -18,7 +18,7 @@ Configuration is done via appsettings.json found at root. [See the configuration
 # Usage
 
 ## Jellyfin Simple Phrase
-Once configured appropriately, Homehook can receive POST requests at homehook/jelly to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
+Once configured appropriately, Homehook can receive POST requests at homehook/jelly/simple to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
 Phrase terms are parsed in the following order:
 1. Order
 2. Search Term
@@ -31,100 +31,25 @@ i.e.: [random] [chrono cross] [songs] [on basement] [as matt]
 The incoming webhook can come from any source, such as IFTTT's simple phrase with text ingredient trigger with a webhook action, but you can also simply call the endpoint from anywhere. Here's a CURL example:
 
 ```bash
-curl -X POST "http://homehook/Jelly?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
+curl -X POST "http://homehook/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
 ```
 
 ## Home Assistant
 
-Once Home Assistant receives the webhook calls with the items as a JSON payload, you can process them with the following automation and script:
+Home assistant will receive the media items via direct REST API call. The only thing necessary to permit this is to add the following line to your configuration.yaml file:
 
-### Automation - receiving Homehook webhooks
+### configuration.yaml
 ```yaml
-  alias: Jelly
-  description: Play incoming jellyfin media items.
-  trigger:
-  - platform: webhook
-    webhook_id: 69141f00c5fb4a4a93a1eb9e1a74aed7
-  condition: []
-  action:
-  - service: script.turn_on
-    entity_id: script.playjellyitem
-    data:
-      variables:
-        content: '{{ trigger.json }}'
-  mode: queued
-  max: 100
+api:
 ```
 
-### Script - playing a media item
-```yaml
-playjellyitem:
-  alias: PlayJellyItem
-  sequence:
-    - service: media_player.play_media
-      data_template:
-        entity_id: media_player.{{ content.Device }}
-        media_content_type: "{{ content.MediaType }}"
-        media_content_id: "{{ content.Url }}"
-        extra:          
-          enqueue: >
-            {% if content.Index != 0 %} true 
-            {% endif %}           
-          metadata:
-            title: "{{ content.Title }}"            
-            images: >
-              - url: {% if content.ImageUrl is defined %} "{{ content.ImageUrl }}"            
-              {% endif %}
-            metadataType: >
-              {% if content.JellyVideoMetadata is defined %} 2 
-              {% elif content.JellyAudioMetadata is defined %} 3
-              {% elif content.JellyPhotoMetadata is defined %} 4
-              {% endif %}
-            subtitle: >
-              {% if content.JellyVideoMetadata.Description is defined %} "{{ content.JellyVideoMetadata.Description }}"               
-              {% endif %}            
-            seriesTitle: >
-              {% if content.JellyVideoMetadata.SeriesName is defined %} "{{ content.JellyVideoMetadata.SeriesName }}"
-              {% endif %}            
-            season: >
-              {% if content.JellyVideoMetadata.Season is defined %} "{{ content.JellyVideoMetadata.Season }}"
-              {% endif %}
-            episode: >
-              {% if content.JellyVideoMetadata.Episode is defined %} "{{ content.JellyVideoMetadata.Episode }}"
-              {% endif %}
-            originalAirDate: >
-              {% if content.JellyVideoMetadata.PremiereDate is defined %} "{{ content.JellyVideoMetadata.PremiereDate }}" 
-              {% endif %}
-            albumName: >              
-              {% if content.JellyAudioMetadata.Album is defined %} "{{ content.JellyAudioMetadata.Album }}"
-              {% endif %}
-            albumArtist: >               
-              {% if content.JellyAudioMetadata.AlbumArtist is defined %} "{{ content.JellyAudioMetadata.AlbumArtist }}"
-              {% endif %}
-            trackNumber: >             
-              {% if content.JellyAudioMetadata.Song is defined %} "{{ content.JellyAudioMetadata.Song }}"
-              {% endif %}
-            discNumber: > 
-              {% if content.JellyAudioMetadata.Disc is defined %} "{{ content.JellyAudioMetadata.Disc }}"
-              {% endif %}            
-            releaseDate: >
-              {% if content.JellyAudioMetadata.ProductionYear is defined %} "{{ content.JellyAudioMetadata.ProductionYear }}"
-              {% endif %}            
-            creationDateTime: >
-              {% if content.JellyPhotoMetadata.DateCreated is defined %} "{{ content.JellyPhotoMetadata.DateCreated }}"
-              {% endif %}
-  mode: queued
-  icon: 'mdi:video'
-```
-
-
-You can also set up a REST service call, using the RESTful Command integration, that you can use to statically play media:
+You can also set up a REST service call, using the RESTful Command integration, that you can then use to statically play media:
 
 ### Service - REST command
 ```yaml
 rest_command:
   homehook_jelly:
-    url: "http://homehook/jelly?apiKey=be3366f6711e46eea8998770547ccc27"
+    url: "http://homehook/jelly/simple?apiKey=be3366f6711e46eea8998770547ccc27"
     method: post
     payload: '{ "content":"{{ search_term }}" }'
     content_type: "application/json"
@@ -164,13 +89,13 @@ UserMappings:0:Jellyfin | | A user's Jellyfin username.
 UserMappings:0:HomeAssistant | | A user's HomeAssistant username.
 UserMappings:0:Google | | A user's Google username (i.e. e-mail address).
 UserMappings:0:Spoken |  | Any spoken names or nicknames to represent the user (comma delimited supported).
-Services:Gotify:Header | X-Gotify-Key | Gotify's authentication header to use (the default is typically correct).
 Services:Gotify:ServiceUri | | Gotify's service uri.
-Services:Gotify:Token | | Gotify's authentication token.
+Services:Gotify:Header | X-Gotify-Key | Gotify's authentication header to use (the default is typically correct).
+Services:Gotify:AccessToken | | Gotify's authentication token.
 Services:Gotify:Priority | 4 | The minimum level of log to post to Gotify (1: Debug; 2: Information; 3: Warning; 4: Error; 5: Off;).
-Services:Jellyfin:Header | X-Emby-Token | Jellyfin's authentication header to use (the default is typically correct).
 Services:Jellyfin:ServiceUri | | Jellyfin's service uri.
-Services:Jellyfin:Token | | Jellyfin's authentication token.
+Services:Jellyfin:Header | X-Emby-Token | Jellyfin's authentication header to use (the default is typically correct).
+Services:Jellyfin:AccessToken | | Jellyfin's authentication token.
 Services:Jellyfin:DefaultUser | | The default user to use if the search term doesn't specify one.
 Services:Jellyfin:DefaultDevice | | The default device to use if the search term doesn't specify one.
 Services:Jellyfin:DefaultOrder | Newest | The default media item order to use if the search term doesn't specify one (Continue, Shuffle, Oldest, Newest, Shortest or Longest).
@@ -185,10 +110,11 @@ Services:Jellyfin:MediaTypeTerms:Audio | Song,Songs,Music,Track,<br />Tracks,Aud
 Services:Jellyfin:MediaTypeTerms:Video | Video,Videos,Movies,Movie,<br />Show,Shows,Episode,Episodes | Alternative terms that can be used to specify video media items.
 Services:Jellyfin:MediaTypeTerms:Photo | Photo,Photos,Pictures,Picture | Alternative terms that can be used to specify photo media items.
 Services:Jellyfin:MaximumQueueSize | 100 | Maximum media item queue size to post to Home Assistant.
-Services:IFTTT:Token | | Authentication token used to post to Homehook.
-Services:HomeAssistant:ServiceUri | | Home Assistant's service uri.
+Services:IFTTT:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
+Services:HomeAssistant:ServiceUri | | Home Assistant's service uri, can be anything you generate and use on both sides.
+Services:HomeAssistant:Header | Authorization | Jellyfin's authentication header to use (the default is typically correct).
+Services:HomeAssistant:AccessToken | | Home Assistant's authentication token. Make sure to add "Bearer " before the token generated in your user profile.
 Services:HomeAssistant:Token | | Authentication token used to post to Homehook.
-Services:HomeAssistant:JellyWebhookId | | The ID of the Home Assistant webhook on which to POST the media items.
 Services:HomeAssistant:JelllyDevices | | The list of media player devices available. Used during phrase parsing.
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.

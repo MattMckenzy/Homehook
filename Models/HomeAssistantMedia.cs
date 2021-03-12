@@ -1,87 +1,87 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
 
 namespace Homehook.Models
 {
     public class HomeAssistantMedia
     {
-        [JsonPropertyName("items")]
+        [JsonProperty("items")]
         public IEnumerable<HomeAssistantMediaItem> Items { get; set; }
     }
 
     public class HomeAssistantMediaItem
     {
-        [JsonPropertyName("entity_id")]
+        [JsonProperty("entity_id")]
         public string EntityId { get; set; }
 
-        [JsonPropertyName("media_content_type")]
+        [JsonProperty("media_content_type")]
         public string MediaContentType { get; set; }
 
-        [JsonPropertyName("media_content_id")]
+        [JsonProperty("media_content_id")]
         public string MediaContentId { get; set; }
 
-        [JsonPropertyName("extra")]
+        [JsonProperty("extra")]
         public HomeAssistantExtra Extra { get; set; }
     }
 
     public class HomeAssistantExtra
     {
-        [JsonPropertyName("enqueue")]
+        [JsonProperty("enqueue")]
         public bool? Enqueue { get; set; }
 
-        [JsonPropertyName("metadata")]
+        [JsonProperty("metadata")]
         public HomeAssistantMedadata Metadata { get; set; }
     }
 
     public class HomeAssistantMedadata
     {
-        [JsonPropertyName("title")]
+        [JsonProperty("title")]
         public string Title { get; set; }
 
-        [JsonPropertyName("images")]
+        [JsonProperty("images")]
         public HomeAssistantImages[] Images { get; set; }
 
-        [JsonPropertyName("metadataType")]
+        [JsonProperty("metadataType")]
         public int MetadataType { get; set; }
 
-        [JsonPropertyName("subtitle")]
+        [JsonProperty("subtitle")]
         public string Subtitle { get; set; }
 
-        [JsonPropertyName("seriesTitle")]
+        [JsonProperty("seriesTitle")]
         public string SeriesTitle { get; set; }
 
-        [JsonPropertyName("season")]
+        [JsonProperty("season")]
         public int? Season { get; set; }
 
-        [JsonPropertyName("episode")]
+        [JsonProperty("episode")]
         public int? Episode { get; set; }
 
-        [JsonPropertyName("originalAirDate")]
+        [JsonProperty("originalAirDate")]
         public DateTime? OriginalAirDate { get; set; }
 
-        [JsonPropertyName("albumName")]
+        [JsonProperty("albumName")]
         public string AlbumName { get; set; }
 
-        [JsonPropertyName("albumArtist")]
+        [JsonProperty("albumArtist")]
         public string AlbumArtist { get; set; }
 
-        [JsonPropertyName("trackNumber")]
+        [JsonProperty("trackNumber")]
         public int? TrackNumber { get; set; }
 
-        [JsonPropertyName("discNumber")]
+        [JsonProperty("discNumber")]
         public int? DiscNumber { get; set; }
 
-        [JsonPropertyName("releaseDate")]
+        [JsonProperty("releaseDate")]
         public DateTime? ReleaseDate { get; set; }
 
-        [JsonPropertyName("creationDateTime")]
+        [JsonProperty("creationDateTime")]
         public DateTime? CreationDateTime { get; set; }
     }
 
     public class HomeAssistantImages
     {
-        [JsonPropertyName("url")]
+        [JsonProperty("url")]
         public string Url { get; set; }
     }
 }

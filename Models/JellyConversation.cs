@@ -1,93 +1,93 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
 
 namespace Homehook.Models
 {
     public class JellyConversation
     {
-        [JsonPropertyName("requestJson")]
+        [JsonProperty("requestJson")]
         public RequestJson RequestJson { get; set; }
     }
 
     public class Handler
     {
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
     }
 
     public class Order
     {
-        [JsonPropertyName("original")]
+        [JsonProperty("original")]
         public string Original { get; set; }
 
-        [JsonPropertyName("resolved")]
+        [JsonProperty("resolved")]
         public string Resolved { get; set; }
     }
 
     public class MediaType
     {
-        [JsonPropertyName("original")]
+        [JsonProperty("original")]
         public string Original { get; set; }
 
-        [JsonPropertyName("resolved")]
+        [JsonProperty("resolved")]
         public string Resolved { get; set; }
     }
 
     public class Content
     {
-        [JsonPropertyName("original")]
+        [JsonProperty("original")]
         public string Original { get; set; }
 
-        [JsonPropertyName("resolved")]
+        [JsonProperty("resolved")]
         public string Resolved { get; set; }
     }
 
     public class Device
     {
-        [JsonPropertyName("original")]
+        [JsonProperty("original")]
         public string Original { get; set; }
 
-        [JsonPropertyName("resolved")]
+        [JsonProperty("resolved")]
         public string Resolved { get; set; }
     }
 
     public class UserName
     {
-        [JsonPropertyName("original")]
+        [JsonProperty("original")]
         public string Original { get; set; }
 
-        [JsonPropertyName("resolved")]
+        [JsonProperty("resolved")]
         public string Resolved { get; set; }
     }
 
     public class Params
     {
-        [JsonPropertyName("Order")]
+        [JsonProperty("Order")]
         public Order Order { get; set; }
 
-        [JsonPropertyName("MediaType")]
+        [JsonProperty("MediaType")]
         public MediaType MediaType { get; set; }
 
-        [JsonPropertyName("Content")]
+        [JsonProperty("Content")]
         public Content Content { get; set; }
 
-        [JsonPropertyName("Device")]
+        [JsonProperty("Device")]
         public Device Device { get; set; }
 
-        [JsonPropertyName("UserName")]
+        [JsonProperty("UserName")]
         public UserName UserName { get; set; }
     }
 
     public class Intent
     {
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
 
-        [JsonPropertyName("params")]
+        [JsonProperty("params")]
         public Params Params { get; set; }
 
-        [JsonPropertyName("query")]
+        [JsonProperty("query")]
         public string Query { get; set; }
     }
 
@@ -97,100 +97,100 @@ namespace Homehook.Models
 
     public class Next
     {
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
     }
 
     public class Scene
     {
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
 
-        [JsonPropertyName("slotFillingStatus")]
+        [JsonProperty("slotFillingStatus")]
         public string SlotFillingStatus { get; set; }
 
-        [JsonPropertyName("slots")]
+        [JsonProperty("slots")]
         public Slots Slots { get; set; }
 
-        [JsonPropertyName("next")]
+        [JsonProperty("next")]
         public Next Next { get; set; }
     }
 
     public class Session
     {
-        [JsonPropertyName("id")]
+        [JsonProperty("id")]
         public string Id { get; set; }
 
-        [JsonPropertyName("params")]
+        [JsonProperty("params")]
         public Params Params { get; set; }
 
-        [JsonPropertyName("typeOverrides")]
+        [JsonProperty("typeOverrides")]
         public List<object> TypeOverrides { get; set; }
 
-        [JsonPropertyName("languageCode")]
+        [JsonProperty("languageCode")]
         public string LanguageCode { get; set; }
     }
 
     public class User
     {
-        [JsonPropertyName("locale")]
+        [JsonProperty("locale")]
         public string Locale { get; set; }
 
-        [JsonPropertyName("params")]
+        [JsonProperty("params")]
         public Params Params { get; set; }
 
-        [JsonPropertyName("accountLinkingStatus")]
+        [JsonProperty("accountLinkingStatus")]
         public string AccountLinkingStatus { get; set; }
 
-        [JsonPropertyName("verificationStatus")]
+        [JsonProperty("verificationStatus")]
         public string VerificationStatus { get; set; }
 
-        [JsonPropertyName("packageEntitlements")]
+        [JsonProperty("packageEntitlements")]
         public List<object> PackageEntitlements { get; set; }
 
-        [JsonPropertyName("gaiamint")]
+        [JsonProperty("gaiamint")]
         public string Gaiamint { get; set; }
 
-        [JsonPropertyName("permissions")]
+        [JsonProperty("permissions")]
         public List<object> Permissions { get; set; }
 
-        [JsonPropertyName("lastSeenTime")]
+        [JsonProperty("lastSeenTime")]
         public DateTime LastSeenTime { get; set; }
     }
 
     public class Home
     {
-        [JsonPropertyName("params")]
+        [JsonProperty("params")]
         public Params Params { get; set; }
     }
 
     public class Device2
     {
-        [JsonPropertyName("capabilities")]
+        [JsonProperty("capabilities")]
         public List<string> Capabilities { get; set; }
     }
 
     public class RequestJson
     {
-        [JsonPropertyName("handler")]
+        [JsonProperty("handler")]
         public Handler Handler { get; set; }
 
-        [JsonPropertyName("intent")]
+        [JsonProperty("intent")]
         public Intent Intent { get; set; }
 
-        [JsonPropertyName("scene")]
+        [JsonProperty("scene")]
         public Scene Scene { get; set; }
 
-        [JsonPropertyName("session")]
+        [JsonProperty("session")]
         public Session Session { get; set; }
 
-        [JsonPropertyName("user")]
+        [JsonProperty("user")]
         public User User { get; set; }
 
-        [JsonPropertyName("home")]
+        [JsonProperty("home")]
         public Home Home { get; set; }
 
-        [JsonPropertyName("device")]
+        [JsonProperty("device")]
         public Device Device { get; set; }
     }
 }

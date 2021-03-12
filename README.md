@@ -132,7 +132,7 @@ Services:HomeAssistant:Token | | Authentication token used to post to Homehook.
 Services:HomeAssistant:JelllyDevices | | The list of media player devices available. Used during phrase parsing.
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
-Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff | Jeff,Geoffry,Jeffry).
+Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
 
 # Credits
 

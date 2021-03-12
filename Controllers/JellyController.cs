@@ -19,13 +19,15 @@ namespace Homehook.Controllers
         private readonly LanguageService _languageService;
         private readonly HomeAssistantService _homeAssistantService;
         private readonly LoggingService<JellyController> _loggingService;
+        private readonly IConfiguration _configuration;
 
-        public JellyController(JellyfinService jellyfinService, LanguageService languageService, HomeAssistantService homeAssistantService, LoggingService<JellyController> loggingService)
+        public JellyController(JellyfinService jellyfinService, LanguageService languageService, HomeAssistantService homeAssistantService, LoggingService<JellyController> loggingService, IConfiguration configuration)
         {
             _jellyfinService = jellyfinService;
             _languageService = languageService;
             _homeAssistantService = homeAssistantService;
             _loggingService = loggingService;
+            _configuration = configuration;
         }
 
         [HttpPost("simple")]
@@ -36,15 +38,15 @@ namespace Homehook.Controllers
             await _loggingService.LogDebug("PostJellySimpleHook parsed phrase.", $"Succesfully parsed the following phrase from the search term: {jellySimplePhrase.Content}" , jellyPhrase);
 
             HomeAssistantMedia homeAssistantMedia = await _jellyfinService.GetItems(jellyPhrase);
-            await _loggingService.LogDebug("PostJellySimpleHook items found.", $"Found {homeAssistantMedia.items.Count()} item(s) with the search term {jellyPhrase.SearchTerm}.");
+            await _loggingService.LogDebug("PostJellySimpleHook items found.", $"Found {homeAssistantMedia.Items.Count()} item(s) with the search term {jellyPhrase.SearchTerm}.");
             await _loggingService.LogInformation("PostJellySimpleHook items found.", "Found the following items:", homeAssistantMedia);
 
-            if (!homeAssistantMedia.items.Any())
+            if (!homeAssistantMedia.Items.Any())
                 throw new NotFoundException($"{jellyPhrase.SearchTerm} returned no search results.");
 
-            foreach (HomeAssistantMediaItem item in homeAssistantMedia.items)
+            foreach (HomeAssistantMediaItem item in homeAssistantMedia.Items)
             {
-                if (item.extra.enqueue == null)
+                if (item.Extra.Enqueue == null)
                 {
                     await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
                     await Task.Delay(1000);
@@ -59,21 +61,39 @@ namespace Homehook.Controllers
         [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:Google:Token" })]
         public async Task PostJellyConversationHook([FromBody] JellyConversation jellyConversation)
         {
-            throw new NotImplementedException();
+            await _loggingService.LogDebug("PostJellyConversationHook received conversation.", $"Received the following JellyConversation:", jellyConversation);
 
-            await _loggingService.LogDebug("PostJellyConversationHook received conversation.", $"Received the foolowing JellyConversation:", jellyConversation);
-
-            JellyPhrase jellyPhrase = new JellyPhrase
+            JellyPhrase jellyPhrase = new()
             {
-                
+                SearchTerm = jellyConversation.RequestJson?.Intent?.Params?.Content?.Resolved ?? string.Empty,
+                JellyUser = jellyConversation.RequestJson?.Intent?.Params?.UserName?.Resolved ?? _configuration["Services:Jellyfin:DefaultUser"],
+                JellyDevice = jellyConversation.RequestJson?.Intent?.Params?.Device?.Resolved ?? _configuration["Services:Jellyfin:DefaultDevice"],
+                JellyOrderType = jellyConversation.RequestJson?.Intent?.Params?.Order?.Resolved != null ?
+                    (JellyOrderType)Enum.Parse(typeof(JellyOrderType), jellyConversation.RequestJson?.Intent?.Params?.Order?.Resolved) :
+                    (JellyOrderType)Enum.Parse(typeof(JellyOrderType), _configuration["Services:Jellyfin:DefaultOrder"]),
+                JellyMediaType = jellyConversation.RequestJson?.Intent?.Params?.MediaType?.Resolved != null ?
+                    (JellyMediaType)Enum.Parse(typeof(JellyMediaType), jellyConversation.RequestJson?.Intent?.Params?.MediaType?.Resolved) :
+                    (JellyMediaType)Enum.Parse(typeof(JellyMediaType), _configuration["Services:Jellyfin:DefaultOrder"]),
             };
 
             HomeAssistantMedia homeAssistantMedia = await _jellyfinService.GetItems(jellyPhrase);
-            await _loggingService.LogDebug("PostJellySimpleHook items found.", $"Found {homeAssistantMedia.items.Count()} item(s) with the search term {jellyPhrase.SearchTerm}.");
+            await _loggingService.LogDebug("PostJellySimpleHook items found.", $"Found {homeAssistantMedia.Items.Count()} item(s) with the search term {jellyPhrase.SearchTerm}.");
             await _loggingService.LogInformation("PostJellySimpleHook items found.", "Found the following items:", homeAssistantMedia);
 
-            foreach (HomeAssistantMediaItem item in homeAssistantMedia.items)
+            if (!homeAssistantMedia.Items.Any())
+                throw new NotFoundException($"{jellyPhrase.SearchTerm} returned no search results.");
+
+            foreach (HomeAssistantMediaItem item in homeAssistantMedia.Items)
+            {
+                if (item.Extra.Enqueue == null)
+                {
+                    await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+                    await Task.Delay(1000);
+                }
+
                 await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+                await Task.Delay(1000);
+            }
         }
     }
 }

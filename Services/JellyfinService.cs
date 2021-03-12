@@ -92,36 +92,36 @@ namespace Homehook.Services
 
             return new HomeAssistantMedia
             {
-                items = items.Take(_configuration.GetValue<int>("Services:Jellyfin:MaximumQueueSize")).Select((item, index) => new HomeAssistantMediaItem
+                Items = items.Take(_configuration.GetValue<int>("Services:Jellyfin:MaximumQueueSize")).Select((item, index) => new HomeAssistantMediaItem
                 {
-                    entity_id = $"media_player.{jellyPhrase.JellyDevice}",
-                    media_content_type = item.MediaType,
-                    media_content_id = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?Static=true&api_key={userId}",
-                    extra = new HomeAssistantExtra
+                    EntityId = $"media_player.{jellyPhrase.JellyDevice}",
+                    MediaContentType = item.MediaType,
+                    MediaContentId = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?Static=true&api_key={userId}",
+                    Extra = new HomeAssistantExtra
                     {
-                        enqueue = index != 0 ? true : null,
-                        metadata = new HomeAssistantMedadata
+                        Enqueue = index != 0 ? true : null,
+                        Metadata = new HomeAssistantMedadata
                         {
-                            title = item.Name,
-                            images = new HomeAssistantImages[]
+                            Title = item.Name,
+                            Images = new HomeAssistantImages[]
                             {
                                 new HomeAssistantImages
                                 {
-                                    url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
+                                    Url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
                                 }
                             },
-                            metadataType = GetMetadataTypeId(item.MediaType),
-                            subtitle = item.Overview,
-                            seriesTitle = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.SeriesName : null,
-                            season = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
-                            episode = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
-                            originalAirDate = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.PremiereDate : null,
-                            albumName = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.Album : null,
-                            albumArtist = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.AlbumArtist : null,
-                            trackNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
-                            discNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
-                            releaseDate = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? (item.ProductionYear != null ? (DateTime?)new DateTime((int)item.ProductionYear, 12, 31) : null) : null,
-                            creationDateTime = item.MediaType.Equals("Photo", StringComparison.InvariantCultureIgnoreCase) ? item.DateCreated : null
+                            MetadataType = GetMetadataTypeId(item.MediaType),
+                            Subtitle = item.Overview,
+                            SeriesTitle = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.SeriesName : null,
+                            Season = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
+                            Episode = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
+                            OriginalAirDate = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.PremiereDate : null,
+                            AlbumName = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.Album : null,
+                            AlbumArtist = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.AlbumArtist : null,
+                            TrackNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
+                            DiscNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
+                            ReleaseDate = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? (item.ProductionYear != null ? (DateTime?)new DateTime((int)item.ProductionYear, 12, 31) : null) : null,
+                            CreationDateTime = item.MediaType.Equals("Photo", StringComparison.InvariantCultureIgnoreCase) ? item.DateCreated : null
                         }
                     }
                 })
@@ -130,13 +130,13 @@ namespace Homehook.Services
 
         private static int GetMetadataTypeId(string mediaType)
         {
-            switch (mediaType)
+            return mediaType switch
             {
-                case "Video": return 2;
-                case "Audio": return 3;
-                case "Photo": return 4;
-                default: return 0;
-            }
+                "Video" => 2,
+                "Audio" => 3,
+                "Photo" => 4,
+                _ => 0,
+            };
         }
 
         private async Task<IEnumerable<BaseItemDto>> GetItems(string searchTerm, string parentId, string userId, bool isContinueOrder, JellyMediaType jellyMediaType)

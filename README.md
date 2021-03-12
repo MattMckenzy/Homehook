@@ -10,6 +10,7 @@ Please see swagger at homehook/swagger page on deployed API to see available hoo
 
 Currently available hooks:
 * [Jellyfin Simple Phrase](#-jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, and post them to a Home Assistant server for media_player playback.
+* [Jellyfin Conversation Phrase](#-jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, and post them to a Home Assistant server for media_player playback.
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#-configuration)
 
@@ -33,6 +34,16 @@ The incoming webhook can come from any source, such as IFTTT's simple phrase wit
 ```bash
 curl -X POST "http://homehook/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
 ```
+
+## Jellyfin Conversation Phrase
+This endpoint accepts a Google Conversation Action webhook post too homehook/jelly/conversation, along with apiKey query parameter, with Action parameter names matching the necessary phrase terms:
+1. Order
+2. Content - i.e. the search term.
+3. MediaType
+4. Device
+5. UserName 
+
+Please read the Google Actions documentation for information on configuring phrase parsing.
 
 ## Home Assistant
 
@@ -102,6 +113,7 @@ Services:Jellyfin:DefaultOrder | Newest | The default media item order to use if
 Services:Jellyfin:DefaultMediaType | All | The default media item type to use if the search term doesn't specify one (All, Audio, Video or Photo).
 Services:Jellyfin:OrderTerms:Continue | Continue,Resume | Alternative terms that can be used to order for resumable media items.
 Services:Jellyfin:OrderTerms:Shuffle | Shuffle,Random,Any | Alternative terms that can be used to shuffle media items.
+Services:Jellyfin:OrderTerms:Ordered | Ordered,Order,Sequential | Alternative terms that can be used to order media items by episode or track number.
 Services:Jellyfin:OrderTerms:Oldest | Oldest,First | Alternative terms that can be used to order media items by oldest created date.
 Services:Jellyfin:OrderTerms:Newest | Last,Latest,Newest,Recent | Alternative terms that can be used to order media items by newest created date.
 Services:Jellyfin:OrderTerms:Shortest | Shortest,Quickest,Fastest | Alternative terms that can be used to order media items by lowest runtime.
@@ -118,6 +130,7 @@ Services:HomeAssistant:Token | | Authentication token used to post to Homehook.
 Services:HomeAssistant:JelllyDevices | | The list of media player devices available. Used during phrase parsing.
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
+Services:Language:WordMappings | | A dynamic list of key words with comma delimited words values used to map commonly misheard spoken words (i.e. "Geoff":"Jeff,Geoffry,Jeffry").
 
 # Credits
 

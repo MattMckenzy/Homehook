@@ -28,12 +28,13 @@ namespace Homehook.Services
                 JellyMediaType = (JellyMediaType)Enum.Parse(typeof(JellyMediaType), _configuration["Services:Jellyfin:DefaultMediaType"]),
             };
 
-            IEnumerable<string> phraseTokens = simplePhrase.Split(' ');
+            IEnumerable<string> phraseTokens = ProcessWordMappings(simplePhrase.Split(' '));
 
             Dictionary<string, IEnumerable<string>> orderTokens = new()
             { 
                 { "Continue", _configuration["Services:Jellyfin:OrderTerms:Continue"].Split(",") },
                 { "Shuffle", _configuration["Services:Jellyfin:OrderTerms:Shuffle"].Split(",") },
+                { "Ordered", _configuration["Services:Jellyfin:OrderTerms:Ordered"].Split(",") },
                 { "Oldest", _configuration["Services:Jellyfin:OrderTerms:Oldest"].Split(",") },
                 { "Newest", _configuration["Services:Jellyfin:OrderTerms:Newest"].Split(",") },
                 { "Shortest", _configuration["Services:Jellyfin:OrderTerms:Shortest"].Split(",") },
@@ -99,6 +100,22 @@ namespace Homehook.Services
             jellyPhrase.SearchTerm = string.Join(' ', phraseTokens);
 
             return jellyPhrase;
+        }
+
+        private IEnumerable<string> ProcessWordMappings(string[] phraseTokens)
+        {
+            Dictionary<string, IEnumerable<string>> wordMappings =
+                _configuration.GetSection("Services:Language:WordMappings")
+                    .GetChildren()
+                    .Where(section => !string.IsNullOrWhiteSpace(section.Key))
+                    .ToDictionary(section => section.Key, section => section.Value.Split(",").AsEnumerable());
+
+            for (int index = 0; index < phraseTokens.Length; index++)            
+                foreach (string wordMapping in wordMappings.Keys.Reverse())                
+                    if (wordMappings[wordMapping].Any(mappedWord => mappedWord.Equals(phraseTokens[index], StringComparison.InvariantCultureIgnoreCase)))
+                        phraseTokens[index] = wordMapping;
+
+            return phraseTokens;
         }
     }
 }

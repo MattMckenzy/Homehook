@@ -4,6 +4,7 @@
     {
         Continue,
         Shuffle,
+        Ordered,
         Newest,
         Oldest,
         Shortest,

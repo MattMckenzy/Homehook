@@ -1,11 +1,11 @@
 ﻿using Homehook.Attributes;
+using Homehook.Exceptions;
 using Homehook.Models;
 using Homehook.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -19,15 +19,13 @@ namespace Homehook.Controllers
         private readonly LanguageService _languageService;
         private readonly HomeAssistantService _homeAssistantService;
         private readonly LoggingService<JellyController> _loggingService;
-        private readonly IConfiguration _configuration;
 
-        public JellyController(JellyfinService jellyfinService, LanguageService languageService, HomeAssistantService homeAssistantService, LoggingService<JellyController> loggingService, IConfiguration configuration)
+        public JellyController(JellyfinService jellyfinService, LanguageService languageService, HomeAssistantService homeAssistantService, LoggingService<JellyController> loggingService)
         {
             _jellyfinService = jellyfinService;
             _languageService = languageService;
             _homeAssistantService = homeAssistantService;
             _loggingService = loggingService;
-            _configuration = configuration;
         }
 
         [HttpPost("simple")]
@@ -41,8 +39,20 @@ namespace Homehook.Controllers
             await _loggingService.LogDebug("PostJellySimpleHook items found.", $"Found {homeAssistantMedia.items.Count()} item(s) with the search term {jellyPhrase.SearchTerm}.");
             await _loggingService.LogInformation("PostJellySimpleHook items found.", "Found the following items:", homeAssistantMedia);
 
-            foreach(HomeAssistantMediaItem item in homeAssistantMedia.items)
+            if (!homeAssistantMedia.items.Any())
+                throw new NotFoundException($"{jellyPhrase.SearchTerm} returned no search results.");
+
+            foreach (HomeAssistantMediaItem item in homeAssistantMedia.items)
+            {
+                if (item.extra.enqueue == null)
+                {
+                    await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+                    await Task.Delay(1000);
+                }
+
                 await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+                await Task.Delay(1000);
+            }
         }
 
         [HttpPost("conversation")]

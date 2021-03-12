@@ -83,6 +83,7 @@ namespace Homehook.Services
             {
                 JellyOrderType.Continue => items.OrderByDescending(item => item.UserData.LastPlayedDate),
                 JellyOrderType.Shuffle => items.Shuffle(),
+                JellyOrderType.Ordered => items.OrderBy(item => item.AlbumArtist).ThenBy(item => item.Album).ThenBy(item => item.SeriesName).ThenBy(item => item.ParentIndexNumber).ThenBy(item => item.IndexNumber),
                 JellyOrderType.Shortest => items.OrderBy(item => item.RunTimeTicks),
                 JellyOrderType.Longest => items.OrderByDescending(item => item.RunTimeTicks),
                 JellyOrderType.Oldest => items.OrderBy(item => item.DateCreated),

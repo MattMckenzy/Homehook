@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
-using System.Collections.Generic;
 
 namespace Homehook.Services
 {
@@ -27,10 +26,5 @@ namespace Homehook.Services
 
         public string GetToken() =>
              _configuration["Services:Gotify:AccessToken"];
-
-        public Dictionary<string, string> GetCredentials()
-        {
-            throw new NotImplementedException();
-        }
     }
 }

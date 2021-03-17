@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Homehook.Services
 {
@@ -18,16 +16,15 @@ namespace Homehook.Services
             _configuration["Services:Jellyfin:Header"];
         
 
-        public string GetScope() =>
-            _configuration["Services:Jellyfin:HeaderValue"];
+        public string GetScope()
+        {
+            throw new NotImplementedException();
+        }
 
         public Uri GetServiceUri() =>
-            new(_configuration?["Services:Jellyfin:ServiceUri"]);
+            new(_configuration["Services:Jellyfin:ServiceUri"]);
 
         public string GetToken() =>
-            _configuration["Services:Jellyfin:AccessToken"];
-
-        public Dictionary<string, string> GetCredentials() =>
-             _configuration.GetSection("Services:Jellyfin:Credentials").GetChildren().ToDictionary(configurationSection => configurationSection.Key, configurationSection => configurationSection.Value);
+             _configuration["Services:Jellyfin:AccessToken"];
     }
 }

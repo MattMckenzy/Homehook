@@ -3,7 +3,6 @@ using Homehook.Models;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -17,24 +16,16 @@ namespace Homehook.Services
         private readonly IRestServiceCaller _jellyfinCaller;
         private readonly IConfiguration _configuration;
 
-        private readonly Func<string, string, Task<string>> _accessTokenDelegate;
-
-
-        public JellyfinService(AccessTokenCaller<JellyfinServiceAppProvider> jellyfinCaller, StaticTokenCaller<JellyfinAuthenticationServiceAppProvider> jellyfinAuthCaller, IConfiguration configuration)
+        public JellyfinService(StaticTokenCaller<JellyfinServiceAppProvider> jellyfinCaller, IConfiguration configuration)
         {
             _jellyfinCaller = jellyfinCaller;
             _configuration = configuration;
-            _accessTokenDelegate = async (string credential, string code) =>
-            {
-                CallResult<string> callResult = await _jellyfinCaller.PostRequestAsync<string>("Users/AuthenticateByName", content: $"{{ \"Username\": \"{credential}\", \"pw\": \" {code}\" }}");
-                return new JObject(callResult.Content).Value<string>("AccessToken");
-            };
         }
 
         public async Task<HomeAssistantMedia> GetItems(JellyPhrase jellyPhrase)    
         {           
             // Get UserId from username
-            CallResult<string> usernameCallResult = await _jellyfinCaller.GetRequestAsync<string>("users", accessTokenDelegate: _accessTokenDelegate);
+            CallResult<string> usernameCallResult = await _jellyfinCaller.GetRequestAsync<string>("users");
             IEnumerable<UserDto> users = JsonConvert.DeserializeObject<IEnumerable<UserDto>>(usernameCallResult.Content);
             string userId = users.FirstOrDefault(user => user.Name.Equals(jellyPhrase.JellyUser, StringComparison.InvariantCultureIgnoreCase)).Id;
 
@@ -54,7 +45,7 @@ namespace Homehook.Services
 
             // Search for and retrieve media from folders matching search terms.
             Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "searchTerm", jellyPhrase.SearchTerm } };
-            CallResult<string> foldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+            CallResult<string> foldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters);
 
             foreach (BaseItemDto folder in JsonConvert.DeserializeObject<JellyItemDtos>(foldersCallResult.Content).Items)
             {
@@ -69,7 +60,7 @@ namespace Homehook.Services
                 recursiveTasks.Add(Task.Run(async () =>
                 {
                     Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "parentId", folder.Id } };
-                    CallResult<string> childFoldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+                    CallResult<string> childFoldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters);
 
                     foreach (BaseItemDto childFolder in JsonConvert.DeserializeObject<JellyItemDtos>(childFoldersCallResult.Content).Items)
                     {
@@ -158,7 +149,7 @@ namespace Homehook.Services
             if (!string.IsNullOrWhiteSpace(parentId))
                 queryParameters.Add("parentId", parentId);
 
-            CallResult<string> callResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+            CallResult<string> callResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters);
 
             List<Task> recursiveTasks = new();
             foreach (BaseItemDto item in JsonConvert.DeserializeObject<JellyItemDtos>(callResult.Content).Items)

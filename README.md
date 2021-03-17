@@ -101,20 +101,17 @@ UserMappings | | Array of users to define mappings between supported services.
 UserMappings:0:Jellyfin | | A user's Jellyfin username.
 UserMappings:0:HomeAssistant | | A user's HomeAssistant username.
 UserMappings:0:Google | | A user's Google username (i.e. e-mail address).
-UserMappings:0:Spoken | | Any spoken names or nicknames to represent the user (comma delimited supported).
+UserMappings:0:Spoken |  | Any spoken names or nicknames to represent the user (comma delimited supported).
 Services:Gotify:ServiceUri | | Gotify's service uri.
 Services:Gotify:Header | X-Gotify-Key | Gotify's authentication header to use (the default is typically correct).
 Services:Gotify:AccessToken | | Gotify's authentication token.
 Services:Gotify:Priority | 4 | The minimum level of log to post to Gotify (1: Debug; 2: Information; 3: Warning; 4: Error; 5: Off;).
 Services:Jellyfin:ServiceUri | | Jellyfin's service uri.
-Services:Jellyfin:Header | X-Emby-Authorization | Jellyfin's authentication header name to use (the default is typically correct).
-Services:Jellyfin:HeaderValue |  | Jellyfin's header value to use (the default is typically correct).
-Services:Jellyfin:HeaderAuthValue |  | Jellyfin's authentication header value to use (the default is typically correct).
-Services:Jellyfin:Credentials |  | A dynamic list of Jellyfin credentials used to authenticate users and provide session progress. (i.e. "Geoff":"1234", "George":"4567").
-Services:Jellyfin:AccessToken | | Jellyfin's authentication token, if using static or API token.
+Services:Jellyfin:Header | X-Emby-Token | Jellyfin's authentication header to use (the default is typically correct).
+Services:Jellyfin:AccessToken | | Jellyfin's authentication token.
 Services:Jellyfin:DefaultUser | | The default user to use if the search term doesn't specify one.
 Services:Jellyfin:DefaultDevice | | The default device to use if the search term doesn't specify one.
-Services:Jellyfin:DefaultOrder | Ordered | The default media item order to use if the search term doesn't specify one (Continue, Shuffle, Oldest, Newest, Shortest or Longest).
+Services:Jellyfin:DefaultOrder | Newest | The default media item order to use if the search term doesn't specify one (Continue, Shuffle, Oldest, Newest, Shortest or Longest).
 Services:Jellyfin:DefaultMediaType | All | The default media item type to use if the search term doesn't specify one (All, Audio, Video or Photo).
 Services:Jellyfin:OrderTerms:Continue | Continue,Resume | Alternative terms that can be used to order for resumable media items.
 Services:Jellyfin:OrderTerms:Shuffle | Shuffle,Random,Any | Alternative terms that can be used to shuffle media items.

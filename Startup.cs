@@ -47,12 +47,15 @@ namespace Homehook
             services.AddSingleton<GotifyService>();
             services.AddHttpClient<StaticTokenCaller<JellyfinServiceAppProvider>>();
             services.AddSingleton<JellyfinServiceAppProvider>();
+            services.AddHttpClient<AccessTokenCaller<JellyfinAuthenticationServiceAppProvider>>();
+            services.AddSingleton<JellyfinAuthenticationServiceAppProvider>();
             services.AddSingleton<JellyfinService>();
             services.AddHttpClient<StaticTokenCaller<HomeassistantServiceAppProvider>>();
             services.AddSingleton<HomeassistantServiceAppProvider>();
             services.AddSingleton<HomeAssistantService>();
             services.AddSingleton<LanguageService>();
             services.AddSingleton(typeof(LoggingService<>));
+            services.AddSingleton<CastService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

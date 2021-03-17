@@ -17,15 +17,15 @@ namespace Homehook.Controllers
     {
         private readonly JellyfinService _jellyfinService;
         private readonly LanguageService _languageService;
-        private readonly HomeAssistantService _homeAssistantService;
+        private readonly CastService _castService;
         private readonly LoggingService<JellyController> _loggingService;
         private readonly IConfiguration _configuration;
 
-        public JellyController(JellyfinService jellyfinService, LanguageService languageService, HomeAssistantService homeAssistantService, LoggingService<JellyController> loggingService, IConfiguration configuration)
+        public JellyController(JellyfinService jellyfinService, LanguageService languageService, CastService castService, LoggingService<JellyController> loggingService, IConfiguration configuration)
         {
             _jellyfinService = jellyfinService;
             _languageService = languageService;
-            _homeAssistantService = homeAssistantService;
+            _castService = castService;
             _loggingService = loggingService;
             _configuration = configuration;
         }
@@ -46,14 +46,7 @@ namespace Homehook.Controllers
 
             foreach (HomeAssistantMediaItem item in homeAssistantMedia.Items)
             {
-                if (item.Extra.Enqueue == null)
-                {
-                    await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-                    await Task.Delay(1000);
-                }
-
-                await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-                await Task.Delay(1000);
+                ReceiverService receiverService = _castService.ReceiverServices.FirstOrDefault(receiverService => receiverService.Receiver.FriendlyName.Equals(jellyPhrase.JellyDevice, StringComparison.InvariantCultureIgnoreCase));
             }
         }
 
@@ -82,17 +75,13 @@ namespace Homehook.Controllers
 
             if (!homeAssistantMedia.Items.Any())
                 throw new NotFoundException($"{jellyPhrase.SearchTerm} returned no search results.");
-
+                        
             foreach (HomeAssistantMediaItem item in homeAssistantMedia.Items)
             {
                 if (item.Extra.Enqueue == null)
                 {
-                    await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-                    await Task.Delay(1000);
+                    ReceiverService receiverService = _castService.ReceiverServices.FirstOrDefault(receiverService => receiverService.Receiver.FriendlyName.Equals(jellyPhrase.JellyDevice, StringComparison.InvariantCultureIgnoreCase));
                 }
-
-                await _homeAssistantService.PlayMedia(JsonConvert.SerializeObject(item, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-                await Task.Delay(1000);
             }
         }
     }

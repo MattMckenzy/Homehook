@@ -1,32 +1,33 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Homehook.Services
 {
-    public class HomeassistantServiceAppProvider : IRestServiceProvider
+    public class JellyfinAuthenticationServiceAppProvider : IRestServiceProvider
     {
         private readonly IConfiguration _configuration;
         
-        public HomeassistantServiceAppProvider(IConfiguration configuration)
+        public JellyfinAuthenticationServiceAppProvider(IConfiguration configuration)
         {
             _configuration = configuration;
         }
 
         public string GetHeader() =>
-            _configuration["Services:Homeassistant:Header"];
+            _configuration["Services:Jellyfin:Header"];
+        
 
+        public string GetScope() =>
+            _configuration["Services:Jellyfin:AuthHeaderValue"];
 
-        public string GetScope()
+        public Uri GetServiceUri() =>
+            new(_configuration?["Services:Jellyfin:ServiceUri"]);
+
+        public string GetToken()
         {
             throw new NotImplementedException();
         }
-
-        public Uri GetServiceUri() =>
-            new(_configuration["Services:Homeassistant:ServiceUri"]);
-
-        public string GetToken() =>
-            _configuration["Services:Homeassistant:AccessToken"];
 
         public Dictionary<string, string> GetCredentials()
         {

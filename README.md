@@ -36,14 +36,16 @@ curl -X POST "http://homehook/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74ae
 ```
 
 ## Jellyfin Conversation Phrase
-This endpoint accepts a Google Conversation Action webhook post too homehook/jelly/conversation, along with apiKey query parameter, with Action parameter names matching the necessary phrase terms:
+Google Conversation Actions can help build some very powerful phrase parsing intents that can be used to pre-parse search terms before sending them to Homehook.
+
+This endpoint expects to receive a Google Conversation Action webhook POST to homehook/jelly/conversation (including apiKey query parameter). The following Action parameter names match the phrase terms defined in Homehook:
 1. Order
 2. Content - i.e. the search term.
 3. MediaType
 4. Device
 5. UserName 
 
-Please read the Google Actions documentation for information on configuring phrase parsing.
+[Please read the Google Actions documentation for information on configuring its advanced phrase parsing features.](https://console.actions.google.com/)
 
 ## Home Assistant
 
@@ -133,7 +135,7 @@ Services:HomeAssistant:Token | | Authentication token used to post to Homehook.
 Services:HomeAssistant:JelllyDevices | | The list of media player devices available. Used during phrase parsing.
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
-Services:Language:WordMappings | | A dynamic list of key words with comma delimited words values used to map commonly misheard spoken words (i.e. "Geoff":"Jeff,Geoffry,Jeffry").
+Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
 
 # Credits
 

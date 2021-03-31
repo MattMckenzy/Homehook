@@ -1,6 +1,6 @@
 ﻿namespace Homehook.Models
 {
-    public enum JellyMediaType
+    public enum MediaType
     {
         All,
         Video,

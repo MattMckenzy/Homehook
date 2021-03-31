@@ -4,13 +4,13 @@ Simple API meant to handle Google Assistant webhooks and reroute them to Home As
 
 # Description
 
-This application will help configure and serve incoming and outgoing webhooks to help you route Google Assistant spoken or text commands to Home Assistant.
+This application will help configure and serve incoming and outgoing webhooks to help you route Google Assistant spoken or text commands to your Google Cast devices.
 
 Please see swagger at homehook/swagger page on deployed API to see available hooks, how to call them and try them out.
 
 Currently available hooks:
-* [Jellyfin Simple Phrase](#-jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, and post them to a Home Assistant server for media_player playback.
-* [Jellyfin Conversation Phrase](#-jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, and post them to a Home Assistant server for media_player playback.
+* [Jellyfin Simple Phrase](#-jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
+* [Jellyfin Conversation Phrase](#-jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#-configuration)
 
@@ -49,14 +49,9 @@ This endpoint expects to receive a Google Conversation Action webhook POST to ho
 
 ## Home Assistant
 
-Home assistant will receive the media items via direct REST API call. The only thing necessary to permit this is to add the following line to your configuration.yaml file:
+I like to use Home Assistant to interact with Homehook through automations by using the RESTful Command integration.
 
-### configuration.yaml
-```yaml
-api:
-```
-
-You can also set up a REST service call, using the RESTful Command integration, that you can then use to statically play media:
+Here's an example of the REST command and an automation configuration:
 
 ### Service - REST command
 ```yaml
@@ -108,8 +103,8 @@ Services:Gotify:AccessToken | | Gotify's authentication token.
 Services:Gotify:Priority | 4 | The minimum level of log to post to Gotify (1: Debug; 2: Information; 3: Warning; 4: Error; 5: Off;).
 Services:Jellyfin:ServiceUri | | Jellyfin's service uri.
 Services:Jellyfin:Header | X-Emby-Authorization | Jellyfin's authentication header name to use (the default is typically correct).
-Services:Jellyfin:HeaderValue |  | Jellyfin's header value to use (the default is typically correct).
-Services:Jellyfin:HeaderAuthValue |  | Jellyfin's authentication header value to use (the default is typically correct).
+Services:Jellyfin:HeaderValue | MediaBrowser Client=\"Homehook\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\", Token=\"{0}\" | Jellyfin's header value to use (the default is typically correct).
+Services:Jellyfin:HeaderAuthValue | MediaBrowser Client=\"Homehook\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\"" | Jellyfin's authentication header value to use (the default is typically correct).
 Services:Jellyfin:Credentials |  | A dynamic list of Jellyfin credentials used to authenticate users and provide session progress. (i.e. "Geoff":"1234", "George":"4567").
 Services:Jellyfin:AccessToken | | Jellyfin's authentication token, if using static or API token.
 Services:Jellyfin:DefaultUser | | The default user to use if the search term doesn't specify one.
@@ -128,11 +123,8 @@ Services:Jellyfin:MediaTypeTerms:Video | Video,Videos,Movies,Movie,<br />Show,Sh
 Services:Jellyfin:MediaTypeTerms:Photo | Photo,Photos,Pictures,Picture | Alternative terms that can be used to specify photo media items.
 Services:Jellyfin:MaximumQueueSize | 100 | Maximum media item queue size to post to Home Assistant.
 Services:IFTTT:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
-Services:HomeAssistant:ServiceUri | | Home Assistant's service uri, can be anything you generate and use on both sides.
-Services:HomeAssistant:Header | Authorization | Jellyfin's authentication header to use (the default is typically correct).
-Services:HomeAssistant:AccessToken | | Home Assistant's authentication token. Make sure to add "Bearer " before the token generated in your user profile.
-Services:HomeAssistant:Token | | Authentication token used to post to Homehook.
-Services:HomeAssistant:JelllyDevices | | The list of media player devices available. Used during phrase parsing.
+Services:Google:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
+Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use. Replace this if you wish to use your own styled application instead of Homehook's.
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).

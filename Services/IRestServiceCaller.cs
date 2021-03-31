@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics.Contracts;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -39,9 +40,9 @@ namespace Homehook.Services
         /// <param name="route">The route string.</param>
         /// <param name="queryParameters">The route's query parameters.</param>
         /// <returns>The GET request call result.</returns>
-        public async Task<CallResult<T>> GetRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string credential = null, Func<string, string, Task<string>> accessTokenDelegate = null)
+        public async Task<CallResult<T>> GetRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string credential = null, Dictionary<string,string> headerReplacements = null, Func<string, string, Task<string>> accessTokenDelegate = null)
         {
-            return await SendAsync<T>(route, queryParameters, HttpMethod.Get, credential: credential, accessTokenDelegate: accessTokenDelegate).ConfigureAwait(false);
+            return await SendAsync<T>(route, queryParameters, HttpMethod.Get, credential: credential, headerReplacements: headerReplacements, accessTokenDelegate: accessTokenDelegate).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -53,9 +54,9 @@ namespace Homehook.Services
         /// <param name="content">The content to POST.</param>
         /// <param name="contentType">The type of content to POST.</param>
         /// <returns>The POST request call result.</returns>
-        public async Task<CallResult<T>> PostRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string content = null, string contentType = "application/json", string credential = null, Func<string, string, Task<string>> accessTokenDelegate = null)
+        public async Task<CallResult<T>> PostRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string content = null, string contentType = "application/json", string credential = null, Dictionary<string, string> headerReplacements = null, Func<string, string, Task<string>> accessTokenDelegate = null)
         {
-            return await SendAsync<T>(route, queryParameters, HttpMethod.Post, content, contentType, credential, accessTokenDelegate).ConfigureAwait(false);
+            return await SendAsync<T>(route, queryParameters, HttpMethod.Post, content, contentType, credential, headerReplacements, accessTokenDelegate).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -67,9 +68,9 @@ namespace Homehook.Services
         /// <param name="content">The content to PUT.</param>
         /// <param name="contentType">The type of content to PUT.</param>
         /// <returns>The PUT request call result.</returns>
-        public async Task<CallResult<T>> PutRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string content = null, string contentType = "application/json", string credential = null, Func<string, string, Task<string>> accessTokenDelegate = null)
+        public async Task<CallResult<T>> PutRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string content = null, string contentType = "application/json", string credential = null, Dictionary<string, string> headerReplacements = null, Func<string, string, Task<string>> accessTokenDelegate = null)
         {
-            return await SendAsync<T>(route, queryParameters, HttpMethod.Put, content, contentType, credential, accessTokenDelegate).ConfigureAwait(false);
+            return await SendAsync<T>(route, queryParameters, HttpMethod.Put, content, contentType, credential, headerReplacements, accessTokenDelegate).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -79,9 +80,9 @@ namespace Homehook.Services
         /// <param name="route">The route string.</param>
         /// <param name="queryParameters">The route's query parameters.</param>
         /// <returns>The DELETE request call result.</returns>
-        public async Task<CallResult<T>> DeleteRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string credential = null, Func<string, string, Task<string>> accessTokenDelegate = null)
+        public async Task<CallResult<T>> DeleteRequestAsync<T>(string route, Dictionary<string, string> queryParameters = null, string credential = null, Dictionary<string, string> headerReplacements = null, Func<string, string, Task<string>> accessTokenDelegate = null)
         {
-            return await SendAsync<T>(route, queryParameters, HttpMethod.Delete, credential: credential, accessTokenDelegate: accessTokenDelegate).ConfigureAwait(false);
+            return await SendAsync<T>(route, queryParameters, HttpMethod.Delete, credential: credential, headerReplacements: headerReplacements, accessTokenDelegate: accessTokenDelegate).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -132,7 +133,7 @@ namespace Homehook.Services
         /// <param name="postContent">The optional content to post.</param>
         /// <param name="contentType">The optional content type to use. The default is application/json.</param>
         /// <returns>The call result.</returns>
-        private async Task<CallResult<T>> SendAsync<T>(string route, Dictionary<string, string> queryParameters, HttpMethod httpMethod, string postContent = null, string contentType = "application/json", string credential = null, Func<string, string, Task<string>> accessTokenDelegate = null)
+        private async Task<CallResult<T>> SendAsync<T>(string route, Dictionary<string, string> queryParameters, HttpMethod httpMethod, string postContent = null, string contentType = "application/json", string credential = null, Dictionary<string, string> headerReplacements = null, Func<string, string, Task<string>> accessTokenDelegate = null)
         {
             CallResult<T> returningCallResult = null;
 
@@ -147,6 +148,19 @@ namespace Homehook.Services
             if(!string.IsNullOrWhiteSpace(postContent))
             {
                 httpRequestMessage.Content = new StringContent(postContent, Encoding.UTF8, contentType);
+            }
+
+            // Replace header values if necessary
+            if (headerReplacements != null)
+            {
+                foreach (KeyValuePair<string, IEnumerable<string>> httpRequestHeader in httpRequestMessage.Headers.ToArray())
+                {
+                    httpRequestMessage.Headers.Remove(httpRequestHeader.Key);
+                    httpRequestMessage.Headers.Add(
+                        httpRequestHeader.Key, 
+                        headerReplacements.Aggregate(string.Join(' ', httpRequestHeader.Value), (accumulate, headerReplacement) => accumulate.Replace(headerReplacement.Key, headerReplacement.Value), result => result));
+                }
+
             }
 
             HttpResponseMessage response = await SendRequest(httpRequestMessage).ConfigureAwait(false);

@@ -1,6 +1,6 @@
 ﻿using Homehook.Extensions;
 using Homehook.Models;
-using MediaBrowser.Model.Dto;
+using Homehook.Models.Jellyfin;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -20,48 +20,44 @@ namespace Homehook.Services
         private readonly Func<string, string, Task<string>> _accessTokenDelegate;
 
 
-        public JellyfinService(AccessTokenCaller<JellyfinServiceAppProvider> jellyfinCaller, StaticTokenCaller<JellyfinAuthenticationServiceAppProvider> jellyfinAuthCaller, IConfiguration configuration)
+        public JellyfinService(AccessTokenCaller<JellyfinServiceAppProvider> jellyfinCaller, AccessTokenCaller<JellyfinAuthenticationServiceAppProvider> jellyfinAuthCaller, IConfiguration configuration)
         {
             _jellyfinCaller = jellyfinCaller;
             _configuration = configuration;
             _accessTokenDelegate = async (string credential, string code) =>
             {
-                CallResult<string> callResult = await _jellyfinCaller.PostRequestAsync<string>("Users/AuthenticateByName", content: $"{{ \"Username\": \"{credential}\", \"pw\": \" {code}\" }}");
-                return new JObject(callResult.Content).Value<string>("AccessToken");
+                IRestServiceCaller restServiceCaller = jellyfinAuthCaller;
+                Dictionary<string, string> headerReplacements = new() { { "$Device", "Homehook" }, { "$DeviceId", "Homehook" } };
+                CallResult<string> callResult = await restServiceCaller.PostRequestAsync<string>("Users/AuthenticateByName", content: $"{{ \"Username\": \"{credential}\", \"pw\": \"{code}\" }}", headerReplacements: headerReplacements);
+                return JObject.Parse(callResult.Content).Value<string>("AccessToken");
             };
         }
 
-        public async Task<HomeAssistantMedia> GetItems(JellyPhrase jellyPhrase)    
-        {           
-            // Get UserId from username
-            CallResult<string> usernameCallResult = await _jellyfinCaller.GetRequestAsync<string>("users", accessTokenDelegate: _accessTokenDelegate);
-            IEnumerable<UserDto> users = JsonConvert.DeserializeObject<IEnumerable<UserDto>>(usernameCallResult.Content);
-            string userId = users.FirstOrDefault(user => user.Name.Equals(jellyPhrase.JellyUser, StringComparison.InvariantCultureIgnoreCase)).Id;
-
-            if (string.IsNullOrWhiteSpace(userId))
-                throw new KeyNotFoundException($"Jellyfin User \"{jellyPhrase.JellyUser}\" not Found"); 
-
-            ConcurrentBag<BaseItemDto> returningItems = new();
+        public async Task<IEnumerable<Item>> GetItems(Phrase phrase, string device = "Homehook", string deviceId = "Homehook")
+        {
+            ConcurrentBag<Item> returningItems = new();
             List<Task> recursiveTasks = new();
-            bool isContinueOrder = jellyPhrase.JellyOrderType == JellyOrderType.Continue;
+            bool isContinueOrder = phrase.OrderType == OrderType.Continue;
+            
+            Dictionary<string, string> headerReplacements = new() { { "$Device", device }, { "$DeviceId", deviceId } };
 
             // Search for media matching search terms and add them to returning list.
             recursiveTasks.Add(Task.Run(async () =>
             {
-                foreach (BaseItemDto item in await GetItems(jellyPhrase.SearchTerm, null, userId, isContinueOrder, jellyPhrase.JellyMediaType))
+                foreach (Item item in await GetItems(phrase, null, isContinueOrder, headerReplacements))
                     returningItems.Add(item);
             }));
 
             // Search for and retrieve media from folders matching search terms.
-            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "searchTerm", jellyPhrase.SearchTerm } };
-            CallResult<string> foldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "searchTerm", phrase.SearchTerm } };
+            CallResult<string> foldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{phrase.UserId}/Items", queryParameters, credential: phrase.User, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
 
-            foreach (BaseItemDto folder in JsonConvert.DeserializeObject<JellyItemDtos>(foldersCallResult.Content).Items)
+            foreach (Item folder in JsonConvert.DeserializeObject<JellyfinItems>(foldersCallResult.Content).Items)
             {
                 // Retrieve media for matching parent folder items.
                 recursiveTasks.Add(Task.Run(async () =>
                 {
-                    foreach (BaseItemDto childItem in await GetItems(null, folder.Id, userId, isContinueOrder, jellyPhrase.JellyMediaType))
+                    foreach (Item childItem in await GetItems(phrase, folder.Id, isContinueOrder, headerReplacements))
                         returningItems.Add(childItem);
                 }));
 
@@ -69,13 +65,13 @@ namespace Homehook.Services
                 recursiveTasks.Add(Task.Run(async () =>
                 {
                     Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "parentId", folder.Id } };
-                    CallResult<string> childFoldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+                    CallResult<string> childFoldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{phrase.UserId}/Items", queryParameters, credential: phrase.User, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
 
-                    foreach (BaseItemDto childFolder in JsonConvert.DeserializeObject<JellyItemDtos>(childFoldersCallResult.Content).Items)
+                    foreach (Item childFolder in JsonConvert.DeserializeObject<JellyfinItems>(childFoldersCallResult.Content).Items)
                     {
                         recursiveTasks.Add(Task.Run(async () =>
                         {
-                            foreach (BaseItemDto childItem in await GetItems(null, childFolder.Id, userId, isContinueOrder, jellyPhrase.JellyMediaType))
+                            foreach (Item childItem in await GetItems(phrase, childFolder.Id, isContinueOrder, headerReplacements))
                                 returningItems.Add(childItem);
                         }));
                     }
@@ -85,90 +81,73 @@ namespace Homehook.Services
             // Wait for all folders to complete retrieving items.
             Task.WaitAll(recursiveTasks.ToArray());
 
-            IEnumerable<BaseItemDto> items = returningItems.ToArray();
+            IEnumerable<Item> items = returningItems.ToArray();
 
             // Order retrieved items by wanted order.
-            items = jellyPhrase.JellyOrderType switch
+            items = phrase.OrderType switch
             {
-                JellyOrderType.Continue => items.OrderByDescending(item => item.UserData.LastPlayedDate),
-                JellyOrderType.Shuffle => items.Shuffle(),
-                JellyOrderType.Ordered => items.OrderBy(item => item.AlbumArtist).ThenBy(item => item.Album).ThenBy(item => item.SeriesName).ThenBy(item => item.ParentIndexNumber).ThenBy(item => item.IndexNumber),
-                JellyOrderType.Shortest => items.OrderBy(item => item.RunTimeTicks),
-                JellyOrderType.Longest => items.OrderByDescending(item => item.RunTimeTicks),
-                JellyOrderType.Oldest => items.OrderBy(item => item.DateCreated),
+                OrderType.Continue => items.OrderByDescending(item => item.UserData.LastPlayedDate),
+                OrderType.Shuffle => items.Shuffle(),
+                OrderType.Ordered => items.OrderBy(item => item.AlbumArtist).ThenBy(item => item.Album).ThenBy(item => item.SeriesName).ThenBy(item => item.ParentIndexNumber).ThenBy(item => item.IndexNumber),
+                OrderType.Shortest => items.OrderBy(item => item.RunTimeTicks),
+                OrderType.Longest => items.OrderByDescending(item => item.RunTimeTicks),
+                OrderType.Oldest => items.OrderBy(item => item.DateCreated),
                 _ => items.OrderByDescending(item => item.DateCreated),
             };
 
-            return new HomeAssistantMedia
-            {
-                Items = items.Take(_configuration.GetValue<int>("Services:Jellyfin:MaximumQueueSize")).Select((item, index) => new HomeAssistantMediaItem
-                {
-                    EntityId = $"media_player.{jellyPhrase.JellyDevice}",
-                    MediaContentType = item.MediaType,
-                    MediaContentId = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?Static=true&api_key={userId}",
-                    Extra = new HomeAssistantExtra
-                    {
-                        Enqueue = index != 0 ? true : null,
-                        Metadata = new HomeAssistantMedadata
-                        {
-                            Title = item.Name,
-                            Images = new HomeAssistantImages[]
-                            {
-                                new HomeAssistantImages
-                                {
-                                    Url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
-                                }
-                            },
-                            MetadataType = GetMetadataTypeId(item.MediaType),
-                            Subtitle = item.Overview,
-                            SeriesTitle = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.SeriesName : null,
-                            Season = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
-                            Episode = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
-                            OriginalAirDate = item.MediaType.Equals("Video", StringComparison.InvariantCultureIgnoreCase) ? item.PremiereDate : null,
-                            AlbumName = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.Album : null,
-                            AlbumArtist = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.AlbumArtist : null,
-                            TrackNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.IndexNumber : null,
-                            DiscNumber = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? item.ParentIndexNumber : null,
-                            ReleaseDate = item.MediaType.Equals("Audio", StringComparison.InvariantCultureIgnoreCase) ? (item.ProductionYear != null ? (DateTime?)new DateTime((int)item.ProductionYear, 12, 31) : null) : null,
-                            CreationDateTime = item.MediaType.Equals("Photo", StringComparison.InvariantCultureIgnoreCase) ? item.DateCreated : null
-                        }
-                    }
-                })
-            };
+            return items.Take(_configuration.GetValue<int>("Services:Jellyfin:MaximumQueueSize"));
         }
 
-        private static int GetMetadataTypeId(string mediaType)
+        public async Task<string> GetUserId(string userName, string device = "Homehook", string deviceId = "Homehook")
         {
-            return mediaType switch
-            {
-                "Video" => 2,
-                "Audio" => 3,
-                "Photo" => 4,
-                _ => 0,
-            };
+            Dictionary<string, string> headerReplacements = new() { { "$Device", device }, { "$DeviceId", deviceId } };
+
+            // Get UserId from username
+            CallResult<string> usernameCallResult = await _jellyfinCaller.GetRequestAsync<string>("users", credential: userName, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
+            IEnumerable<User> users = JsonConvert.DeserializeObject<IEnumerable<User>>(usernameCallResult.Content);
+            string userId = users.FirstOrDefault(user => user.Name.Equals(userName, StringComparison.InvariantCultureIgnoreCase)).Id;
+
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new KeyNotFoundException($"Jellyfin User \"{userName}\" not Found");
+            return userId;
         }
 
-        private async Task<IEnumerable<BaseItemDto>> GetItems(string searchTerm, string parentId, string userId, bool isContinueOrder, JellyMediaType jellyMediaType)
+        private async Task<IEnumerable<Item>> GetItems(Phrase phrase, string parentId, bool isContinueOrder, Dictionary<string, string> headerReplacements)
         {
-            List<BaseItemDto> returningItems = new();
+            List<Item> returningItems = new();
 
-            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "fields", "DateCreated" }, { "filters", $"IsNotFolder{(isContinueOrder ? ", IsResumable" : string.Empty)}" } };
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-                queryParameters.Add("searchTerm", searchTerm);
+            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "fields", "DateCreated,Path" }, { "filters", $"IsNotFolder{(isContinueOrder ? ", IsResumable" : string.Empty)}" } };
             if (!string.IsNullOrWhiteSpace(parentId))
                 queryParameters.Add("parentId", parentId);
+            else
+                queryParameters.Add("searchTerm", phrase.SearchTerm);
 
-            CallResult<string> callResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{userId}/Items", queryParameters, accessTokenDelegate: _accessTokenDelegate);
+            CallResult<string> callResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{phrase.UserId}/Items", queryParameters, credential: phrase.User, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
 
             List<Task> recursiveTasks = new();
-            foreach (BaseItemDto item in JsonConvert.DeserializeObject<JellyItemDtos>(callResult.Content).Items)
+            foreach (Item item in JsonConvert.DeserializeObject<JellyfinItems>(callResult.Content).Items)
             {
-                if (jellyMediaType == JellyMediaType.All || jellyMediaType.ToString().Equals(item.MediaType, StringComparison.InvariantCultureIgnoreCase))
+                if (phrase.MediaType == MediaType.All || phrase.MediaType.ToString().Equals(item.MediaType, StringComparison.InvariantCultureIgnoreCase))
                     returningItems.Add(item);                
             }
 
             Task.WaitAll(recursiveTasks.ToArray());
             return returningItems;
+        }
+    
+        public async Task UpdateProgress(Progress progress, string userName, string device, string deviceId, bool isStopped = false)
+        {
+            string route;
+            if (progress.EventName == null && isStopped)
+                route = "Sessions/Playing/Stopped";
+            else if (progress.EventName == null)
+                route = "Sessions/Playing";
+            else
+                route = "Sessions/Playing/Progress";
+
+            Dictionary<string, string> headerReplacements = new() { { "$Device", device }, { "$DeviceId", deviceId } };
+
+            await _jellyfinCaller.PostRequestAsync<string>(route, content: JsonConvert.SerializeObject(progress), credential: userName, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
         }
     }
 }

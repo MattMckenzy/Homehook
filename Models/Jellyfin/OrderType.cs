@@ -1,6 +1,6 @@
-﻿namespace Homehook.Models
+﻿namespace Homehook.Models.Jellyfin
 {
-    public enum JellyOrderType
+    public enum OrderType
     {
         Continue,
         Shuffle,

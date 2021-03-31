@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Homehook", "Homehook.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoogleCast", "..\GoogleCast\GoogleCast\GoogleCast.csproj", "{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookApp", "..\HomehookApp\HomehookApp.csproj", "{74BAC195-92BE-4525-BCA6-84FED7A09EB9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookCommon", "..\HomehookCommon\HomehookCommon.csproj", "{8700291E-5D70-4C46-8459-87246277148B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{74BAC195-92BE-4525-BCA6-84FED7A09EB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{74BAC195-92BE-4525-BCA6-84FED7A09EB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{74BAC195-92BE-4525-BCA6-84FED7A09EB9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{74BAC195-92BE-4525-BCA6-84FED7A09EB9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8700291E-5D70-4C46-8459-87246277148B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8700291E-5D70-4C46-8459-87246277148B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8700291E-5D70-4C46-8459-87246277148B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8700291E-5D70-4C46-8459-87246277148B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

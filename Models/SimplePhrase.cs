@@ -1,6 +1,6 @@
 ﻿namespace Homehook.Models
 {
-    public class JellySimplePhrase
+    public class SimplePhrase
     {
         public string Content { get; set; }
     }

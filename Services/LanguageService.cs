@@ -1,4 +1,5 @@
 ﻿using Homehook.Models;
+using Homehook.Models.Jellyfin;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
@@ -18,14 +19,14 @@ namespace Homehook.Services
             _loggingService = loggingService;
         }
 
-        public async Task<JellyPhrase> ParseJellyfinSimplePhrase(string simplePhrase)
+        public async Task<Phrase> ParseJellyfinSimplePhrase(string simplePhrase)
         {
-            JellyPhrase jellyPhrase = new()
+            Phrase jellyPhrase = new()
             {
-                JellyUser = _configuration["Services:Jellyfin:DefaultUser"],
-                JellyDevice = _configuration["Services:Jellyfin:DefaultDevice"],
-                JellyOrderType = (JellyOrderType)Enum.Parse(typeof(JellyOrderType), _configuration["Services:Jellyfin:DefaultOrder"]),
-                JellyMediaType = (JellyMediaType)Enum.Parse(typeof(JellyMediaType), _configuration["Services:Jellyfin:DefaultMediaType"]),
+                User = _configuration["Services:Jellyfin:DefaultUser"],
+                Device = _configuration["Services:Jellyfin:DefaultDevice"],
+                OrderType = (OrderType)Enum.Parse(typeof(OrderType), _configuration["Services:Jellyfin:DefaultOrder"]),
+                MediaType = (MediaType)Enum.Parse(typeof(MediaType), _configuration["Services:Jellyfin:DefaultMediaType"]),
             };
 
             IEnumerable<string> phraseTokens = ProcessWordMappings(simplePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));;
@@ -52,7 +53,7 @@ namespace Homehook.Services
                 string spokenJellyOrderType = orderTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.First(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
                 await _loggingService.LogDebug($"Mapped spoken order token to {spokenJellyOrderType}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                jellyPhrase.JellyOrderType = (JellyOrderType)Enum.Parse(typeof(JellyOrderType), spokenJellyOrderType);
+                jellyPhrase.OrderType = (OrderType)Enum.Parse(typeof(OrderType), spokenJellyOrderType);
 
                 phraseTokens = phraseTokens.Skip(1).AsEnumerable();
             }
@@ -66,7 +67,7 @@ namespace Homehook.Services
                 else
                 {
                     await _loggingService.LogDebug($"Mapped spoken user token to {spokenJellyUser}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                    jellyPhrase.JellyUser = spokenJellyUser;
+                    jellyPhrase.User = spokenJellyUser;
                 }
 
                 phraseTokens = phraseTokens.SkipLast(2).AsEnumerable();
@@ -74,14 +75,14 @@ namespace Homehook.Services
 
             if (phraseTokens.Count() >= 2 && _configuration["Services:Language:DevicePrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(devicePreposition => phraseTokens.Reverse().Skip(1).First().Equals(devicePreposition, StringComparison.InvariantCultureIgnoreCase)))
             {
-                string spokenJellyDevice = _configuration["Services:HomeAssistant:MediaPlayers"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
+                string spokenJellyDevice = _configuration["Services:Google:Devices"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
 
                 if (string.IsNullOrWhiteSpace(spokenJellyDevice))
                     await _loggingService.LogWarning($"Spoken device is not listed.", "Please add spoken device to configuration.", new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
                 else
                 {
                     await _loggingService.LogDebug($"Mapped spoken device token to {spokenJellyDevice}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                    jellyPhrase.JellyDevice = spokenJellyDevice;
+                    jellyPhrase.Device = spokenJellyDevice;
                 }
 
                 phraseTokens = phraseTokens.SkipLast(2).AsEnumerable();
@@ -92,7 +93,7 @@ namespace Homehook.Services
                 string spokenJellyMediaType = mediaTypeTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
                 await _loggingService.LogDebug($"Mapped spoken media type token to {spokenJellyMediaType}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                jellyPhrase.JellyMediaType = (JellyMediaType)Enum.Parse(typeof(JellyMediaType), spokenJellyMediaType);
+                jellyPhrase.MediaType = (MediaType)Enum.Parse(typeof(MediaType), spokenJellyMediaType);
 
                 phraseTokens = phraseTokens.SkipLast(1).AsEnumerable();
             }

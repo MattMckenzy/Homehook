@@ -1,0 +1,59 @@
+﻿@inherits ReceiverBase
+
+@if (_receiverHub == null || _receiverHub.State != HubConnectionState.Connected)
+{
+    <BusyCover />
+}
+else
+{
+    <div class="card bg-dark text-white receiverCard m-2">
+        <img src="@ImageUrl" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
+        <div class="card-img-overlay">
+
+            <div class="shadow-upper d-flex justify-content-between position-absolute fixed-top w-100">
+                <h3 class="card-title text-truncate text-stroke m-2">@Name</h3>
+                <i class="@($"fas {MediaTypeIconClass} fa-lg m-2")"></i>
+            </div>
+
+            <h5 class="card-title text-truncate text-stroke mt-4">@Title</h5>
+            <p class="card-text text-truncate text-stroke">@Subtitle</p>
+
+            @if (@IsMediaInitialized)
+            {
+                <div class="shadow-lower container-fluid position-absolute fixed-bottom p-0 w-100">
+                    <div class="row align-items-center mx-0 pt-3 pb-2" id="progressRow">
+                        <div class="col-auto text-white pl-3 pr-2" id="currentTime">@CurrentTime.StripMilliseconds().ToString()</div>
+                        <div class="progress col px-0" id="progressDiv">
+                            <div class="progress-bar" id="progress" role="progressbar" aria-valuenow="@CurrentTime.StripMilliseconds().TotalSeconds" aria-valuemin="0" aria-valuemax="@Runtime.StripMilliseconds().TotalSeconds" style="width:@(Math.Round(@CurrentTime.TotalSeconds * 100 / Runtime.TotalSeconds))%;"></div>
+                        </div>
+                        <div class="col-auto text-white pl-2 pr-3" id="duration">@Runtime.StripMilliseconds().ToString()</div>
+                    </div>
+                    <div class="row align-items-center mx-0 pt-2 pb-3">
+                        <i class="fas fa-step-backward fa-lg col-auto pl-3 pr-2" id="previous"></i>
+                        <div class="col-auto px-2">
+                            <i class="fas fa-play fa-lg" id="play"></i>
+                            <i class="fas fa-pause fa-lg" id="pause"></i>
+                        </div>
+                        <i class="fas fa-step-forward fa-lg col-auto px-2" id="next"></i>
+                        <div class="col px-0" id="spacer"> </div>
+                        <i class="fas fa-fast-forward fa-lg col-auto px-2" id="playbackRateDiv" data-toggle="popover" data-placement="top"></i>
+                        <div class="col-auto px-2">
+                            <i id="autoPlayOn" class="fas fa-redo fa-lg"></i>
+                            <i id="autoPlayOff" class="fas fa-redo fa-lg"></i>
+                        </div>
+                        <div class="col-auto px-2" id="audioDiv" data-toggle="popover" data-placement="top">
+                            <i id="audioUp" class="fas fa-volume-up fa-lg"></i>
+                            <i id="audioDown" class="fas fa-volume-down fa-lg"></i>
+                            <i id="audioOff" class="fas fa-volume-off fa-lg"></i>
+                            <i id="audioMute" class="fas fa-volume-mute fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+
+
+
+    </div>
+}

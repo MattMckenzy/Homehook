@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31025.194
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Homehook", "Homehook.csproj", "{28396D87-0972-4744-A83F-54C95DC459E2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Homehook", "HomehookService\Homehook.csproj", "{28396D87-0972-4744-A83F-54C95DC459E2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoogleCast", "..\GoogleCast\GoogleCast\GoogleCast.csproj", "{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoogleCast", "GoogleCast\GoogleCast\GoogleCast.csproj", "{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookApp", "..\HomehookApp\HomehookApp.csproj", "{74BAC195-92BE-4525-BCA6-84FED7A09EB9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookApp", "HomehookApp\HomehookApp.csproj", "{74BAC195-92BE-4525-BCA6-84FED7A09EB9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookCommon", "..\HomehookCommon\HomehookCommon.csproj", "{8700291E-5D70-4C46-8459-87246277148B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookCommon", "HomehookCommon\HomehookCommon.csproj", "{8700291E-5D70-4C46-8459-87246277148B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -11,8 +11,8 @@ else
         <div class="card-img-overlay">
 
             <div class="shadow-upper d-flex justify-content-between position-absolute fixed-top w-100">
-                <h3 class="card-title text-truncate text-stroke m-2">@Name</h3>
-                <i class="@($"fas {MediaTypeIconClass} fa-lg m-2")"></i>
+                <h4 class="card-title text-truncate text-stroke m-2">@Name</h4>
+                <i class="@($"mdi mdi-{MediaTypeIconClass} m-2")"></i>
             </div>
 
             <h5 class="card-title text-truncate text-stroke mt-4">@Title</h5>
@@ -29,24 +29,15 @@ else
                         <div class="col-auto text-white pl-2 pr-3" id="duration">@Runtime.StripMilliseconds().ToString()</div>
                     </div>
                     <div class="row align-items-center mx-0 pt-2 pb-3">
-                        <i class="fas fa-step-backward fa-lg col-auto pl-3 pr-2" id="previous"></i>
-                        <div class="col-auto px-2">
-                            <i class="fas fa-play fa-lg" id="play"></i>
-                            <i class="fas fa-pause fa-lg" id="pause"></i>
-                        </div>
-                        <i class="fas fa-step-forward fa-lg col-auto px-2" id="next"></i>
-                        <div class="col px-0" id="spacer"> </div>
-                        <i class="fas fa-fast-forward fa-lg col-auto px-2" id="playbackRateDiv" data-toggle="popover" data-placement="top"></i>
-                        <div class="col-auto px-2">
-                            <i id="autoPlayOn" class="fas fa-redo fa-lg"></i>
-                            <i id="autoPlayOff" class="fas fa-redo fa-lg"></i>
-                        </div>
-                        <div class="col-auto px-2" id="audioDiv" data-toggle="popover" data-placement="top">
-                            <i id="audioUp" class="fas fa-volume-up fa-lg"></i>
-                            <i id="audioDown" class="fas fa-volume-down fa-lg"></i>
-                            <i id="audioOff" class="fas fa-volume-off fa-lg"></i>
-                            <i id="audioMute" class="fas fa-volume-mute fa-lg"></i>
-                        </div>
+                        <i class="mdi mdi-skip-previous col-auto pl-3 pr-2"></i>
+                        <i class="mdi mdi-rewind col-auto px-2"></i>
+                        <i class="@($"col-auto px-2 button-bright mdi mdi-{(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause")}")" @onclick="PlayPauseClick" />
+                        <i class="mdi mdi-fast-forward col-auto px-2"></i>
+                        <i class="mdi mdi-skip-next col-auto px-2"></i>
+                        <div class="col px-0" id="spacer" />
+                        <i class="mdi mdi-play-speed col-auto px-2" id="playbackRate" data-toggle="popover" data-placement="top"></i>
+                        <i id="autoPlayOn" class="mdi mdi-@($"{(Repeat == RepeatMode.REPEAT_ALL ? "repeat" : Repeat == RepeatMode.REPEAT_SINGLE ? "repeat-once" : Repeat == RepeatMode.REPEAT_ALL_AND_SHUFFLE ? "shuffle-variant" : "repeat-off" )}") col-auto px-2"></i>
+                        <div class="col-auto mdi mdi-@($"{(IsMuted ? "variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")}") px-2" id="audioDiv" data-toggle="popover" data-placement="top" />
                     </div>
                 </div>
             }

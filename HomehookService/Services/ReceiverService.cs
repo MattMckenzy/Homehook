@@ -154,7 +154,7 @@ namespace Homehook.Services
                         Queue = new ObservableCollection<QueueItem>(queueItems);
                         Queue<QueueItem> queue = new(Queue);
 
-                        await mediaChannel.QueueLoadAsync(RepeatMode.RepeatAll, queue.DequeueMany(20).ToArray());
+                        await mediaChannel.QueueLoadAsync(RepeatMode.REPEAT_ALL, queue.DequeueMany(20).ToArray());
 
                         while (queue.Count > 0)
                             await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray());
@@ -250,11 +250,14 @@ namespace Homehook.Services
             });
         
         public async Task ShuffleQueueAsync() =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(null, true)));
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(shuffle: true)));
         
 
         public async Task ChangeCurrentMediaAsync(int itemId) =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(itemId)));        
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(currentItemId: itemId)));
+        
+        public async Task ChangeRepeatModeAsync(RepeatMode repeatMode) =>
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(repeatMode: repeatMode)));
 
         #endregion
 

@@ -40,6 +40,9 @@ namespace Homehook.Hubs
         public async Task ChangeCurrentMedia(string receiverName, int mediaId) =>
             await (await _castService.GetReceiverService(receiverName)).ChangeCurrentMediaAsync(mediaId);
 
+        public async Task ChangeRepeatMode(string receiverName, RepeatMode repeatMode) =>
+            await (await _castService.GetReceiverService(receiverName)).ChangeRepeatModeAsync(repeatMode);
+
         public async Task SetPlaybackRate(string receiverName, double playbackRate) =>
             await (await _castService.GetReceiverService(receiverName)).SetPlaybackRateAsync(playbackRate);
 

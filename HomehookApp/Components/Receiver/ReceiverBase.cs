@@ -2,6 +2,7 @@
 using HomehookApp.Extensions;
 using HomehookCommon.Models;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -28,6 +29,7 @@ namespace HomehookApp.Components.Receiver
         protected TimeSpan CurrentTime  { get; set; }
         protected float Volume { get; set; }
         protected bool IsMuted { get; set; }
+        protected RepeatMode? Repeat { get; set; }
 
         protected override async Task OnInitializedAsync()
         {
@@ -60,6 +62,7 @@ namespace HomehookApp.Components.Receiver
             Runtime = TimeSpan.FromSeconds(receiverStatus.CurrentMediaInformation?.Duration ?? 0);
             Volume = receiverStatus.Volume;
             IsMuted = receiverStatus.IsMuted;
+            Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
 
             MediaMetadata mediaMetadata = receiverStatus.CurrentMediaInformation?.Metadata;
             switch (mediaMetadata?.MetadataType)
@@ -68,38 +71,51 @@ namespace HomehookApp.Components.Receiver
                     Title = mediaMetadata?.Title ?? string.Empty;
                     Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
-                    MediaTypeIconClass = "fa-photo-video";
+                    MediaTypeIconClass = "folder-multiple-image";
                     break;
                 case MetadataType.Movie: 
                     Title = mediaMetadata?.Title ?? string.Empty;
                     Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
-                    MediaTypeIconClass = "fa-film";
+                    MediaTypeIconClass = "movie";
                     break;
                 case MetadataType.TvShow:
                     Title = mediaMetadata?.SeriesTitle ?? string.Empty;
                     Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
-                    MediaTypeIconClass = "fa-tv";
+                    MediaTypeIconClass = "television";
                     break;
                 case MetadataType.Music:
                     Title = $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty )}{mediaMetadata?.Title ?? string.Empty}";
                     Subtitle = $"{mediaMetadata?.AlbumName ?? string.Empty}{(mediaMetadata?.AlbumName == null && mediaMetadata?.AlbumArtist != null ? mediaMetadata.AlbumArtist : mediaMetadata?.AlbumArtist != null ? $" ({mediaMetadata.AlbumArtist})" : string.Empty)}";
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
-                    MediaTypeIconClass = "fa-music";
+                    MediaTypeIconClass = "music";
                     break;
                 case MetadataType.Photo:
                     Title = mediaMetadata?.Title ?? string.Empty;
                     Subtitle = mediaMetadata?.Artist ?? string.Empty;
                     ImageUrl = receiverStatus.CurrentMediaStatus?.Media?.ContentId;
-                    MediaTypeIconClass = "fa-image";
+                    MediaTypeIconClass = "image-multiple";
                     break;
                 default:
                     Title = string.Empty;
                     Subtitle = string.Empty;
-                    MediaTypeIconClass = "fa-times-circle";
+                    MediaTypeIconClass = "cast-off";
                     break;
             }
+
         }
+
+        #region Commands
+
+        protected async Task PlayPauseClick(MouseEventArgs _)
+        {
+            if (PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase))
+                await _receiverHub.InvokeAsync("Play", Name);
+            else
+                await _receiverHub.InvokeAsync("Pause", Name);
+        }
+
+        #endregion
     }
 }

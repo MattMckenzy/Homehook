@@ -73,16 +73,19 @@ a, .btn-link {
 }
 
 .button-bright {
-    filter: brightness(80%);
+    filter: brightness(75%);
+    transition: all 0.1s ease-in-out;
     cursor: pointer;
 }
 
     .button-bright:hover {
         filter: brightness(100%);
+        transition: all 0.1s ease-in-out;
     }
 
     .button-bright:active {
-        filter: brightness(90%);
+        filter: brightness(80%);
+        transition: all 0.1s ease-in-out;
     }
 
 .popover {
@@ -114,12 +117,8 @@ a, .btn-link {
     transition: width .1s linear;
 }
 
-#progressRow {
-    cursor: pointer;
-}
-
 #progressDiv {
-    height: 4px;
+    height: 8px;
 }
 
 #playbackRate {

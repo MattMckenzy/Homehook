@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,8 +14,13 @@ namespace HomehookApp.Components.Receiver
 {
     public class ReceiverBase : ComponentBase
     {
+        [Inject]
+        public IJSRuntime JSRuntime { get; set; } 
+
         [Parameter]
         public string Name { get; set; }
+
+        protected ElementReference ProgressBar { get; set; }
 
         protected ReceiverStatus _receiverStatus;
         protected HubConnection _receiverHub;
@@ -108,6 +114,13 @@ namespace HomehookApp.Components.Receiver
 
         #region Commands
 
+        protected async Task SeekClick(MouseEventArgs mouseEventArgs)
+        {
+            double width = await JSRuntime.InvokeAsync<double>("GetElementWidth", ProgressBar);
+            double seekSeconds = mouseEventArgs.OffsetX / width * Runtime.TotalSeconds;
+            await _receiverHub.InvokeAsync("Seek", Name, seekSeconds);
+        }
+
         protected async Task PlayPauseClick(MouseEventArgs _)
         {
             if (PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase))
@@ -115,6 +128,21 @@ namespace HomehookApp.Components.Receiver
             else
                 await _receiverHub.InvokeAsync("Pause", Name);
         }
+
+        protected async Task StopClick(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("Stop", Name);
+
+        protected async Task RewindClick(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("Seek", Name, CurrentTime.TotalSeconds - 10);
+
+        protected async Task FastForwardClick(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("Seek", Name, CurrentTime.TotalSeconds + 10);
+
+        protected async Task PreviousClick(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("Previous", Name);
+
+        protected async Task NextClick(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("Next", Name);
 
         #endregion
     }

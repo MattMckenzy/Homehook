@@ -191,7 +191,7 @@ namespace Homehook.Services
         public async Task ToggleMutedAsync() =>
             await Try(async () => { await SendChannelCommandAsync<IReceiverChannel>(IsStopped, null, async receiverChannel => { await receiverChannel.SetIsMutedAsync(CurrentMediaStatus.Volume.IsMuted ?? true); }); });
         
-        public async Task SeekAsync(int timeToSeek) =>
+        public async Task SeekAsync(double timeToSeek) =>
             await Try(async () => { await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => { await mediaChannel.SeekAsync(timeToSeek); }); });        
 
         public async Task NextAsync() =>        

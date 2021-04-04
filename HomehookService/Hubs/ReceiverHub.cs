@@ -25,6 +25,9 @@ namespace Homehook.Hubs
         public async Task Play(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).PlayAsync();
 
+        public async Task Stop(string receiverName) =>
+            await (await _castService.GetReceiverService(receiverName)).StopAsync();
+
         public async Task Pause(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).PauseAsync();
 
@@ -34,7 +37,7 @@ namespace Homehook.Hubs
         public async Task Previous(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).PreviousAsync();
 
-        public async Task Seek(string receiverName, int timeToSeek) =>
+        public async Task Seek(string receiverName, double timeToSeek) =>
             await (await _castService.GetReceiverService(receiverName)).SeekAsync(timeToSeek);
 
         public async Task ChangeCurrentMedia(string receiverName, int mediaId) =>

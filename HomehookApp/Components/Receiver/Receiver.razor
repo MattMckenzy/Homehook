@@ -23,21 +23,22 @@ else
                 <div class="shadow-lower container-fluid position-absolute fixed-bottom p-0 w-100">
                     <div class="row align-items-center mx-0 pt-3 pb-2" id="progressRow">
                         <div class="col-auto text-white pl-3 pr-2" id="currentTime">@CurrentTime.StripMilliseconds().ToString()</div>
-                        <div class="progress col px-0" id="progressDiv">
+                        <div class="progress col px-0 button-bright" id="progressDiv" @ref=ProgressBar @onclick="SeekClick">
                             <div class="progress-bar" id="progress" role="progressbar" aria-valuenow="@CurrentTime.StripMilliseconds().TotalSeconds" aria-valuemin="0" aria-valuemax="@Runtime.StripMilliseconds().TotalSeconds" style="width:@(Math.Round(@CurrentTime.TotalSeconds * 100 / Runtime.TotalSeconds))%;"></div>
                         </div>
                         <div class="col-auto text-white pl-2 pr-3" id="duration">@Runtime.StripMilliseconds().ToString()</div>
                     </div>
                     <div class="row align-items-center mx-0 pt-2 pb-3">
-                        <i class="mdi mdi-skip-previous col-auto pl-3 pr-2"></i>
-                        <i class="mdi mdi-rewind col-auto px-2"></i>
-                        <i class="@($"col-auto px-2 button-bright mdi mdi-{(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause")}")" @onclick="PlayPauseClick" />
-                        <i class="mdi mdi-fast-forward col-auto px-2"></i>
-                        <i class="mdi mdi-skip-next col-auto px-2"></i>
+                        <i class="col-auto pl-3 pr-2 button-bright mdi mdi-skip-previous" @onclick="PreviousClick" />
+                        <i class="col-auto px-2 button-bright mdi mdi-rewind-10" @onclick="RewindClick" />
+                        <i class="col-auto px-2 button-bright mdi mdi-@(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause")" @onclick="PlayPauseClick" />
+                        <i class="col-auto px-2 button-bright mdi mdi-stop" @onclick="StopClick" />
+                        <i class="col-auto px-2 button-bright mdi mdi-fast-forward-10" @onclick="FastForwardClick" />
+                        <i class="col-auto px-2 button-bright mdi mdi-skip-next" @onclick="NextClick" />
                         <div class="col px-0" id="spacer" />
-                        <i class="mdi mdi-play-speed col-auto px-2" id="playbackRate" data-toggle="popover" data-placement="top"></i>
-                        <i id="autoPlayOn" class="mdi mdi-@($"{(Repeat == RepeatMode.REPEAT_ALL ? "repeat" : Repeat == RepeatMode.REPEAT_SINGLE ? "repeat-once" : Repeat == RepeatMode.REPEAT_ALL_AND_SHUFFLE ? "shuffle-variant" : "repeat-off" )}") col-auto px-2"></i>
-                        <div class="col-auto mdi mdi-@($"{(IsMuted ? "variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")}") px-2" id="audioDiv" data-toggle="popover" data-placement="top" />
+                        <i class="col-auto px-2 button-bright mdi mdi-play-speed" id="playbackRate" data-toggle="popover" data-placement="top" />
+                        <i class="col-auto px-2 button-bright mdi mdi-@(Repeat == RepeatMode.REPEAT_ALL ? "repeat" : Repeat == RepeatMode.REPEAT_SINGLE ? "repeat-once" : Repeat == RepeatMode.REPEAT_ALL_AND_SHUFFLE ? "shuffle-variant" : "repeat-off")" />
+                        <i class="col-auto px-2 button-bright mdi mdi-@(IsMuted ? "variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")" id="audioDiv" data-toggle="popover" data-placement="top" />
                     </div>
                 </div>
             }

@@ -36,7 +36,7 @@ namespace Homehook
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             foreach (IReceiver receiver in await new DeviceLocator().FindReceiversAsync())
-                ReceiverServices.Add(new ReceiverService(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));            
+                RegisterReceiverService(new (receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));            
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -75,7 +75,7 @@ namespace Homehook
                     ReceiverServices.FirstOrDefault(receiverService => receiverService.Receiver.Id.Equals(newReceiver.Id, StringComparison.InvariantCultureIgnoreCase));
 
                 if (oldReceiverService == null)
-                    ReceiverServices.Add(new ReceiverService(newReceiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+                    RegisterReceiverService(new(newReceiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));                
             }
 
             foreach (ReceiverService oldReceiverService in ReceiverServices.ToArray())
@@ -86,6 +86,17 @@ namespace Homehook
                 if (newReceiver == null)
                     ReceiverServices.Remove(oldReceiverService);
             }
+        }
+
+        private void RegisterReceiverService(ReceiverService newReceiverService)
+        {
+            newReceiverService.Disposed += async (object sender, EventArgs eventArgs) =>
+            {
+                ReceiverServices.Remove((ReceiverService)sender);
+                Thread.Sleep(1000);
+                await RefreshReceivers();
+            };
+            ReceiverServices.Add(newReceiverService);
         }
 
         public async Task StartJellyfinSession(Phrase phrase, IEnumerable<Item> items)

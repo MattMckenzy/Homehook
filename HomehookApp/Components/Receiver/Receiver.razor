@@ -10,23 +10,26 @@ else
         <img src="@ImageUrl" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
         <div class="card-img-overlay">
 
-            <div class="shadow-upper d-flex justify-content-between position-absolute fixed-top w-100">
-                <h4 class="card-title text-truncate text-stroke m-2">@Name</h4>
-                <i class="@($"mdi mdi-{MediaTypeIconClass} m-2")"></i>
+            <div class="row m-0 shadow-upper position-absolute fixed-top w-100">
+                <h4 class="col-4 text-truncate text-stroke m-2 p-0">@Name</h4>
+                <h6 class="d-flex flex-fill align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@PlayerState</h6>
+                <i class="col-4 d-flex align-items-center justify-content-end m-2 p-0 mdi mdi-@(MediaTypeIconClass)"></i>
             </div>
 
-            <h5 class="card-title text-truncate text-stroke mt-4">@Title</h5>
-            <p class="card-text text-truncate text-stroke">@Subtitle</p>
+            <div class="media-information p-2">
+                <h5 class="text-truncate text-stroke m-1">@Title</h5>
+                <p class="text-truncate text-stroke m-1">@Subtitle</p>
+            </div>
 
             @if (@IsMediaInitialized)
             {
                 <div class="shadow-lower container-fluid position-absolute fixed-bottom p-0 w-100">
-                    <div class="row align-items-center mx-0 pt-3 pb-2" id="progressRow">
-                        <div class="col-auto text-white pl-3 pr-2" id="currentTime">@CurrentTime.StripMilliseconds().ToString()</div>
-                        <div class="progress col px-0 button-bright" id="progressDiv" @ref=ProgressBar @onclick="SeekClick">
-                            <div class="progress-bar" id="progress" role="progressbar" aria-valuenow="@CurrentTime.StripMilliseconds().TotalSeconds" aria-valuemin="0" aria-valuemax="@Runtime.StripMilliseconds().TotalSeconds" style="width:@(Math.Round(@CurrentTime.TotalSeconds * 100 / Runtime.TotalSeconds))%;"></div>
+                    <div class="row align-items-center mx-0 pt-3 pb-2">
+                        <div class="col-auto text-white pl-3 pr-2">@CurrentTime.StripMilliseconds().ToString()</div>
+                        <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
+                            <div class="progress-bar" role="progressbar" aria-valuenow="@CurrentTime.StripMilliseconds().TotalSeconds" aria-valuemin="0" aria-valuemax="@Runtime.StripMilliseconds().TotalSeconds" style="width:@(Math.Round(@CurrentTime.TotalSeconds * 100 / Runtime.TotalSeconds))%;"></div>
                         </div>
-                        <div class="col-auto text-white pl-2 pr-3" id="duration">@Runtime.StripMilliseconds().ToString()</div>
+                        <div class="col-auto text-white pl-2 pr-3">@Runtime.StripMilliseconds().ToString()</div>
                     </div>
                     <div class="row align-items-center mx-0 pt-2 pb-3">
                         <i class="col-auto pl-3 pr-2 button-bright mdi mdi-skip-previous" @onclick="PreviousClick" />
@@ -35,10 +38,57 @@ else
                         <i class="col-auto px-2 button-bright mdi mdi-stop" @onclick="StopClick" />
                         <i class="col-auto px-2 button-bright mdi mdi-fast-forward-10" @onclick="FastForwardClick" />
                         <i class="col-auto px-2 button-bright mdi mdi-skip-next" @onclick="NextClick" />
-                        <div class="col px-0" id="spacer" />
-                        <i class="col-auto px-2 button-bright mdi mdi-play-speed" id="playbackRate" data-toggle="popover" data-placement="top" />
-                        <i class="col-auto px-2 button-bright mdi mdi-@(Repeat == RepeatMode.REPEAT_ALL ? "repeat" : Repeat == RepeatMode.REPEAT_SINGLE ? "repeat-once" : Repeat == RepeatMode.REPEAT_ALL_AND_SHUFFLE ? "shuffle-variant" : "repeat-off")" />
-                        <i class="col-auto px-2 button-bright mdi mdi-@(IsMuted ? "variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")" id="audioDiv" data-toggle="popover" data-placement="top" />
+                        <div class="col px-0" />
+                        <div class="col-auto px-2 speed-selector">
+                            <input class="invisible-toggle speed-toggle" type="checkbox" id="speedToggle@(Name)" />
+                            <label class="speed-menu" for="speedToggle@(Name)">
+                                <div class="radial-button position-relative">
+                                    <i class="button-bright menu-button mdi mdi-play-speed"></i>
+                                    <i class="button-bright close-button mdi mdi-close"></i>
+                                </div>
+                                <div class="radial-button@(PlaybackRate == 0.5  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(0.5)">
+                                    <span class="button-bright d-flex align-content-center">½</span>
+                                </div>
+                                <div class="radial-button@(PlaybackRate == 1  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1)">
+                                    <span class="button-bright d-flex align-content-center">1</span>
+                                </div>
+                                <div class="radial-button@(PlaybackRate == 1.5  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1.5)">
+                                    <span class="button-bright d-flex align-content-center">3⁄2</span>
+                                </div>
+                                <div class="radial-button@(PlaybackRate == 2  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(2)">
+                                    <span class="button-bright d-flex align-content-center">2</span>
+                                </div>
+                            </label>
+                        </div>
+                        @if (IsQueue)
+                        {
+                            <div class="col-auto px-2 repeat-selector">
+                                <input class="invisible-toggle repeat-toggle" type="checkbox" id="repeatToggle@(Name)" />
+                                <label class="repeat-menu" for="repeatToggle@(Name)">
+                                    <div class="radial-button position-relative">
+                                        <i class="button-bright menu-button mdi mdi-@(Repeat == RepeatMode.RepeatAll ? "repeat" : Repeat == RepeatMode.RepeatSingle ? "repeat-once" : Repeat == RepeatMode.RepeatAllAndShuffle ? "shuffle-variant" : "repeat-off")"></i>
+                                        <i class="button-bright close-button mdi mdi-close"></i>
+                                    </div>
+                                    <div class="radial-button@(Repeat == RepeatMode.RepeatAll ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatAll)">
+                                        <i class="button-bright d-flex align-content-center mdi mdi-repeat"></i>
+                                    </div>
+                                    <div class="radial-button@(Repeat == RepeatMode.RepeatSingle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatSingle)">
+                                        <i class="button-bright d-flex align-content-center mdi mdi-repeat-once"></i>
+                                    </div>
+                                    <div class="radial-button@(Repeat == RepeatMode.RepeatAllAndShuffle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatAllAndShuffle)">
+                                        <i class="button-bright d-flex align-content-center mdi mdi-shuffle-variant"></i>
+                                    </div>
+                                    <div class="radial-button@(Repeat == RepeatMode.RepeatOff ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatOff)">
+                                        <i class="button-bright d-flex align-content-center mdi mdi-repeat-off"></i>
+                                    </div>
+                                </label>
+                            </div>
+                        }
+
+                    <div class="col-auto px-2">
+                        <i class="volume-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")" @onclick="ToggleMute" />
+                        <input class="volume-slider" type="range" min="0" max="1" step="0.01" orient="vertical" value="@Volume" @onchange="SetVolume">
+                    </div>
                     </div>
                 </div>
             }

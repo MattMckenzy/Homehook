@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
@@ -26,7 +27,7 @@ namespace Homehook.Services
         private readonly ISender _sender = new Sender();
         private readonly string _applicationId;
 
-        private Timer _timer;
+        private System.Timers.Timer _timer;
         private int _refreshClock = 0;
         private bool _isSessionInitialized = false;
 
@@ -154,7 +155,7 @@ namespace Homehook.Services
                         Queue = new ObservableCollection<QueueItem>(queueItems);
                         Queue<QueueItem> queue = new(Queue);
 
-                        await mediaChannel.QueueLoadAsync(RepeatMode.REPEAT_ALL, queue.DequeueMany(20).ToArray());
+                        await mediaChannel.QueueLoadAsync(RepeatMode.RepeatAll, queue.DequeueMany(20).ToArray());
 
                         while (queue.Count > 0)
                             await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray());
@@ -189,7 +190,7 @@ namespace Homehook.Services
             await Try(async () => { await SendChannelCommandAsync<IReceiverChannel>(IsStopped, null, async receiverChannel => { await receiverChannel.SetVolumeAsync(volume); }); });        
 
         public async Task ToggleMutedAsync() =>
-            await Try(async () => { await SendChannelCommandAsync<IReceiverChannel>(IsStopped, null, async receiverChannel => { await receiverChannel.SetIsMutedAsync(CurrentMediaStatus.Volume.IsMuted ?? true); }); });
+            await Try(async () => { await SendChannelCommandAsync<IReceiverChannel>(IsStopped, null, async receiverChannel => { await receiverChannel.SetIsMutedAsync(!IsMuted); }); });
         
         public async Task SeekAsync(double timeToSeek) =>
             await Try(async () => { await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => { await mediaChannel.SeekAsync(timeToSeek); }); });        
@@ -257,7 +258,7 @@ namespace Homehook.Services
             await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(currentItemId: itemId)));
         
         public async Task ChangeRepeatModeAsync(RepeatMode repeatMode) =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(repeatMode: repeatMode)));
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(repeatMode: repeatMode, shuffle: repeatMode == RepeatMode.RepeatAllAndShuffle ? true : null )));
 
         #endregion
 
@@ -348,33 +349,35 @@ namespace Homehook.Services
 
         private async void ReceiverChannelStatusChanged(object sender, EventArgs e)
         {
-            if (!IsMediaInitialized)
+            ReceiverStatus status = ((IReceiverChannel)sender).Status;
+            if (status != null)
             {
-                ReceiverStatus status = ((IReceiverChannel)sender).Status;
-                if (status != null)
+                if (status.Volume.Level != null)
                 {
-                    if (status.Volume.Level != null)
-                    {
-                        Volume = (float)status.Volume.Level;
-                    }
-                    if (status.Volume.IsMuted != null)
-                    {
-                        IsMuted = (bool)status.Volume.IsMuted;
-                    }
+                    Volume = (float)status.Volume.Level;
+                }
+                if (status.Volume.IsMuted != null)
+                {
+                    IsMuted = (bool)status.Volume.IsMuted;
                 }
             }
 
             await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
         }
 
-        private async void SenderDisconnected(object sender, EventArgs e)
+        private async void SenderDisconnected(object sender, EventArgs eventArgs)
         {                        
             CurrentMediaStatus = null;
             CurrentMediaInformation = null;
             CurrentRunTime = null;
             Queue = new();
 
+            IsMediaInitialized = false;
+            _timer.Stop();
+
             await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
+
+            Dispose();
         }
 
         #endregion
@@ -390,7 +393,8 @@ namespace Homehook.Services
             catch (Exception exception)
             {
                 await _loggingService.LogError("Cast error.", $"Got the following message while interacting with the cast API: {exception.GetBaseException().Message}", exception.StackTrace);
-                IsMediaInitialized = false;
+                await _receiverHub.Clients.All.SendAsync("ReceiveMessage", Receiver.FriendlyName, exception.Message); 
+                SenderDisconnected(exception.Message, null);
             }
         }
 
@@ -525,6 +529,8 @@ namespace Homehook.Services
 
         #region IDisposed Interface Implementation
 
+        public event EventHandler Disposed;
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposedValue)
@@ -555,6 +561,7 @@ namespace Homehook.Services
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
+            Disposed.Invoke(this, null);
             GC.SuppressFinalize(this);
         }
 

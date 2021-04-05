@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomehookApp.Components.Receiver
@@ -15,7 +16,7 @@ namespace HomehookApp.Components.Receiver
     public class ReceiverBase : ComponentBase
     {
         [Inject]
-        public IJSRuntime JSRuntime { get; set; } 
+        public IJSRuntime JSRuntime { get; set; }
 
         [Parameter]
         public string Name { get; set; }
@@ -24,18 +25,22 @@ namespace HomehookApp.Components.Receiver
 
         protected ReceiverStatus _receiverStatus;
         protected HubConnection _receiverHub;
-        
+
         protected string PlayerState { get; set; }
         protected bool IsMediaInitialized { get; set; }
+        protected bool IsQueue { get; set; }
         protected string MediaTypeIconClass { get; set; }
         protected string Title { get; set; }
         protected string Subtitle { get; set; }
         protected string ImageUrl { get; set; }
         protected TimeSpan Runtime { get; set; }
-        protected TimeSpan CurrentTime  { get; set; }
+        protected TimeSpan CurrentTime { get; set; }
+        protected double PlaybackRate { get; set; }
         protected float Volume { get; set; }
         protected bool IsMuted { get; set; }
         protected RepeatMode? Repeat { get; set; }
+
+        private bool showingMessage = false;
 
         protected override async Task OnInitializedAsync()
         {
@@ -50,9 +55,30 @@ namespace HomehookApp.Components.Receiver
             {
                 if (Name.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase))
                 {
+                    while (showingMessage)
+                        Thread.Sleep(500);
+
                     UpdateStatus(receiverStatus);
                     await InvokeAsync(StateHasChanged);
-                }              
+                }
+            });
+
+            _receiverHub.On<string, string>("ReceiveMessage", async (receiverName, message) =>
+            {
+                if (Name.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    showingMessage = true;
+
+                    PlayerState = "Error";
+                    Title = message;
+                    Subtitle = string.Empty;
+                    IsMediaInitialized = false;          
+                    
+                    await InvokeAsync(StateHasChanged);
+
+                    Thread.Sleep(5000);
+                    showingMessage = false;
+                }
             });
 
             await _receiverHub.StartAsync();
@@ -64,8 +90,10 @@ namespace HomehookApp.Components.Receiver
         {
             PlayerState = receiverStatus.CurrentMediaStatus?.PlayerState?.ToLower()?.FirstCharToUpper() ?? "Disconnected";
             IsMediaInitialized = receiverStatus.IsMediaInitialized;
+            IsQueue = receiverStatus.Queue != null && receiverStatus.Queue.Any();
             CurrentTime = TimeSpan.FromSeconds(receiverStatus.CurrentMediaStatus?.CurrentTime ?? 0);
             Runtime = TimeSpan.FromSeconds(receiverStatus.CurrentMediaInformation?.Duration ?? 0);
+            PlaybackRate = receiverStatus.CurrentMediaStatus?.PlaybackRate ?? 1;
             Volume = receiverStatus.Volume;
             IsMuted = receiverStatus.IsMuted;
             Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
@@ -79,7 +107,7 @@ namespace HomehookApp.Components.Receiver
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "folder-multiple-image";
                     break;
-                case MetadataType.Movie: 
+                case MetadataType.Movie:
                     Title = mediaMetadata?.Title ?? string.Empty;
                     Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
@@ -92,7 +120,7 @@ namespace HomehookApp.Components.Receiver
                     MediaTypeIconClass = "television";
                     break;
                 case MetadataType.Music:
-                    Title = $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty )}{mediaMetadata?.Title ?? string.Empty}";
+                    Title = $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty)}{mediaMetadata?.Title ?? string.Empty}";
                     Subtitle = $"{mediaMetadata?.AlbumName ?? string.Empty}{(mediaMetadata?.AlbumName == null && mediaMetadata?.AlbumArtist != null ? mediaMetadata.AlbumArtist : mediaMetadata?.AlbumArtist != null ? $" ({mediaMetadata.AlbumArtist})" : string.Empty)}";
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "music";
@@ -143,6 +171,18 @@ namespace HomehookApp.Components.Receiver
 
         protected async Task NextClick(MouseEventArgs _) =>
             await _receiverHub.InvokeAsync("Next", Name);
+
+        protected async Task SetRepeatMode(RepeatMode repeatMode) =>
+            await _receiverHub.InvokeAsync("ChangeRepeatMode", Name, repeatMode);
+
+        protected async Task SetPlaybackRate(double playBackRate) =>
+            await _receiverHub.InvokeAsync("SetPlaybackRate", Name, playBackRate);
+
+        protected async Task SetVolume(ChangeEventArgs changeEventArgs) =>
+            await _receiverHub.InvokeAsync("SetVolume", Name, float.Parse(changeEventArgs.Value.ToString()));
+
+        protected async Task ToggleMute(MouseEventArgs _) =>
+            await _receiverHub.InvokeAsync("ToggleMute", Name);
 
         #endregion
     }

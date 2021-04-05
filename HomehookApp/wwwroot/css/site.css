@@ -50,14 +50,16 @@ a, .btn-link {
     }
 
 .receiverCard {
-    height: 300px;
+    height: 250px;
     width: 500px;
-    overflow: hidden;
 }
 
-.receiverCard img {
-    filter: blur(5px) brightness(75%);
-}
+    .receiverCard img {
+        filter: blur(3px) brightness(75%);
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
 
 .text-stroke {
     color: white;
@@ -88,6 +90,11 @@ a, .btn-link {
         transition: all 0.1s ease-in-out;
     }
 
+.button-disabled {
+    filter: brightness(50%);
+    pointer-events: none !important;
+}
+
 .popover {
     max-width: none;
 }
@@ -112,19 +119,21 @@ a, .btn-link {
     fill: #e51400;
 }
 
-#progress {
-    -webkit-transition: width .1s linear;
-    transition: width .1s linear;
+.media-information {
+    position: absolute;
+    width: 100%;
+    top: 40%;
+    left: 0;
+    transform: translate(0,-40%);
 }
 
-#progressDiv {
+.progress-container {
     height: 8px;
 }
 
-#playbackRate {
-    display: block;
-    color: white;
-    cursor: pointer;
+.progress-bar {
+    -webkit-transition: width .1s linear;
+    transition: width .1s linear;
 }
 
 .playback-popover {
@@ -142,11 +151,6 @@ a, .btn-link {
     z-index: 2147483649;
 }
 
-#audioSlider {
-    -webkit-appearance: slider-vertical;
-    width: 10px;
-    height: 75px;
-}
 
 .mdi::before {
     font-size: 24px;
@@ -223,4 +227,224 @@ a, .btn-link {
     position: relative;
     top: 3px;
     left: -3px
+}
+
+.invisible-toggle {
+    position: absolute;
+    display: none
+}
+
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.radial-button {
+    height: 24px;
+    width: 24px;
+    position: absolute;
+    cursor: pointer;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+
+    .radial-button:not(:first-child) {
+        opacity: 0;
+        height: 48px;
+        width: 48px;
+        top: -14px;
+        left: -4px;
+        z-index: 2000;
+        background: radial-gradient(#333 50%, transparent 60%);
+        -webkit-transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
+        transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
+        pointer-events: none;
+    }
+
+    .radial-button:nth-child(2) {
+        -webkit-transition-delay: 0.3s;
+        transition-delay: 0.3s ;
+    }
+
+    .radial-button:nth-child(3) {
+        -webkit-transition-delay: 0.2s;
+        transition-delay: 0.2s;
+    }
+
+    .radial-button:nth-child(4) {
+        -webkit-transition-delay: 0.1s;
+        transition-delay: 0.1s
+    }
+
+    .radial-button:nth-child(5) {
+        -webkit-transition-delay: 0s;
+        transition-delay: 0s;
+    }
+
+.menu-button, .close-button {
+    position: absolute;
+    transition: all 0.3s ease;
+}
+
+.close-button {
+    transform: translateY(50px);
+    opacity: 0;
+}
+
+.repeat-selector {
+    width: 40px;
+    height: 24px;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(2) {
+    top: -176px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0s;
+    transition-delay: 0s;
+    pointer-events: all;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(3) {
+    top: -134px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.1s;
+    transition-delay: 0.1s;
+    pointer-events: all;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(4) {
+    top: -92px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.2s;
+    transition-delay: 0.2s;
+    pointer-events: all;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(5) {
+    top: -50px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.3s;
+    transition-delay: 0.3s;
+    pointer-events: all;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button .menu-button {
+    transform: translateY(-50px);
+    opacity: 0;
+}
+
+input.repeat-toggle:checked ~ .repeat-menu .radial-button .close-button {
+    transform: translateY(0px);
+    opacity: 1;
+}
+
+.speed-selector {
+    width: 40px;
+    height: 24px;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(2) {
+    top: -176px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0s;
+    transition-delay: 0s;
+    pointer-events: all;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(3) {
+    top: -134px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.1s;
+    transition-delay: 0.1s;
+    pointer-events: all;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(4) {
+    top: -92px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.2s;
+    transition-delay: 0.2s;
+    pointer-events: all;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(5) {
+    top: -50px;
+    left: -4px;
+    opacity: 1;
+    -webkit-transition-delay: 0.3s;
+    transition-delay: 0.3s;
+    pointer-events: all;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button .menu-button {
+    transform: translateY(-50px);
+    opacity: 0;
+}
+
+input.speed-toggle:checked ~ .speed-menu .radial-button .close-button {
+    transform: translateY(0px);
+    opacity: 1;
+}
+
+.volume-button {
+
+}
+
+.volume-slider {
+    -webkit-appearance: none;
+    width: 15px;
+    height: 100px;
+    border-radius: 5px;
+    background: #d3d3d3;
+    outline: none;
+    opacity: 0.0;    
+    position: absolute;
+    cursor: pointer;
+    -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+
+    .volume-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: #4CAF50;
+        cursor: pointer;
+    }
+
+    .volume-slider::-moz-range-thumb {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: #4CAF50;
+        cursor: pointer;
+    }
+
+.volume-button:hover ~ .volume-slider {
+    opacity: 0.7;
+}
+
+.volume-slider:hover {
+    opacity: 0.7;
 }

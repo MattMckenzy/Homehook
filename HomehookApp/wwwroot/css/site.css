@@ -49,17 +49,27 @@ a, .btn-link {
         top: 0.5rem;
     }
 
-.receiverCard {
+.card-receiver {
     height: 250px;
     width: 500px;
+    top: 0;
+    left: 0;
+    -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
-    .receiverCard img {
+    .card-receiver img {
         filter: blur(3px) brightness(75%);
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
+
+.card-queue {
+    z-index: 2000;
+    top: 0;
+    left: 0;
+}
 
 .text-stroke {
     color: white;
@@ -250,6 +260,7 @@ a, .btn-link {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
+    font-size: large;
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
@@ -262,12 +273,14 @@ a, .btn-link {
 
     .radial-button:not(:first-child) {
         opacity: 0;
-        height: 48px;
-        width: 48px;
+        height: 36px;
+        width: 36px;
         top: -14px;
-        left: -4px;
+        left: 2px;
         z-index: 2000;
-        background: radial-gradient(#333 50%, transparent 60%);
+        background-color: #343a40 !important;
+        border-radius: 18px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
         -webkit-transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
         transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
         pointer-events: none;
@@ -303,148 +316,118 @@ a, .btn-link {
     opacity: 0;
 }
 
-.repeat-selector {
+.selector {
     width: 40px;
     height: 24px;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(2) {
-    top: -176px;
-    left: -4px;
+input.radial-toggle:checked ~ .radial-menu .radial-button:nth-child(2) {
+    top: -171px;
     opacity: 1;
     -webkit-transition-delay: 0s;
     transition-delay: 0s;
     pointer-events: all;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(3) {
-    top: -134px;
-    left: -4px;
+input.radial-toggle:checked ~ .radial-menu .radial-button:nth-child(3) {
+    top: -129px;
     opacity: 1;
     -webkit-transition-delay: 0.1s;
     transition-delay: 0.1s;
     pointer-events: all;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(4) {
-    top: -92px;
-    left: -4px;
+input.radial-toggle:checked ~ .radial-menu .radial-button:nth-child(4) {
+    top: -87px;
     opacity: 1;
     -webkit-transition-delay: 0.2s;
     transition-delay: 0.2s;
     pointer-events: all;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button:nth-child(5) {
-    top: -50px;
-    left: -4px;
+input.radial-toggle:checked ~ .radial-menu .radial-button:nth-child(5) {
+    top: -45px;
     opacity: 1;
     -webkit-transition-delay: 0.3s;
     transition-delay: 0.3s;
     pointer-events: all;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button .menu-button {
+input.radial-toggle:checked ~ .radial-menu .radial-button .menu-button {
     transform: translateY(-50px);
     opacity: 0;
 }
 
-input.repeat-toggle:checked ~ .repeat-menu .radial-button .close-button {
+input.radial-toggle:checked ~ .radial-menu .radial-button .close-button {
     transform: translateY(0px);
     opacity: 1;
 }
 
-.speed-selector {
-    width: 40px;
-    height: 24px;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(2) {
-    top: -176px;
-    left: -4px;
-    opacity: 1;
-    -webkit-transition-delay: 0s;
-    transition-delay: 0s;
-    pointer-events: all;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(3) {
-    top: -134px;
-    left: -4px;
-    opacity: 1;
-    -webkit-transition-delay: 0.1s;
-    transition-delay: 0.1s;
-    pointer-events: all;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(4) {
-    top: -92px;
-    left: -4px;
-    opacity: 1;
-    -webkit-transition-delay: 0.2s;
-    transition-delay: 0.2s;
-    pointer-events: all;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button:nth-child(5) {
-    top: -50px;
-    left: -4px;
-    opacity: 1;
-    -webkit-transition-delay: 0.3s;
-    transition-delay: 0.3s;
-    pointer-events: all;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button .menu-button {
-    transform: translateY(-50px);
-    opacity: 0;
-}
-
-input.speed-toggle:checked ~ .speed-menu .radial-button .close-button {
+input.radial-toggle:checked ~ .radial-menu .radial-button .close-button {
     transform: translateY(0px);
     opacity: 1;
 }
 
 .volume-button {
+    position: absolute;
+    top: 120px;
+    left: 3px;
+}
 
+.volume-container {
+    left: 5px;
+    top: -120px;
+    width: 30px;
+    height: 148px;
+    position: absolute;
+    opacity: 0.0;
+    background-color: #343a40 !important;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    pointer-events: none;
+    -webkit-transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
+    transition: all 0.6s cubic-bezier(.87,-.41,.19,1.44);
 }
 
 .volume-slider {
-    -webkit-appearance: none;
-    width: 15px;
+    top: 10px;
+    left: 13px;
+    width: 4px;
     height: 100px;
-    border-radius: 5px;
-    background: #d3d3d3;
-    outline: none;
-    opacity: 0.0;    
     position: absolute;
+    border-radius: 4px;
+    background: white;
+    outline: none;
     cursor: pointer;
+    -webkit-appearance: slider-vertical;
     -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
     transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
     .volume-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
+        -webkit-appearance: slider-vertical;
         appearance: none;
-        width: 25px;
-        height: 25px;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
-        background: #4CAF50;
+        background: blue;
         cursor: pointer;
     }
 
     .volume-slider::-moz-range-thumb {
-        width: 25px;
-        height: 25px;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
-        background: #4CAF50;
+        background: blue;
         cursor: pointer;
     }
 
-.volume-button:hover ~ .volume-slider {
-    opacity: 0.7;
+.volume-icon:hover ~ .volume-container {
+    opacity: 1;
+    pointer-events: all;
 }
 
-.volume-slider:hover {
-    opacity: 0.7;
+.volume-container:hover {
+    opacity: 1;
+    pointer-events: all;
 }

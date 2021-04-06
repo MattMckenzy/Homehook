@@ -11,11 +11,13 @@ namespace Homehook.Services
     public class LanguageService
     {
         private readonly IConfiguration _configuration;
+        private readonly CastService _castService;
         private readonly LoggingService<LanguageService> _loggingService;
 
-        public LanguageService(IConfiguration configuration, LoggingService<LanguageService> loggingService)
+        public LanguageService(IConfiguration configuration, CastService castService, LoggingService<LanguageService> loggingService)
         {
             _configuration = configuration;
+            _castService = castService;
             _loggingService = loggingService;
         }
 
@@ -75,7 +77,7 @@ namespace Homehook.Services
 
             if (phraseTokens.Count() >= 2 && _configuration["Services:Language:DevicePrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(devicePreposition => phraseTokens.Reverse().Skip(1).First().Equals(devicePreposition, StringComparison.InvariantCultureIgnoreCase)))
             {
-                string spokenJellyDevice = _configuration["Services:Google:Devices"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
+                string spokenJellyDevice = _castService.ReceiverServices.Select(receiverService => receiverService.Receiver.FriendlyName).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
 
                 if (string.IsNullOrWhiteSpace(spokenJellyDevice))
                     await _loggingService.LogWarning($"Spoken device is not listed.", "Please add spoken device to configuration.", new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });

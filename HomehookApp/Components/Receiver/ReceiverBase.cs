@@ -4,7 +4,6 @@ using HomehookCommon.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using System;
 using System.Linq;
@@ -21,6 +20,7 @@ namespace HomehookApp.Components.Receiver
         [Parameter]
         public string Name { get; set; }
 
+        protected ElementReference ReceiverCard { get; set; }
         protected ElementReference ProgressBar { get; set; }
 
         protected ReceiverStatus _receiverStatus;
@@ -29,6 +29,7 @@ namespace HomehookApp.Components.Receiver
         protected string PlayerState { get; set; }
         protected bool IsMediaInitialized { get; set; }
         protected bool IsQueue { get; set; }
+        protected bool IsEditingQueue { get; set; }
         protected string MediaTypeIconClass { get; set; }
         protected string Title { get; set; }
         protected string Subtitle { get; set; }
@@ -183,6 +184,23 @@ namespace HomehookApp.Components.Receiver
 
         protected async Task ToggleMute(MouseEventArgs _) =>
             await _receiverHub.InvokeAsync("ToggleMute", Name);
+
+        protected async Task ToggleEditingQueue(MouseEventArgs _)
+        {
+            IsEditingQueue = !IsEditingQueue;
+            await InvokeAsync(StateHasChanged);
+            if (IsEditingQueue)
+            {
+                await InvokeAsync(StateHasChanged);
+                await JSRuntime.InvokeVoidAsync("CenterElement", ReceiverCard);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("ResetElement", ReceiverCard);
+                await InvokeAsync(StateHasChanged);
+            }
+
+        }
 
         #endregion
     }

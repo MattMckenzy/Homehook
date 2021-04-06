@@ -149,6 +149,7 @@ namespace Homehook
                     DiscNumber = item.ParentIndexNumber,
                     TrackNumber = item.IndexNumber,
                     ReleaseDate = item.ProductionYear != null ? new DateTime((int)item.ProductionYear, 12,31).ToString() : null,
+                    Images = new Image[] { new Image { Url = $"{_configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}" } },
                 },
                 "Photo" => new MediaMetadata
                 {

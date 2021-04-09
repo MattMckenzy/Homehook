@@ -55,7 +55,7 @@ namespace Homehook.Services
 
         public int? CurrentRunTime { get; set; }
 
-        public ObservableCollection<QueueItem> Queue { get; set; } = new();
+        public List<QueueItem> Queue { get; set; } = new();
         
         #endregion
 
@@ -127,7 +127,7 @@ namespace Homehook.Services
                         if (currentApplicationId == null || !applicationId.Equals(currentApplicationId, StringComparison.InvariantCultureIgnoreCase))                        
                             await _sender.GetChannel<IReceiverChannel>().LaunchAsync(applicationId);
 
-                        Queue = new ObservableCollection<QueueItem>();
+                        Queue = new();
 
                         await mediaChannel.LoadAsync(mediaInformation);
                         await RefreshQueueAsync();
@@ -151,7 +151,7 @@ namespace Homehook.Services
                         if (currentApplicationId == null || !applicationId.Equals(currentApplicationId, StringComparison.InvariantCultureIgnoreCase))
                             await _sender.GetChannel<IReceiverChannel>().LaunchAsync(applicationId);
                         
-                        Queue = new ObservableCollection<QueueItem>(queueItems);
+                        Queue = new(queueItems);
                         Queue<QueueItem> queue = new(Queue);
 
                         await mediaChannel.QueueLoadAsync(RepeatMode.RepeatAll, queue.DequeueMany(20).ToArray());
@@ -200,53 +200,56 @@ namespace Homehook.Services
         public async Task PreviousAsync() =>
             await Try(async () => { await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.PreviousAsync()); });
         
-        public async Task UpQueueAsync(IEnumerable<QueueItem> selectedItems) =>
+        public async Task UpQueueAsync(IEnumerable<int> movingItemIds) =>
             await Try(async () =>
             {
-                if (selectedItems.Any())
+                if (movingItemIds.Any() && Queue != null && Queue.Any())
                 {
-                    ObservableCollection<int> ids = new(Queue.Select(i => (int)i.ItemId));
-                    foreach (QueueItem selectedItem in (selectedItems).OrderBy(i => i.OrderId))
+                    (int orderId, int itemId)[] items = Queue.Select(item => ((int)item.OrderId, (int)item.ItemId)).ToArray();
+                    foreach ((int orderId, int itemId) in items.ToArray())
                     {
-                        int currentIndex = ids.IndexOf((int)selectedItem.ItemId);
-                        if (currentIndex > 0)
-                            ids.Move(currentIndex, currentIndex - 1);
+                        if (movingItemIds.Contains(itemId) && orderId > 0)
+                            items.MoveUp(orderId);
                     }
 
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(ids.ToArray()));
+                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()));
                 }
             });
 
-        public async Task DownQueueAsync(IEnumerable<QueueItem> selectedItems) =>        
+        public async Task DownQueueAsync(IEnumerable<int> movingItemIds) =>        
             await Try(async () =>
             {
-                if (selectedItems.Any())
+                if (movingItemIds.Any() && Queue != null && Queue.Any())
                 {
-                    ObservableCollection<int> ids = new(Queue.Select(i => (int)i.ItemId));
-                    foreach (QueueItem selectedItem in selectedItems.OrderByDescending(i => i.OrderId))
+                    (int orderId, int itemId)[] items = Queue.Select(item => ((int)item.OrderId, (int)item.ItemId)).ToArray();
+                    foreach ((int orderId, int itemId) in items.Reverse().ToArray())
                     {
-                        int currentIndex = ids.IndexOf((int)selectedItem.ItemId);
-                        if (currentIndex > 0)
-                            ids.Move(currentIndex, currentIndex + 1);
+                        if (movingItemIds.Contains(itemId) && orderId > 0)
+                            items.MoveDown(orderId);
                     }
 
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(ids.ToArray()));
+                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()));
                 }
-            });        
+            });
 
-        public async Task InsertQueueAsync(IEnumerable<QueueItem> queueItems) =>
+        public async Task InsertQueueAsync(IEnumerable<QueueItem> queueItems, int? insertBefore = null) =>
             await Try(async () =>
             {
                 if (queueItems.Any())
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueInsertAsync(queueItems.ToArray()));
+                {
+                    Queue<QueueItem> queue = new(new ObservableCollection<QueueItem>(queueItems));
+                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore));
+                    while (queue.Count > 0)
+                        await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore));
+                }
             });
         
 
-        public async Task RemoveQueueAsync(IEnumerable<QueueItem> selectedItems) =>
+        public async Task RemoveQueueAsync(IEnumerable<int> itemIds) =>
             await Try(async () =>
             {
-                if (selectedItems.Any())
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel =>  await mediaChannel.QueueRemoveAsync(selectedItems.Select(queueItem => (int)queueItem.ItemId).ToArray()));
+                if (itemIds.Any())
+                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel =>  await mediaChannel.QueueRemoveAsync(itemIds.ToArray()));
             });
         
         public async Task ShuffleQueueAsync() =>
@@ -325,21 +328,22 @@ namespace Homehook.Services
 
         private async void QueueStatusChanged(object sender, EventArgs e)
         {
-            QueueStatus status = ((IMediaChannel)sender).QueueStatus;
+            IMediaChannel mediaChannel = ((IMediaChannel)sender);
+            QueueStatus status = mediaChannel.QueueStatus;
 
             switch (status.ChangeType)
             {
                 case QueueChangeType.Insert:
-                     await RefreshQueueAsync(status.ItemIds);
+                    await RefreshQueueAsync();
                     break;
                 case QueueChangeType.Update:
-                    Queue = new ObservableCollection<QueueItem>(Queue.OrderBy(i => Array.IndexOf(status.ItemIds, i.ItemId)));
+                    Queue = new(Queue.OrderBy(item => Array.IndexOf(status.ItemIds, item.ItemId)).Select((QueueItem item, int index) => { item.OrderId = index; return item; }));
                     break;
                 case QueueChangeType.Remove:
                     IList<QueueItem> currentQueue = Queue.ToList();
                     foreach (int itemId in status.ItemIds)
-                        currentQueue.Remove(currentQueue.FirstOrDefault(i => i.ItemId == itemId));
-                    Queue = new ObservableCollection<QueueItem>(currentQueue);
+                        currentQueue.Remove(currentQueue.FirstOrDefault(item => item.ItemId == itemId));
+                    Queue = new(currentQueue.Select((QueueItem item, int index) => { item.OrderId = index; return item; }));
                     break;
             }
 
@@ -427,43 +431,31 @@ namespace Homehook.Services
                 await RefreshQueueAsync();
         }
 
-        private async Task RefreshQueueAsync(int[] itemIdsToFetch = null)
+        private async Task RefreshQueueAsync()
         {
             try
             {
                 IMediaChannel mediaChannel = _sender.GetChannel<IMediaChannel>();
 
-                int[] itemIds = itemIdsToFetch ?? await mediaChannel?.QueueGetItemIdsMessage();
+                int[] itemIds = await mediaChannel?.QueueGetItemIdsMessage();
                 if (itemIds != null && itemIds.Length > 0)
                 {
                     Queue<int> itemIdsQueue = new(itemIds);
                     IList<QueueItem> currentQueue = Queue.ToList();
 
+                    List<QueueItem> queueItems = new();
                     while (itemIdsQueue.Count > 0)
                     {
-                        IEnumerable<QueueItem> queueItems = await mediaChannel.QueueGetItemsMessage(itemIdsQueue.DequeueMany(20).ToArray());
+                        queueItems.AddRange(await mediaChannel.QueueGetItemsMessage(itemIdsQueue.DequeueMany(20).ToArray()));
 
                         if (queueItems == null)
                         {
                             Queue = new();
                             return;
                         }
-
-                        foreach (QueueItem item in queueItems)
-                        {
-                            if (currentQueue.FirstOrDefault(i => i.ItemId == item.ItemId) != null)
-                                currentQueue[currentQueue.IndexOf(Queue.FirstOrDefault(i => i.ItemId == item.ItemId))] = item;
-                            else
-                            {
-                                if (item.OrderId < currentQueue.Count)
-                                    currentQueue.Insert((int)item.OrderId, item);
-                                else
-                                    currentQueue.Add(item);
-                            }
-                        }
                     }
 
-                    Queue = new(currentQueue);
+                    Queue = new(queueItems.OrderBy(item => item.OrderId));
                 }
             }
             catch (InvalidOperationException) { }

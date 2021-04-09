@@ -17,4 +17,9 @@
     <ProjectReference Include="..\HomehookCommon\HomehookCommon.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\css\font-awesome\" />
+    <Folder Include="wwwroot\js\font-awesome\" />
+  </ItemGroup>
+
 </Project>

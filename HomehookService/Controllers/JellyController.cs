@@ -1,6 +1,5 @@
 ﻿using GoogleCast.Models.Media;
 using Homehook.Attributes;
-using Homehook.Exceptions;
 using Homehook.Models;
 using Homehook.Models.Jellyfin;
 using Homehook.Models.Jellyfin.Converation;
@@ -74,7 +73,7 @@ namespace Homehook.Controllers
                 return BadRequest($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user Ids");
             }
 
-            IEnumerable<Item> items = await _jellyfinService.GetItems(phrase);
+            IEnumerable<QueueItem> items = await _jellyfinService.GetItems(phrase);
             await _loggingService.LogDebug($"{controllerName} - items found.", $"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
             await _loggingService.LogInformation($"{controllerName} - items found.", "Found the following items:", items);
             if (!items.Any())

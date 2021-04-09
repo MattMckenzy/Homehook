@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +21,7 @@ namespace HomehookApp.Components.Receiver
         [Parameter]
         public string Name { get; set; }
 
-        protected ElementReference ReceiverCard { get; set; }
+        protected ElementReference CardReceiverReference { get; set; }
         protected ElementReference ProgressBar { get; set; }
 
         protected ReceiverStatus _receiverStatus;
@@ -28,7 +29,7 @@ namespace HomehookApp.Components.Receiver
 
         protected string PlayerState { get; set; }
         protected bool IsMediaInitialized { get; set; }
-        protected bool IsQueue { get; set; }
+        protected IEnumerable<QueueItem> Queue { get; set; } = Array.Empty<QueueItem>();
         protected bool IsEditingQueue { get; set; }
         protected string MediaTypeIconClass { get; set; }
         protected string Title { get; set; }
@@ -41,11 +42,18 @@ namespace HomehookApp.Components.Receiver
         protected bool IsMuted { get; set; }
         protected RepeatMode? Repeat { get; set; }
 
-        private bool showingMessage = false;
+        private bool _showingMessage = false;
+        private readonly System.Timers.Timer _timer = new() { AutoReset = true, Interval = 1000 };
 
         protected override async Task OnInitializedAsync()
         {
             await base.OnInitializedAsync();
+
+            _timer.Elapsed += async (_, _) => 
+            { 
+                CurrentTime = CurrentTime.Add(TimeSpan.FromSeconds(1));
+                await InvokeAsync(StateHasChanged);
+            };
 
             _receiverHub = new HubConnectionBuilder()
                 .WithUrl(new Uri("http://localhost:5000/receiverhub"))
@@ -56,10 +64,10 @@ namespace HomehookApp.Components.Receiver
             {
                 if (Name.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    while (showingMessage)
+                    while (_showingMessage)
                         Thread.Sleep(500);
 
-                    UpdateStatus(receiverStatus);
+                    await UpdateStatus(receiverStatus);
                     await InvokeAsync(StateHasChanged);
                 }
             });
@@ -68,7 +76,7 @@ namespace HomehookApp.Components.Receiver
             {
                 if (Name.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    showingMessage = true;
+                    _showingMessage = true;
 
                     PlayerState = "Error";
                     Title = message;
@@ -78,20 +86,29 @@ namespace HomehookApp.Components.Receiver
                     await InvokeAsync(StateHasChanged);
 
                     Thread.Sleep(5000);
-                    showingMessage = false;
+                    _showingMessage = false;
                 }
             });
 
             await _receiverHub.StartAsync();
 
-            UpdateStatus(await _receiverHub.InvokeAsync<ReceiverStatus>("GetStatus", Name));
+            await UpdateStatus(await _receiverHub.InvokeAsync<ReceiverStatus>("GetStatus", Name));
+
         }
 
-        private void UpdateStatus(ReceiverStatus receiverStatus)
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (Queue.Any())
+                await JSRuntime.InvokeVoidAsync("InitializeTable", $"{Name}QueueTable", DotNetObjectReference.Create(this), 
+                    Queue.Select(item => new { item.OrderId, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitle = GetSubtitle(item.Media.Metadata) }).ToArray());
+
+            await base.OnAfterRenderAsync(firstRender);
+        }
+
+        private async Task UpdateStatus(ReceiverStatus receiverStatus)
         {
             PlayerState = receiverStatus.CurrentMediaStatus?.PlayerState?.ToLower()?.FirstCharToUpper() ?? "Disconnected";
             IsMediaInitialized = receiverStatus.IsMediaInitialized;
-            IsQueue = receiverStatus.Queue != null && receiverStatus.Queue.Any();
             CurrentTime = TimeSpan.FromSeconds(receiverStatus.CurrentMediaStatus?.CurrentTime ?? 0);
             Runtime = TimeSpan.FromSeconds(receiverStatus.CurrentMediaInformation?.Duration ?? 0);
             PlaybackRate = receiverStatus.CurrentMediaStatus?.PlaybackRate ?? 1;
@@ -100,45 +117,76 @@ namespace HomehookApp.Components.Receiver
             Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
 
             MediaMetadata mediaMetadata = receiverStatus.CurrentMediaInformation?.Metadata;
+            Title = GetTitle(mediaMetadata);
+            Subtitle = GetSubtitle(mediaMetadata);
+
             switch (mediaMetadata?.MetadataType)
             {
                 case MetadataType.Default:
-                    Title = mediaMetadata?.Title ?? string.Empty;
-                    Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "folder-multiple-image";
                     break;
                 case MetadataType.Movie:
-                    Title = mediaMetadata?.Title ?? string.Empty;
-                    Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "movie";
                     break;
                 case MetadataType.TvShow:
-                    Title = mediaMetadata?.SeriesTitle ?? string.Empty;
-                    Subtitle = mediaMetadata?.Subtitle ?? string.Empty;
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "television";
                     break;
                 case MetadataType.Music:
-                    Title = $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty)}{mediaMetadata?.Title ?? string.Empty}";
-                    Subtitle = $"{mediaMetadata?.AlbumName ?? string.Empty}{(mediaMetadata?.AlbumName == null && mediaMetadata?.AlbumArtist != null ? mediaMetadata.AlbumArtist : mediaMetadata?.AlbumArtist != null ? $" ({mediaMetadata.AlbumArtist})" : string.Empty)}";
                     ImageUrl = mediaMetadata?.Images?.FirstOrDefault()?.Url;
                     MediaTypeIconClass = "music";
                     break;
                 case MetadataType.Photo:
-                    Title = mediaMetadata?.Title ?? string.Empty;
-                    Subtitle = mediaMetadata?.Artist ?? string.Empty;
                     ImageUrl = receiverStatus.CurrentMediaStatus?.Media?.ContentId;
                     MediaTypeIconClass = "image-multiple";
                     break;
                 default:
-                    Title = string.Empty;
-                    Subtitle = string.Empty;
                     MediaTypeIconClass = "cast-off";
                     break;
             }
 
+            IEnumerable<QueueItem> newQueue = receiverStatus.Queue ?? Array.Empty<QueueItem>();
+            if (!Queue.Any())
+                Queue = newQueue;
+            else if(!Enumerable.SequenceEqual(Queue.Select(item => item.ItemId), newQueue.Select(item => item.ItemId)))
+            {
+                Queue = newQueue;
+                await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable",
+                    Queue.Select(item => new { OrderId = item.OrderId++, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitile = GetSubtitle(item.Media.Metadata) }).ToArray());
+            }
+
+            if (IsMediaInitialized && PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
+                _timer.Start();
+            else
+                _timer.Stop();
+        }
+
+        protected static string GetTitle(MediaMetadata mediaMetadata)
+        {
+            return (mediaMetadata?.MetadataType) switch
+            {
+                MetadataType.Default => mediaMetadata?.Title ?? string.Empty,
+                MetadataType.Movie => mediaMetadata?.Title ?? string.Empty,
+                MetadataType.TvShow => mediaMetadata?.SeriesTitle ?? string.Empty,
+                MetadataType.Music => $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty)}{mediaMetadata?.Title ?? string.Empty}",
+                MetadataType.Photo => mediaMetadata?.Title ?? string.Empty,
+                _ => string.Empty,
+            };
+        }
+
+        protected static string GetSubtitle(MediaMetadata mediaMetadata)
+        {
+            return (mediaMetadata?.MetadataType) switch
+            {
+                MetadataType.Default => mediaMetadata?.Subtitle ?? string.Empty,
+                MetadataType.Movie => mediaMetadata?.Subtitle ?? string.Empty,
+                MetadataType.TvShow => mediaMetadata?.Subtitle ?? string.Empty,
+                MetadataType.Music => $"{mediaMetadata?.AlbumName ?? string.Empty}{(mediaMetadata?.AlbumName == null && mediaMetadata?.AlbumArtist != null ? mediaMetadata.AlbumArtist : mediaMetadata?.AlbumArtist != null ? $" ({mediaMetadata.AlbumArtist})" : string.Empty)}",
+                MetadataType.Photo => mediaMetadata?.Artist ?? string.Empty,
+                _ => string.Empty,
+            };
         }
 
         #region Commands
@@ -188,19 +236,34 @@ namespace HomehookApp.Components.Receiver
         protected async Task ToggleEditingQueue(MouseEventArgs _)
         {
             IsEditingQueue = !IsEditingQueue;
-            await InvokeAsync(StateHasChanged);
             if (IsEditingQueue)
-            {
-                await InvokeAsync(StateHasChanged);
-                await JSRuntime.InvokeVoidAsync("CenterElement", ReceiverCard);
-            }
+                await JSRuntime.InvokeVoidAsync("ChangeElementHeight", CardReceiverReference, 750);
             else
-            {
-                await JSRuntime.InvokeVoidAsync("ResetElement", ReceiverCard);
-                await InvokeAsync(StateHasChanged);
-            }
-
+                await JSRuntime.InvokeVoidAsync("ChangeElementHeight", CardReceiverReference, 250);
         }
+
+        [JSInvokable]
+        public async Task PlayItem(int itemId) =>
+            await _receiverHub.InvokeAsync("ChangeCurrentMedia", Name, itemId);
+
+
+        [JSInvokable]
+        public async Task UpItems(IEnumerable<int> itemIds) =>
+            await _receiverHub.InvokeAsync("UpQueue", Name, itemIds);
+
+
+        [JSInvokable]
+        public async Task DownItems(IEnumerable<int> itemIds) =>
+            await _receiverHub.InvokeAsync("DownQueue", Name, itemIds);
+
+
+        [JSInvokable]
+        public async Task AddItems(string searchTerm, int? insertBefore = null) =>
+            await _receiverHub.InvokeAsync("InsertQueue", Name, searchTerm, insertBefore);  
+
+        [JSInvokable]
+        public async Task RemoveItems(IEnumerable<int> itemIds) =>
+            await _receiverHub.InvokeAsync("RemoveQueue", Name, itemIds);
 
         #endregion
     }

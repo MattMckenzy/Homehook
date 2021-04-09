@@ -1,4 +1,6 @@
 ﻿using GoogleCast.Models.Media;
+using Homehook.Models.Jellyfin;
+using Homehook.Services;
 using HomehookCommon.Models;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Generic;
@@ -10,10 +12,16 @@ namespace Homehook.Hubs
     public class ReceiverHub : Hub
     {
         private readonly CastService _castService;
+        private readonly LanguageService _languageService;
+        private readonly JellyfinService _jellyfinService;
+        private readonly LoggingService<ReceiverHub> _loggingService;
 
-        public ReceiverHub(CastService castService)
+        public ReceiverHub(CastService castService, LanguageService languageService, JellyfinService jellyfinService, LoggingService<ReceiverHub> loggingService)
         {
             _castService = castService;
+            _languageService = languageService;
+            _jellyfinService = jellyfinService;
+            _loggingService = loggingService;
         }
 
         public Task<IEnumerable<string>> GetReceivers() =>
@@ -49,17 +57,35 @@ namespace Homehook.Hubs
         public async Task SetPlaybackRate(string receiverName, double playbackRate) =>
             await (await _castService.GetReceiverService(receiverName)).SetPlaybackRateAsync(playbackRate);
 
-        public async Task InsertQueue(string receiverName, IEnumerable<QueueItem> queueItems) =>
-            await (await _castService.GetReceiverService(receiverName)).InsertQueueAsync(queueItems);
+        public async Task InsertQueue(string receiverName, string searchTerm, int? insertBefore)
+        {
+            Phrase phrase = await _languageService.ParseJellyfinSimplePhrase(searchTerm);
+            await _loggingService.LogDebug("ReceiverHub - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {searchTerm}", phrase);
 
-        public async Task RemoveQueue(string receiverName, IEnumerable<QueueItem> queueItems) =>
-            await (await _castService.GetReceiverService(receiverName)).RemoveQueueAsync(queueItems);
+            phrase.UserId = await _jellyfinService.GetUserId(phrase.User);
+            if (string.IsNullOrWhiteSpace(phrase.UserId))
+            {
+                await _loggingService.LogWarning($"ReceiverHub - no user found", $"{phrase.SearchTerm}, or the default user, returned no available user IDs.", phrase);
+                return;
+            }
 
-        public async Task UpQueue(string receiverName, IEnumerable<QueueItem> queueItems) =>
-            await (await _castService.GetReceiverService(receiverName)).UpQueueAsync(queueItems);
+            IEnumerable<QueueItem> items = await _jellyfinService.GetItems(phrase);
+            await _loggingService.LogDebug($"ReceiverHub - items found.", $"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
+            await _loggingService.LogInformation($"ReceiverHub - items found.", "Found the following items:", items);
+            if (!items.Any())
+                await _loggingService.LogWarning($"ReceiverHub - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
 
-        public async Task DownQueue(string receiverName, IEnumerable<QueueItem> queueItems) =>
-            await (await _castService.GetReceiverService(receiverName)).DownQueueAsync(queueItems);
+            await (await _castService.GetReceiverService(receiverName)).InsertQueueAsync(items, insertBefore);
+        }
+
+        public async Task RemoveQueue(string receiverName, IEnumerable<int> itemIds) =>
+            await (await _castService.GetReceiverService(receiverName)).RemoveQueueAsync(itemIds);
+
+        public async Task UpQueue(string receiverName, IEnumerable<int> itemIds) =>
+            await (await _castService.GetReceiverService(receiverName)).UpQueueAsync(itemIds);
+
+        public async Task DownQueue(string receiverName, IEnumerable<int> itemIds) =>
+            await (await _castService.GetReceiverService(receiverName)).DownQueueAsync(itemIds);
 
         public async Task ShuffleQueue(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).ShuffleQueueAsync();

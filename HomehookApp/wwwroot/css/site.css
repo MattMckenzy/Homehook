@@ -4,6 +4,27 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+body {
+    background-color: black;
+}
+
+a.navbar-brand {
+    white-space: normal;
+    text-align: center;
+    word-break: break-all;
+}
+
+.container {
+    width: 100%;
+    max-width: none;
+}
+
+.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+    color: #fff;
+    background-color: #1b6ec2;
+    border-color: #1861ac;
+}
+
 a, .btn-link {
     color: #0366d6;
 }
@@ -55,6 +76,7 @@ a, .btn-link {
     overflow: hidden;
     -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
     transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    border-color: #6c757d;
 }
 
     .card-receiver img {
@@ -76,13 +98,13 @@ a, .btn-link {
 .media-controls {
     background-image: linear-gradient(to top, rgba(52, 58, 64, 0.8), rgba(52, 58, 64, 0));
     height: 100px;
-    width: 250px;
 }
 
 .button-bright {
     filter: brightness(75%);
     transition: all 0.1s ease-in-out;
     cursor: pointer;
+    color: white;
 }
 
     .button-bright:hover {
@@ -100,6 +122,10 @@ a, .btn-link {
     pointer-events: none !important;
 }
 
+.hover-connect:hover::before {
+    content:"\F0412"
+}
+
 .media-information {
     position: absolute;
     width: 100%;
@@ -115,11 +141,6 @@ a, .btn-link {
 .progress-bar {
     -webkit-transition: width .1s linear;
     transition: width .1s linear;
-}
-
-.mdi::before {
-    font-size: 24px;
-    line-height: 14px;
 }
 
 .btn .mdi::before {
@@ -271,11 +292,6 @@ a, .btn-link {
     opacity: 0;
 }
 
-.selector {
-    width: 40px;
-    height: 24px;
-}
-
 input.radial-toggle:checked ~ .radial-menu .radial-button:nth-child(2) {
     top: -171px;
     opacity: 1;
@@ -395,4 +411,92 @@ input.radial-toggle:checked ~ .radial-menu .radial-button .close-button {
 .queue-edit-container {
     height: 500px;
     width: 500px;
+    border-top: 1px solid #6c757d;
+}
+
+
+.mdi::before {
+    font-size: 24px;
+    line-height: 24px;
+}
+
+@media (min-width: 0px) {
+    .radial-button, .icon-responsive::before {
+        height: 8px;
+        width: 8px;
+        font-size: 8px;
+        line-height: 8px;
+    }
+}
+
+@media (min-width: 350px) {
+    .radial-button, .icon-responsive::before {
+        height: 10px;
+        width: 10px;
+        font-size: 10px;
+        line-height: 10px;
+    }
+}
+
+@media (min-width: 380px) {
+    .radial-button, .icon-responsive::before {
+        height: 12px;
+        width: 12px;
+        font-size: 12px;
+        line-height: 12px;
+    }
+}
+
+@media (min-width: 410px) {
+    .radial-button, .icon-responsive::before {
+        height: 14px;
+        width: 14px;
+        font-size: 14px;
+        line-height: 14px;
+    }
+}
+
+@media (min-width: 440px) {
+    .radial-button, .icon-responsive::before {
+        height: 16px;
+        width: 16px;
+        font-size: 16px;
+        line-height: 16px;
+    }
+}
+
+@media (min-width: 470px) {
+    .radial-button, .icon-responsive::before {
+        height: 18px;
+        width: 18px;
+        font-size: 18px;
+        line-height: 18px;
+    }
+}
+
+@media (min-width: 500px) {
+    .radial-button, .icon-responsive::before {
+        height: 20px;
+        width: 20px;
+        font-size: 20px;
+        line-height: 20px;
+    }
+}
+
+@media (min-width: 530px) {
+    .radial-button, .icon-responsive::before {
+        height: 22px;
+        width: 22px;
+        font-size: 22px;
+        line-height: 22px;
+    }
+}
+
+@media (min-width: 560px) {
+    .radial-button, .icon-responsive::before {
+        height: 24px;
+        width: 24px;
+        font-size: 24px;
+        line-height: 24px;
+    }
 }

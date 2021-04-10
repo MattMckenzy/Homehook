@@ -3,6 +3,7 @@ using Homehook.Models.Jellyfin;
 using Homehook.Services;
 using HomehookCommon.Models;
 using Microsoft.AspNetCore.SignalR;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,6 +24,9 @@ namespace Homehook.Hubs
             _jellyfinService = jellyfinService;
             _loggingService = loggingService;
         }
+
+        public async Task RefreshReceivers() =>
+            await _castService.RefreshReceivers();
 
         public Task<IEnumerable<string>> GetReceivers() =>
             Task.FromResult(_castService.ReceiverServices.Select(receiverService => receiverService.Receiver.FriendlyName));
@@ -57,26 +61,11 @@ namespace Homehook.Hubs
         public async Task SetPlaybackRate(string receiverName, double playbackRate) =>
             await (await _castService.GetReceiverService(receiverName)).SetPlaybackRateAsync(playbackRate);
 
-        public async Task InsertQueue(string receiverName, string searchTerm, int? insertBefore)
-        {
-            Phrase phrase = await _languageService.ParseJellyfinSimplePhrase(searchTerm);
-            await _loggingService.LogDebug("ReceiverHub - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {searchTerm}", phrase);
+        public async Task LaunchQueue(string receiverName, string searchTerm) =>
+            await (await _castService.GetReceiverService(receiverName)).InitializeQueueAsync(await GetItems(searchTerm));        
 
-            phrase.UserId = await _jellyfinService.GetUserId(phrase.User);
-            if (string.IsNullOrWhiteSpace(phrase.UserId))
-            {
-                await _loggingService.LogWarning($"ReceiverHub - no user found", $"{phrase.SearchTerm}, or the default user, returned no available user IDs.", phrase);
-                return;
-            }
-
-            IEnumerable<QueueItem> items = await _jellyfinService.GetItems(phrase);
-            await _loggingService.LogDebug($"ReceiverHub - items found.", $"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
-            await _loggingService.LogInformation($"ReceiverHub - items found.", "Found the following items:", items);
-            if (!items.Any())
-                await _loggingService.LogWarning($"ReceiverHub - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
-
-            await (await _castService.GetReceiverService(receiverName)).InsertQueueAsync(items, insertBefore);
-        }
+        public async Task InsertQueue(string receiverName, string searchTerm, int? insertBefore) =>
+            await (await _castService.GetReceiverService(receiverName)).InsertQueueAsync(await GetItems(searchTerm), insertBefore);        
 
         public async Task RemoveQueue(string receiverName, IEnumerable<int> itemIds) =>
             await (await _castService.GetReceiverService(receiverName)).RemoveQueueAsync(itemIds);
@@ -95,5 +84,26 @@ namespace Homehook.Hubs
 
         public async Task ToggleMute(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).ToggleMutedAsync();
+
+        private async Task<IEnumerable<QueueItem>> GetItems(string searchTerm)
+        {
+            Phrase phrase = await _languageService.ParseJellyfinSimplePhrase(searchTerm);
+            await _loggingService.LogDebug("ReceiverHub - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {searchTerm}", phrase);
+
+            phrase.UserId = await _jellyfinService.GetUserId(phrase.User);
+            if (string.IsNullOrWhiteSpace(phrase.UserId))
+            {
+                await _loggingService.LogWarning($"ReceiverHub - no user found", $"{phrase.SearchTerm}, or the default user, returned no available user IDs.", phrase);
+                return Array.Empty<QueueItem>();
+            }
+
+            IEnumerable<QueueItem> items = await _jellyfinService.GetItems(phrase);
+            await _loggingService.LogDebug($"ReceiverHub - items found.", $"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
+            await _loggingService.LogInformation($"ReceiverHub - items found.", "Found the following items:", items);
+            if (!items.Any())
+                await _loggingService.LogWarning($"ReceiverHub - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
+
+            return items;
+        }
     }
 }

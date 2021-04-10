@@ -11,9 +11,9 @@ else
         <div class="card-img-overlay">
 
             <div class="row m-0 receiver-title position-absolute fixed-top w-100">
-                <h4 class="col-4 text-truncate text-stroke m-2 p-0">@Name</h4>
-                <h6 class="d-flex flex-fill align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@PlayerState</h6>
-                <i class="col-4 d-flex align-items-center justify-content-end m-2 p-0 mdi mdi-@(MediaTypeIconClass)"></i>
+                <h4 class="col text-truncate text-stroke m-2 p-0">@Name</h4>
+                <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@PlayerState</h6>
+                <i class="col d-flex align-items-center button-bright hover-connect justify-content-end m-2 p-0 mdi mdi-@(MediaTypeIconClass)" @onclick="LaunchQueue"></i>
             </div>
 
             <div class="media-information p-2">
@@ -25,95 +25,97 @@ else
             {
                 <div class="bottom-container container-fluid position-absolute fixed-bottom p-0 w-100">
                     <div class="media-controls p-0 w-100">
-                        <div class="row align-items-center mx-0 pt-3 pb-2">
+                        <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
                             <div class="col-auto text-white pl-3 pr-2">@CurrentTime.StripMilliseconds().ToString()</div>
                             <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
                                 <div class="progress-bar" role="progressbar" aria-valuenow="@CurrentTime.StripMilliseconds().TotalSeconds" aria-valuemin="0" aria-valuemax="@Runtime.StripMilliseconds().TotalSeconds" style="width:@(Math.Round(@CurrentTime.TotalSeconds * 100 / Runtime.TotalSeconds))%;"></div>
                             </div>
                             <div class="col-auto text-white pl-2 pr-3">@Runtime.StripMilliseconds().ToString()</div>
                         </div>
-                        <div class="row align-items-center mx-0 pt-2 pb-3">
-                            <i class="col-auto pl-3 pr-2 button-bright mdi mdi-skip-previous" @onclick="PreviousClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-rewind-10" @onclick="RewindClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-@(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause")" @onclick="PlayPauseClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-stop" @onclick="StopClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-fast-forward-10" @onclick="FastForwardClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-skip-next" @onclick="NextClick" />
+                        <div class="row flex-nowrap align-items-center mx-0 pt-2 pb-3">
+                            <i class="col-auto pl-3 pr-2 button-bright mdi mdi-skip-previous icon-responsive" @onclick="PreviousClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-rewind-10 icon-responsive" @onclick="RewindClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-@(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause") icon-responsive" @onclick="PlayPauseClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-stop icon-responsive" @onclick="StopClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-fast-forward-10 icon-responsive" @onclick="FastForwardClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-skip-next icon-responsive" @onclick="NextClick" />
                             <div class="col px-0" />
-                            <div class="col-auto px-2 selector">
+                            <div class="col-auto d-flex align-items-center px-2">
                                 <input class="invisible-toggle radial-toggle" type="checkbox" id="speedToggle@(Name)" />
-                                <label class="radial-menu" for="speedToggle@(Name)">
+                                <label class="radial-menu m-0" for="speedToggle@(Name)">
                                     <div class="radial-button position-relative">
-                                        <i class="button-bright menu-button mdi mdi-play-speed"></i>
-                                        <i class="button-bright close-button mdi mdi-close"></i>
+                                        <i class="button-bright menu-button mdi mdi-play-speed icon-responsive"></i>
+                                        <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                     </div>
                                     <div class="radial-button@(PlaybackRate == 0.5  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(0.5)">
-                                        <span class="button-bright d-flex align-content-center">½</span>
+                                        <span class="button-bright d-flex align-content-center icon-responsive">½</span>
                                     </div>
                                     <div class="radial-button@(PlaybackRate == 1  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1)">
-                                        <span class="button-bright d-flex align-content-center">1</span>
+                                        <span class="button-bright d-flex align-content-center icon-responsive">1</span>
                                     </div>
                                     <div class="radial-button@(PlaybackRate == 1.5  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1.5)">
-                                        <span class="button-bright d-flex align-content-center">3⁄2</span>
+                                        <span class="button-bright d-flex align-content-center icon-responsive">3⁄2</span>
                                     </div>
                                     <div class="radial-button@(PlaybackRate == 2  ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(2)">
-                                        <span class="button-bright d-flex align-content-center">2</span>
+                                        <span class="button-bright d-flex align-content-center icon-responsive">2</span>
                                     </div>
                                 </label>
                             </div>
                             @if (Queue.Any())
                             {
-                                <div class="col-auto px-2 selector">
+                                <div class="col-auto px-2 d-flex align-items-center">
                                     <input class="invisible-toggle radial-toggle" type="checkbox" id="playlistToggle@(Name)" />
-                                    <label class="radial-menu" for="playlistToggle@(Name)">
+                                    <label class="radial-menu m-0" for="playlistToggle@(Name)">
                                         <div class="radial-button position-relative">
-                                            <i class="button-bright menu-button mdi mdi-playlist-edit" @onclick="ToggleEditingQueue"></i>
-                                            <i class="button-bright close-button mdi mdi-close" @onclick="ToggleEditingQueue"></i>
+                                            <i class="button-bright menu-button mdi mdi-playlist-edit icon-responsive" @onclick="ToggleEditingQueue"></i>
+                                            <i class="button-bright close-button mdi mdi-close icon-responsive" @onclick="ToggleEditingQueue"></i>
                                         </div>
                                     </label>
                                 </div>
-                                <div class="col-auto px-2 selector">
+                                <div class="col-auto px-2 d-flex align-items-center">
                                     <input class="invisible-toggle radial-toggle" type="checkbox" id="repeatToggle@(Name)" />
-                                    <label class="radial-menu" for="repeatToggle@(Name)">
+                                    <label class="radial-menu m-0" for="repeatToggle@(Name)">
                                         <div class="radial-button position-relative">
-                                            <i class="button-bright menu-button mdi mdi-@(Repeat == RepeatMode.RepeatAll ? "repeat" : Repeat == RepeatMode.RepeatSingle ? "repeat-once" : Repeat == RepeatMode.RepeatAllAndShuffle ? "shuffle-variant" : "repeat-off")"></i>
-                                            <i class="button-bright close-button mdi mdi-close"></i>
+                                            <i class="button-bright menu-button mdi mdi-@(Repeat == RepeatMode.RepeatAll ? "repeat" : Repeat == RepeatMode.RepeatSingle ? "repeat-once" : Repeat == RepeatMode.RepeatAllAndShuffle ? "shuffle-variant" : "repeat-off") icon-responsive"></i>
+                                            <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                         </div>
                                         <div class="radial-button@(Repeat == RepeatMode.RepeatAll ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatAll)">
-                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat"></i>
+                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat icon-responsive"></i>
                                         </div>
                                         <div class="radial-button@(Repeat == RepeatMode.RepeatSingle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatSingle)">
-                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat-once"></i>
+                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat-once icon-responsive"></i>
                                         </div>
                                         <div class="radial-button@(Repeat == RepeatMode.RepeatAllAndShuffle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatAllAndShuffle)">
-                                            <i class="button-bright d-flex align-content-center mdi mdi-shuffle-variant"></i>
+                                            <i class="button-bright d-flex align-content-center mdi mdi-shuffle-variant icon-responsive"></i>
                                         </div>
                                         <div class="radial-button@(Repeat == RepeatMode.RepeatOff ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.RepeatOff)">
-                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat-off"></i>
+                                            <i class="button-bright d-flex align-content-center mdi mdi-repeat-off icon-responsive"></i>
                                         </div>
                                     </label>
                                 </div>
                             }
 
                             <div class="col-auto pl-2 pr-3">
-                                <i class="volume-icon button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")" />
+                                <i class="volume-icon button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" />
                                 <div class="volume-container">
-                                    <i class="volume-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low")" @onclick="ToggleMute" />
+                                    <i class="volume-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" @onclick="ToggleMute" />
                                     <input class="volume-slider button-bright" type="range" orient="vertical" min="0" max="1" step="0.01" value="@Volume" @onchange="SetVolume">
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="queue-edit-container bg-light p-2 w-100">
+                    <div class="queue-edit-container bg-dark p-2 w-100">
                         <table class="h-100"
                                 id="@(Name)QueueTable"
-                                data-height="460"
+                                data-height="472"
                                 data-search="true"
                                 data-detail-view="true"
                                 data-buttons-align="left"
                                 data-buttons="queueTableButtonsFormatter"
                                 data-id-field="number"
                                 data-click-to-select="true"
+                                data-header-style="queueTableHeaderFormatter"
+                                data-row-style="queueTableRowFormatter"
                                 data-detail-formatter="queueTableDetailFormatter">
                             <thead>
                                 <tr>
@@ -122,6 +124,7 @@ else
                                     <th data-field="title">Title</th>
                                     <th data-field="itemId" data-visible="false">Id</th>
                                     <th data-field="subtitle" data-visible="false">Subtitle</th>
+                                    <th data-field="isPlaying" data-visible="false">Is Playing</th>
                                 </tr>
                             </thead>
                         </table>

@@ -42,6 +42,7 @@ namespace HomehookApp.Components.Receiver
         protected bool IsMuted { get; set; }
         protected RepeatMode? Repeat { get; set; }
 
+        private int? _currentItemId = null;
         private bool _showingMessage = false;
         private readonly System.Timers.Timer _timer = new() { AutoReset = true, Interval = 1000 };
 
@@ -100,7 +101,7 @@ namespace HomehookApp.Components.Receiver
         {
             if (Queue.Any())
                 await JSRuntime.InvokeVoidAsync("InitializeTable", $"{Name}QueueTable", DotNetObjectReference.Create(this), 
-                    Queue.Select(item => new { item.OrderId, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitle = GetSubtitle(item.Media.Metadata) }).ToArray());
+                    Queue.Select(item => new { OrderId = item.OrderId + 1, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitle = GetSubtitle(item.Media.Metadata), IsPlaying = item.ItemId == _currentItemId }).ToArray());
 
             await base.OnAfterRenderAsync(firstRender);
         }
@@ -115,6 +116,7 @@ namespace HomehookApp.Components.Receiver
             Volume = receiverStatus.Volume;
             IsMuted = receiverStatus.IsMuted;
             Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
+            _currentItemId = receiverStatus.CurrentMediaStatus?.CurrentItemId;
 
             MediaMetadata mediaMetadata = receiverStatus.CurrentMediaInformation?.Metadata;
             Title = GetTitle(mediaMetadata);
@@ -154,7 +156,7 @@ namespace HomehookApp.Components.Receiver
             {
                 Queue = newQueue;
                 await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable",
-                    Queue.Select(item => new { OrderId = item.OrderId++, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitile = GetSubtitle(item.Media.Metadata) }).ToArray());
+                    Queue.Select(item => new { OrderId = item.OrderId+1, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitile = GetSubtitle(item.Media.Metadata), IsPlaying = item.ItemId == _currentItemId }).ToArray());
             }
 
             if (IsMediaInitialized && PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
@@ -242,20 +244,23 @@ namespace HomehookApp.Components.Receiver
                 await JSRuntime.InvokeVoidAsync("ChangeElementHeight", CardReceiverReference, 250);
         }
 
+        public async Task LaunchQueue(MouseEventArgs _)
+        {
+            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter Jellyfin search term to find items for {Name}'s queue.", "");
+            await _receiverHub.InvokeAsync("LaunchQueue", Name, searchTerm);
+        }
+
         [JSInvokable]
         public async Task PlayItem(int itemId) =>
             await _receiverHub.InvokeAsync("ChangeCurrentMedia", Name, itemId);
-
 
         [JSInvokable]
         public async Task UpItems(IEnumerable<int> itemIds) =>
             await _receiverHub.InvokeAsync("UpQueue", Name, itemIds);
 
-
         [JSInvokable]
         public async Task DownItems(IEnumerable<int> itemIds) =>
             await _receiverHub.InvokeAsync("DownQueue", Name, itemIds);
-
 
         [JSInvokable]
         public async Task AddItems(string searchTerm, int? insertBefore = null) =>

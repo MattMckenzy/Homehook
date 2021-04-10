@@ -57,7 +57,7 @@ function queueTableButtonsFormatter() {
             text: 'Add items',
             icon: 'fa-plus',
             event: function () {
-                var searchTerm = prompt("Please enter jellyfin search term.", "")
+                var searchTerm = prompt("Please enter Jellyfin search term to find items for " + this.$el[0].id.replace("QueueTable", "") + "'s queue. Found items will be inserted before first selected item, or at the end if none selected.", "")
                 dotnetReferences[this.$el[0].id].invokeMethodAsync('AddItems', searchTerm,
                     this.data.filter(item => item.state == true).map(item => item.itemId)[0]);
             },
@@ -78,6 +78,24 @@ function queueTableButtonsFormatter() {
             }
         }
     }
+};
+
+function queueTableHeaderFormatter(row, index) {
+    return {
+        classes: "text-light"
+    };
+};
+
+
+function queueTableRowFormatter(row, index) {
+    if (row.isPlaying == true)
+        return {
+            classes: "bg-success  text-light"
+        };
+    else
+        return {
+            classes: "text-light"
+        };
 };
 
 function queueTableDetailFormatter(index, row) {

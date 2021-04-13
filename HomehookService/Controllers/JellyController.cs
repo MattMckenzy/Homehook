@@ -82,7 +82,7 @@ namespace Homehook.Controllers
                 return NotFound($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user IDs.");
             }
 
-            await _castService.StartJellyfinSession(phrase, items);
+            await _castService.StartJellyfinSession(phrase.Device, items);
 
             return Ok($"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
         }

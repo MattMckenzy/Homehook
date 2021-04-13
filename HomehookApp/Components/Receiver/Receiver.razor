@@ -6,7 +6,7 @@
 }
 else
 {
-    <div class="card bg-dark text-white card-receiver m-2" @ref="CardReceiverReference">
+    <div class="card bg-dark text-white card-receiver m-2" @ref="CardReceiverReference" style="@(PlayerState.Equals("Disconnected", StringComparison.InvariantCultureIgnoreCase) ? "height: 250px;" : string.Empty)">
         <img src="@ImageUrl" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
         <div class="card-img-overlay">
 
@@ -21,7 +21,7 @@ else
                 <p class="text-truncate text-stroke m-1">@Subtitle</p>
             </div>
 
-            @if (@IsMediaInitialized)
+            @if (!PlayerState.Equals("Disconnected", StringComparison.InvariantCultureIgnoreCase))
             {
                 <div class="bottom-container container-fluid position-absolute fixed-bottom p-0 w-100">
                     <div class="media-controls p-0 w-100">
@@ -35,7 +35,7 @@ else
                         <div class="row flex-nowrap align-items-center mx-0 pt-2 pb-3">
                             <i class="col-auto pl-3 pr-2 button-bright mdi mdi-skip-previous icon-responsive" @onclick="PreviousClick" />
                             <i class="col-auto px-2 button-bright mdi mdi-rewind-10 icon-responsive" @onclick="RewindClick" />
-                            <i class="col-auto px-2 button-bright mdi mdi-@(PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase) ? "play" : "pause") icon-responsive" @onclick="PlayPauseClick" />
+                            <i class="col-auto px-2 button-bright mdi mdi-@(PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase) ? "pause" : "play") icon-responsive" @onclick="PlayPauseClick" />
                             <i class="col-auto px-2 button-bright mdi mdi-stop icon-responsive" @onclick="StopClick" />
                             <i class="col-auto px-2 button-bright mdi mdi-fast-forward-10 icon-responsive" @onclick="FastForwardClick" />
                             <i class="col-auto px-2 button-bright mdi mdi-skip-next icon-responsive" @onclick="NextClick" />
@@ -95,28 +95,38 @@ else
                                 </div>
                             }
 
-                            <div class="col-auto pl-2 pr-3">
-                                <i class="volume-icon button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" />
-                                <div class="volume-container">
-                                    <i class="volume-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" @onclick="ToggleMute" />
-                                    <input class="volume-slider button-bright" type="range" orient="vertical" min="0" max="1" step="0.01" value="@Volume" @onchange="SetVolume">
+                        <div class="col-auto pl-2 pr-3 d-flex align-items-center">
+                            <input class="invisible-toggle radial-toggle" type="checkbox" id="volumeToggle@(Name)" />
+                            <label class="radial-menu m-0" for="volumeToggle@(Name)">
+                                <div class="radial-button position-relative">
+                                    <i class="volume-icon menu-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive"></i>
+                                    <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                 </div>
+                            </label>
+                            <div class="volume-container d-flex justify-content-center">
+                                <i class="volume-button button-bright mdi mdi-@(IsMuted ? "volume-variant-off" : Volume > 0.5 ? "volume-high" : Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" @onclick="ToggleMute" />
+                                <input class="volume-slider button-bright" type="range" orient="vertical" min="0" max="1" step="0.01" value="@Volume" @onchange="SetVolume" />
                             </div>
                         </div>
+                         </div>
                     </div>
                     <div class="queue-edit-container bg-dark p-2 w-100">
-                        <table class="h-100"
-                                id="@(Name)QueueTable"
-                                data-height="472"
-                                data-search="true"
-                                data-detail-view="true"
-                                data-buttons-align="left"
-                                data-buttons="queueTableButtonsFormatter"
-                                data-id-field="number"
-                                data-click-to-select="true"
-                                data-header-style="queueTableHeaderFormatter"
-                                data-row-style="queueTableRowFormatter"
-                                data-detail-formatter="queueTableDetailFormatter">
+                        <div class="btn-group btn-group-sm mt-2 float-left" role="group" aria-label="Queue item buttons.">
+                            <button id="@(Name)QueuePlayButton" class="btn btn-secondary" disabled><i class="mdi mdi-playlist-play"></i></button>
+                            <button id="@(Name)QueuePlusButton" class="btn btn-secondary"><i class="mdi mdi-playlist-plus"></i></button>
+                            <button id="@(Name)QueueMinusButton" class="btn btn-secondary" disabled><i class="mdi mdi-playlist-minus"></i></button>
+                            <button id="@(Name)QueueUpButton" class="btn btn-secondary" disabled><i class="mdi mdi-chevron-up"></i></button>
+                            <button id="@(Name)QueueDownButton" class="btn btn-secondary" disabled><i class="mdi mdi-chevron-down"></i></button>
+                        </div>
+                        <table id="@(Name)QueueTable"
+                               data-height="472"
+                               data-search="true"
+                               data-detail-view="true"
+                               data-id-field="number"
+                               data-click-to-select="true"
+                               data-header-style="queueTableHeaderFormatter"
+                               data-row-style="queueTableRowFormatter"
+                               data-detail-formatter="queueTableDetailFormatter">
                             <thead>
                                 <tr>
                                     <th data-field="state" data-checkbox="true"></th>
@@ -124,6 +134,7 @@ else
                                     <th data-field="title">Title</th>
                                     <th data-field="itemId" data-visible="false">Id</th>
                                     <th data-field="subtitle" data-visible="false">Subtitle</th>
+                                    <th data-field="runtime" data-visible="false">Runtime</th>
                                     <th data-field="isPlaying" data-visible="false">Is Playing</th>
                                 </tr>
                             </thead>

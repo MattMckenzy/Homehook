@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Timers;
@@ -24,15 +25,18 @@ namespace Homehook.Services
 
         private readonly LoggingService<CastService> _loggingService;
         private readonly ISender _sender = new Sender();
-        private readonly string _applicationId;
 
-        private System.Timers.Timer _timer;
+        private Timer _timer;
         private int _refreshClock = 0;
         private bool _isSessionInitialized = false;
 
         private bool _disposedValue;
 
         public IReceiver Receiver { get; set; }
+
+        private readonly string _applicationId;
+        public string HomehookApplicationId { get { return string.IsNullOrWhiteSpace(_applicationId) ? _sender.GetChannel<IMediaChannel>().DefaultApplicationId : _applicationId; } }
+        public string CurrentApplicationId { get { return _sender.GetChannel<IReceiverChannel>()?.Status?.Applications?.FirstOrDefault()?.AppId ?? string.Empty; } }
 
         public bool IsMediaInitialized { get; set; }
 
@@ -44,6 +48,8 @@ namespace Homehook.Services
                 return mediaChannel.Status == null || !string.IsNullOrEmpty(mediaChannel.Status.FirstOrDefault()?.IdleReason);
             }
         }
+
+        public bool IsDifferentApplicationPlaying { get { return !string.IsNullOrWhiteSpace(CurrentApplicationId) && !CurrentApplicationId.Equals(HomehookApplicationId, StringComparison.InvariantCultureIgnoreCase); } }
 
         public float Volume { get; set; }
 
@@ -69,10 +75,10 @@ namespace Homehook.Services
             _loggingService = loggingService;
             Receiver = receiver;
 
-            Initialize();
+            _ = Task.Run(async () => await Initialize());
         }
 
-        private async void Initialize()
+        private async Task Initialize()
         {
             await _sender.ConnectAsync(Receiver);
 
@@ -96,9 +102,9 @@ namespace Homehook.Services
 
         #region Commands
 
-        public Task<HomehookCommon.Models.ReceiverStatus> GetReceiverStatus()
+        public HomehookCommon.Models.ReceiverStatus GetReceiverStatus()
         {
-            return Task.FromResult(new HomehookCommon.Models.ReceiverStatus()
+            HomehookCommon.Models.ReceiverStatus receiverStatus = new()
             {
                 Name = Receiver.FriendlyName,
                 Id = Receiver.Id,
@@ -111,7 +117,9 @@ namespace Homehook.Services
                 CurrentMediaInformation = CurrentMediaInformation,
                 CurrentRunTime = CurrentRunTime,
                 Queue = Queue
-            });
+            };
+
+            return receiverStatus;
         }
 
         public async Task InitializeItemAsync(MediaInformation mediaInformation)
@@ -122,10 +130,8 @@ namespace Homehook.Services
                 {
                     if (mediaInformation != null)
                     {
-                        string applicationId = string.IsNullOrWhiteSpace(_applicationId) ? mediaChannel.DefaultApplicationId : _applicationId;
-                        string currentApplicationId = _sender.GetChannel<IReceiverChannel>()?.Status?.Applications?.FirstOrDefault()?.AppId;
-                        if (currentApplicationId == null || !applicationId.Equals(currentApplicationId, StringComparison.InvariantCultureIgnoreCase))                        
-                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(applicationId);
+                        if (string.IsNullOrWhiteSpace(CurrentApplicationId) || IsDifferentApplicationPlaying)
+                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
 
                         Queue = new();
 
@@ -146,11 +152,9 @@ namespace Homehook.Services
                 {
                     if (queueItems.Any())
                     {
-                        string applicationId = string.IsNullOrWhiteSpace(_applicationId) ? mediaChannel.DefaultApplicationId : _applicationId;
-                        string currentApplicationId = _sender.GetChannel<IReceiverChannel>()?.Status?.Applications?.FirstOrDefault()?.AppId;
-                        if (currentApplicationId == null || !applicationId.Equals(currentApplicationId, StringComparison.InvariantCultureIgnoreCase))
-                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(applicationId);
-                        
+                        if (string.IsNullOrWhiteSpace(CurrentApplicationId) || IsDifferentApplicationPlaying)
+                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
+
                         Queue = new(queueItems);
                         Queue<QueueItem> queue = new(Queue);
 
@@ -179,10 +183,9 @@ namespace Homehook.Services
         public async Task StopAsync() =>        
             await Try(async () =>
             {
-                if (IsStopped)
-                    await InvokeAsync<IReceiverChannel>(receiverChannel => receiverChannel.StopAsync());    
-                else
-                    await InvokeAsync<IMediaChannel>(mediaChannel => mediaChannel.StopAsync());                
+                if (!IsStopped)
+                    await InvokeAsync<IMediaChannel>(mediaChannel => mediaChannel.StopAsync());
+                await InvokeAsync<IReceiverChannel>(receiverChannel => receiverChannel.StopAsync());                
             });        
 
         public async Task SetVolumeAsync(float volume) =>
@@ -224,7 +227,7 @@ namespace Homehook.Services
                     (int orderId, int itemId)[] items = Queue.Select(item => ((int)item.OrderId, (int)item.ItemId)).ToArray();
                     foreach ((int orderId, int itemId) in items.Reverse().ToArray())
                     {
-                        if (movingItemIds.Contains(itemId) && orderId > 0)
+                        if (movingItemIds.Contains(itemId) && orderId < items.Length - 1)
                             items.MoveDown(orderId);
                     }
 
@@ -323,7 +326,7 @@ namespace Homehook.Services
                 await JellySessionUpdate();
             }
 
-            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
+            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, GetReceiverStatus());
         }
 
         private async void QueueStatusChanged(object sender, EventArgs e)
@@ -347,7 +350,7 @@ namespace Homehook.Services
                     break;
             }
 
-            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
+            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, GetReceiverStatus());
         }
 
         private async void ReceiverChannelStatusChanged(object sender, EventArgs e)
@@ -365,11 +368,13 @@ namespace Homehook.Services
                 }
             }
 
-            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
+            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, GetReceiverStatus());
         }
 
         private async void SenderDisconnected(object sender, EventArgs eventArgs)
-        {                        
+        { 
+            Debug.WriteLine($"{Receiver?.FriendlyName ?? "N/A"} disposed");
+
             CurrentMediaStatus = null;
             CurrentMediaInformation = null;
             CurrentRunTime = null;
@@ -378,7 +383,7 @@ namespace Homehook.Services
             IsMediaInitialized = false;
             _timer.Stop();
 
-            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, await GetReceiverStatus());
+            await _receiverHub.Clients.All.SendAsync("ReceiveStatus", Receiver.FriendlyName, GetReceiverStatus());
 
             Dispose();
         }

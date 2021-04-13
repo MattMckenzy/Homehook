@@ -9,6 +9,13 @@ using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using System;
 using Homehook.Hubs;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+using System.Security.Claims;
+using System.Collections.Generic;
+using System.Security.Principal;
 
 namespace Homehook
 {
@@ -58,7 +65,41 @@ namespace Homehook
             services.AddSingleton<CastService>();
             services.AddHostedService(sp => sp.GetRequiredService<CastService>());
 
-            services.AddSignalR();
+            services.AddAuthentication(options =>
+            {
+                // Identity made Cookie authentication the default.
+                // However, we want JWT Bearer Auth to be the default.
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        PathString path = context.HttpContext.Request.Path;
+                        if (path.StartsWithSegments("/receiverhub") &&
+                            context.Request.Headers.TryGetValue("Authorization", out StringValues accessToken) &&
+                            !string.IsNullOrEmpty(accessToken.ToString()) &&
+                            string.Equals(Configuration["Services:HomehookApp:Token"], accessToken.ToString().Replace("Bearer ", ""), StringComparison.Ordinal))
+                        {
+                            IEnumerable<Claim> claims = new List<Claim>()
+                            {
+                                new Claim(ClaimTypes.Name, "HomeHookApp")
+                            };
+
+                            context.Principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Jwt"));
+                            context.Success();
+                        }
+
+                        return Task.CompletedTask;
+                    } 
+                };
+            });
+
+            services.AddSignalR()
+                .AddNewtonsoftJsonProtocol();
 
             JsonConvert.DefaultSettings = () => new JsonSerializerSettings()
             {
@@ -81,6 +122,7 @@ namespace Homehook
 
             app.UseRouting();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>

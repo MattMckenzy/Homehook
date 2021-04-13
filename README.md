@@ -2,7 +2,7 @@
 
 Simple API meant to handle Google Assistant webhooks and reroute them to Home Assistant.
 
-# Description
+ ## Description
 
 This application will help configure and serve incoming and outgoing webhooks to help you route Google Assistant spoken or text commands to your Google Cast devices.
 
@@ -16,9 +16,9 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 [A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook)
 
-# Usage
+## Usage
 
-## Jellyfin Simple Phrase
+### Jellyfin Simple Phrase
 Once configured appropriately, Homehook can receive POST requests at homehook/jelly/simple to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
 Phrase terms are parsed in the following order:
 1. Order
@@ -35,7 +35,7 @@ The incoming webhook can come from any source, such as IFTTT's simple phrase wit
 curl -X POST "http://homehook/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
 ```
 
-## Jellyfin Conversation Phrase
+### Jellyfin Conversation Phrase
 Google Conversation Actions can help build some very powerful phrase parsing intents that can be used to pre-parse search terms before sending them to Homehook.
 
 This endpoint expects to receive a Google Conversation Action webhook POST to homehook/jelly/conversation (including apiKey query parameter). The following Action parameter names match the phrase terms defined in Homehook:
@@ -47,13 +47,13 @@ This endpoint expects to receive a Google Conversation Action webhook POST to ho
 
 [Please read the Google Actions documentation for information on configuring its advanced phrase parsing features.](https://console.actions.google.com/)
 
-## Home Assistant
+### Home Assistant
 
 I like to use Home Assistant to interact with Homehook through automations by using the RESTful Command integration.
 
 Here's an example of the REST command and an automation configuration:
 
-### Service - REST command
+#### Service - REST command
 ```yaml
 rest_command:
   homehook_jelly:
@@ -63,7 +63,7 @@ rest_command:
     content_type: "application/json"
 ```
 
-### Automation example - call REST command on NFC tag scan
+#### Automation example - call REST command on NFC tag scan
 ```yaml
   alias: Tag chrono cross is scanned
   description: ''
@@ -82,7 +82,7 @@ rest_command:
   mode: single
 ```
 
-# Configuration
+## Configuration
 
 Configuring the API is done either the appsettings.json found at root, or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 
@@ -97,6 +97,7 @@ UserMappings:0:Jellyfin | | A user's Jellyfin username.
 UserMappings:0:HomeAssistant | | A user's HomeAssistant username.
 UserMappings:0:Google | | A user's Google username (i.e. e-mail address).
 UserMappings:0:Spoken | | Any spoken names or nicknames to represent the user (comma delimited supported).
+Services:HomehookApp:Token | | Authentication token used for the SignalR connection between Homehook's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
 Services:Gotify:ServiceUri | | Gotify's service uri.
 Services:Gotify:Header | X-Gotify-Key | Gotify's authentication header to use (the default is typically correct).
 Services:Gotify:AccessToken | | Gotify's authentication token.
@@ -128,6 +129,44 @@ Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
+
+# Homehook App
+
+A web application that offers a real-time hub to all Google cast devices in home.
+
+## Description
+
+The Homehook web app will offer full control over all in-home Google cast devices through it's main (and currently only) page. You can control playback, media speed, repeat mode, queue items (move, add and remove) and volume. Whatever features the google API permit with the currently playing media should be available!
+
+The cast hub page also gives an easy way to launch a new Jellyfin media queue.
+
+Configuration is done via appsettings.json found at root. [See the configuration section below.](#-configuration)
+
+[A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehookapp)
+
+## Usage
+
+[Homehook cast hub page](Resources/CastHub.png)
+The cast hub page will offer full control over ever cast device in-home while offering a quick and easy way to see each's status. The refresh button in the top right will reload all cast devices available on Homehook. Use this if any of you've changed your available devices or if any of them don't appear.
+
+[Homehook cast hub device controls](Resources/DeviceControls.png)
+Each device has full media controls (to the extent allowed by the sender application). The image shows all four popout menus used to control playback speed, queued items, repeat mode and volume. The queue controls offer a quick way to change current media, add (from Jellyfin search term) or remove items or move items up or down.
+
+[Homehook cast hub launch Jellyfin queue](Resources/LaunchJellyfin.png)
+You can use the media type icon show in the image here to launch a new Jellyfin queue on any available device! Simply type a jellyfin search term (including order and user keywords) to launch a new queue on the selected device.
+
+## Configuration
+
+Configuring the web app is done either the appsettings.json found at root, or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
+
+Variable | Default | Description
+---|---|---
+Logging:LogLevel:Default | Debug | Default .NET logging level.
+Logging:LogLevel:Microsoft | Warning | Default .NET Microsoft logging level.
+Logging:LogLevel:Microsoft.Hosting.Lifetime | Information |  Default .NET Microsoft Hosting logging level.
+AllowedHosts | * | Allowed Hosts.
+Services:Homehook:ServiceUri | | Homehook's service uri.
+Services:Homehook:AccessToken | | Authentication token used for the SignalR connection between Homehook's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
 
 # Credits
 

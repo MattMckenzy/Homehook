@@ -4,80 +4,82 @@ ChangeElementHeight = (element, newHeight) => {
     element.style.height = newHeight.toString() + 'px';
 };
 
-var dotnetReferences = {}
+InitializeTable = (receiverName, dotnetReference, data) => {
+    var $table = $('#' + receiverName + 'QueueTable');
+    var $playButton = $('#' + receiverName + 'QueuePlayButton');
+    var $plusButton = $('#' + receiverName + 'QueuePlusButton');
+    var $minusButton = $('#' + receiverName + 'QueueMinusButton');
+    var $upButton = $('#' + receiverName + 'QueueUpButton');
+    var $downButton = $('#' + receiverName + 'QueueDownButton');
 
-InitializeTable = (tableId, dotnetReference, data) => {
-    dotnetReferences[tableId] = dotnetReference;
-    $('#' + tableId).bootstrapTable({ data: data });
+    $table.bootstrapTable({ data: data });
+
+    $table.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function () {
+        $playButton.prop('disabled', !$table.bootstrapTable('getSelections').length);
+        $minusButton.prop('disabled', !$table.bootstrapTable('getSelections').length);
+        $upButton.prop('disabled', !$table.bootstrapTable('getSelections').length);
+        $downButton.prop('disabled', !$table.bootstrapTable('getSelections').length);
+    });
+
+    $playButton.click(function () {
+        var ids = $.map($table.bootstrapTable('getSelections'), function (row) {
+            return row.itemId;
+        });
+
+        if (Array.isArray(ids) && ids.length)
+            dotnetReference.invokeMethodAsync('PlayItem', ids[0]);
+    });
+
+    $plusButton.click(function () {
+        var ids = $.map($table.bootstrapTable('getSelections'), function (row) {
+            return row.itemId;
+        });
+
+        var searchTerm = prompt("Please enter Jellyfin search term to find items for " + this.$el[0].id.replace("QueueTable", "") + "'s queue. Found items will be inserted before first selected item, or at the end if none selected.", "")
+
+        if (searchTerm != null && searchTerm.length > 0)
+            dotnetReference.invokeMethodAsync('AddItems', searchTerm, ids[0]);
+    });
+
+    $minusButton.click(function () {
+        var ids = $.map($table.bootstrapTable('getSelections'), function (row) {
+            return row.itemId;
+        });
+
+        if (Array.isArray(ids) && ids.length)
+            dotnetReference.invokeMethodAsync('RemoveItems', ids);
+
+        $table.bootstrapTable('uncheckAll');
+    });
+
+    $upButton.click(function () {
+        var ids = $.map($table.bootstrapTable('getSelections'), function (row) {
+            return row.itemId;
+        });
+
+        if (Array.isArray(ids) && ids.length)
+            dotnetReference.invokeMethodAsync('UpItems', ids);
+    });
+
+    $downButton.click(function () {
+        var ids = $.map($table.bootstrapTable('getSelections'), function (row) {
+            return row.itemId;
+        });
+
+        if (Array.isArray(ids) && ids.length)
+            dotnetReference.invokeMethodAsync('DownItems', ids);
+    });
 };
 
 UpdateTable = (tableId, data) => {
-    $('#' + tableId).bootstrapTable('load', data);
-};
-
-function queueTableButtonsFormatter() {
-    return {
-        btnPlay: {
-            text: 'Play the selected item',
-            icon: 'fa-play',
-            event: function () {
-                if (Array.isArray(this.data) && this.data.filter(item => item.state == true).length)
-                    dotnetReferences[this.$el[0].id].invokeMethodAsync('PlayItem',
-                        this.data.filter(item => item.state == true).map(item => item.itemId)[0]);
-            },
-            attributes: {
-                title: 'Change the currently playing item to the first selected one in the table.'
-            }
-        },
-        btnUp: {
-            text: 'Move items up',
-            icon: 'fa-chevron-up',
-            event: function () {
-                if (Array.isArray(this.data) && this.data.filter(item => item.state == true).length)
-                    dotnetReferences[this.$el[0].id].invokeMethodAsync('UpItems',
-                        this.data.filter(item => item.state == true).map(item => item.itemId));
-            },
-            attributes: {
-                title: 'Move the selected items up in the queue.'
-            }
-        },
-        btnDown: {
-            text: 'Move items down',
-            icon: 'fa-chevron-down',
-            event: function () {
-                if (Array.isArray(this.data) && this.data.filter(item => item.state == true).length)
-                    dotnetReferences[this.$el[0].id].invokeMethodAsync('DownItems',
-                        this.data.filter(item => item.state == true).map(item => item.itemId));
-            },
-            attributes: {
-                title: 'Move the selected items down in the queue.'
-            }
-        },
-        btnAdd: {
-            text: 'Add items',
-            icon: 'fa-plus',
-            event: function () {
-                var searchTerm = prompt("Please enter Jellyfin search term to find items for " + this.$el[0].id.replace("QueueTable", "") + "'s queue. Found items will be inserted before first selected item, or at the end if none selected.", "")
-                dotnetReferences[this.$el[0].id].invokeMethodAsync('AddItems', searchTerm,
-                    this.data.filter(item => item.state == true).map(item => item.itemId)[0]);
-            },
-            attributes: {
-                title: 'Add items from a Jellyfin search query to the queue.'
-            }
-        },
-        btnRemove: {
-            text: 'Remove items',
-            icon: 'fa-minus',
-            event: function () {
-                if (Array.isArray(this.data) && this.data.filter(item => item.state == true).length)
-                    dotnetReferences[this.$el[0].id].invokeMethodAsync('RemoveItems',
-                        this.data.filter(item => item.state == true).map(item => item.itemId));
-            },
-            attributes: {
-                title: 'Remove the items from the queue.'
-            }
-        }
-    }
+    var $table = $('#' + tableId);
+    var rows = $table.bootstrapTable('getSelections');
+    $table.bootstrapTable('load', data);
+    if (Array.isArray(rows) && rows.length)
+        data.forEach((item) => {
+            if (rows.some((rowItem) => item.itemId == rowItem.itemId))
+                $table.bootstrapTable('check', data.indexOf(item));
+        });
 };
 
 function queueTableHeaderFormatter(row, index) {
@@ -90,7 +92,7 @@ function queueTableHeaderFormatter(row, index) {
 function queueTableRowFormatter(row, index) {
     if (row.isPlaying == true)
         return {
-            classes: "bg-success  text-light"
+            classes: "bg-success text-light"
         };
     else
         return {
@@ -102,7 +104,9 @@ function queueTableDetailFormatter(index, row) {
     var html = []
     $.each(row, function (key, value) {
         if (key == "subtitle")
-            html.push('<p><b>' + key + ':</b> ' + value + '</p>');
+            html.push('<p class="text-white"><b>' + key + ':</b> ' + value + '</p>');
+        else if (key == "runtime")
+            html.push('<p class="text-white"><b>' + key + ':</b> ' + new Date(value * 1000).toISOString().substr(11, 8) + '</p>');
     })
     return html.join('');
 };

@@ -1,5 +1,4 @@
-﻿using GoogleCast;
-using GoogleCast.Models.Media;
+﻿using GoogleCast.Models.Media;
 using System.Collections.Generic;
 
 namespace HomehookCommon.Models

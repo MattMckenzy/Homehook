@@ -7,9 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Homehook", "HomehookService
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GoogleCast", "GoogleCast\GoogleCast\GoogleCast.csproj", "{6FC86770-A6A4-4C9A-81F2-FF1DA246327D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookApp", "HomehookApp\HomehookApp.csproj", "{74BAC195-92BE-4525-BCA6-84FED7A09EB9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HomehookApp", "HomehookApp\HomehookApp.csproj", "{74BAC195-92BE-4525-BCA6-84FED7A09EB9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomehookCommon", "HomehookCommon\HomehookCommon.csproj", "{8700291E-5D70-4C46-8459-87246277148B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HomehookCommon", "HomehookCommon\HomehookCommon.csproj", "{8700291E-5D70-4C46-8459-87246277148B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

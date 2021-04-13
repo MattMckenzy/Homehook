@@ -4,6 +4,8 @@ using HomehookCommon.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
@@ -17,6 +19,9 @@ namespace HomehookApp.Components.Receiver
     {
         [Inject]
         public IJSRuntime JSRuntime { get; set; }
+
+        [Inject]
+        public IConfiguration Configuration { get; set; }
 
         [Parameter]
         public string Name { get; set; }
@@ -42,6 +47,7 @@ namespace HomehookApp.Components.Receiver
         protected bool IsMuted { get; set; }
         protected RepeatMode? Repeat { get; set; }
 
+        private bool _isTableInitialized = false;
         private int? _currentItemId = null;
         private bool _showingMessage = false;
         private readonly System.Timers.Timer _timer = new() { AutoReset = true, Interval = 1000 };
@@ -57,7 +63,11 @@ namespace HomehookApp.Components.Receiver
             };
 
             _receiverHub = new HubConnectionBuilder()
-                .WithUrl(new Uri("http://localhost:5000/receiverhub"))
+                .WithUrl(new UriBuilder(Configuration["Services:Homehook:ServiceUri"]) { Path = "receiverhub" }.Uri, options =>
+                {
+                    options.AccessTokenProvider = () => Task.FromResult(Configuration["Services:Homehook:AccessToken"]);
+                })
+                .AddNewtonsoftJsonProtocol()
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -66,7 +76,7 @@ namespace HomehookApp.Components.Receiver
                 if (Name.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase))
                 {
                     while (_showingMessage)
-                        Thread.Sleep(500);
+                        await Task.Delay(500);
 
                     await UpdateStatus(receiverStatus);
                     await InvokeAsync(StateHasChanged);
@@ -86,7 +96,7 @@ namespace HomehookApp.Components.Receiver
                     
                     await InvokeAsync(StateHasChanged);
 
-                    Thread.Sleep(5000);
+                    await Task.Delay(5000);
                     _showingMessage = false;
                 }
             });
@@ -95,15 +105,6 @@ namespace HomehookApp.Components.Receiver
 
             await UpdateStatus(await _receiverHub.InvokeAsync<ReceiverStatus>("GetStatus", Name));
 
-        }
-
-        protected override async Task OnAfterRenderAsync(bool firstRender)
-        {
-            if (Queue.Any())
-                await JSRuntime.InvokeVoidAsync("InitializeTable", $"{Name}QueueTable", DotNetObjectReference.Create(this), 
-                    Queue.Select(item => new { OrderId = item.OrderId + 1, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitle = GetSubtitle(item.Media.Metadata), IsPlaying = item.ItemId == _currentItemId }).ToArray());
-
-            await base.OnAfterRenderAsync(firstRender);
         }
 
         private async Task UpdateStatus(ReceiverStatus receiverStatus)
@@ -116,7 +117,6 @@ namespace HomehookApp.Components.Receiver
             Volume = receiverStatus.Volume;
             IsMuted = receiverStatus.IsMuted;
             Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
-            _currentItemId = receiverStatus.CurrentMediaStatus?.CurrentItemId;
 
             MediaMetadata mediaMetadata = receiverStatus.CurrentMediaInformation?.Metadata;
             Title = GetTitle(mediaMetadata);
@@ -149,20 +149,41 @@ namespace HomehookApp.Components.Receiver
                     break;
             }
 
-            IEnumerable<QueueItem> newQueue = receiverStatus.Queue ?? Array.Empty<QueueItem>();
-            if (!Queue.Any())
-                Queue = newQueue;
-            else if(!Enumerable.SequenceEqual(Queue.Select(item => item.ItemId), newQueue.Select(item => item.ItemId)))
+            bool updateTable = Queue.Any() && 
+                (_currentItemId != receiverStatus.CurrentMediaStatus?.CurrentItemId || 
+                !Enumerable.SequenceEqual(Queue.Select(item => item.ItemId), (receiverStatus.Queue ?? Array.Empty<QueueItem>()).Select(item => item.ItemId)));
+
+            Queue = receiverStatus.Queue;
+            _currentItemId = receiverStatus.CurrentMediaStatus?.CurrentItemId;
+            
+            if(updateTable)
             {
-                Queue = newQueue;
-                await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable",
-                    Queue.Select(item => new { OrderId = item.OrderId+1, item.ItemId, Title = GetTitle(item.Media.Metadata), Subtitile = GetSubtitle(item.Media.Metadata), IsPlaying = item.ItemId == _currentItemId }).ToArray());
+                var queueItems = Queue?.Select(item => new
+                {
+                    OrderId = item.OrderId + 1,
+                    item.ItemId,
+                    Title = GetTitle(item.Media.Metadata),
+                    Subtitle = GetSubtitle(item.Media.Metadata),
+                    IsPlaying = item.ItemId == _currentItemId,
+                    Runtime = item.Media.Duration
+                })?.ToArray();
+
+                if (!_isTableInitialized)
+                {
+                    await JSRuntime.InvokeVoidAsync("InitializeTable", Name, DotNetObjectReference.Create(this), queueItems);
+                    _isTableInitialized = true;
+                }
+                else
+                    await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable", queueItems);                
             }
 
             if (IsMediaInitialized && PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
                 _timer.Start();
             else
                 _timer.Stop();
+
+            if (PlayerState.Equals("Disconnected", StringComparison.InvariantCultureIgnoreCase))
+                IsEditingQueue = false;
         }
 
         protected static string GetTitle(MediaMetadata mediaMetadata)
@@ -171,7 +192,7 @@ namespace HomehookApp.Components.Receiver
             {
                 MetadataType.Default => mediaMetadata?.Title ?? string.Empty,
                 MetadataType.Movie => mediaMetadata?.Title ?? string.Empty,
-                MetadataType.TvShow => mediaMetadata?.SeriesTitle ?? string.Empty,
+                MetadataType.TvShow => mediaMetadata?.Title ?? string.Empty,
                 MetadataType.Music => $"{(mediaMetadata?.TrackNumber != null ? $"{mediaMetadata.TrackNumber}. " : string.Empty)}{mediaMetadata?.Title ?? string.Empty}",
                 MetadataType.Photo => mediaMetadata?.Title ?? string.Empty,
                 _ => string.Empty,
@@ -184,7 +205,7 @@ namespace HomehookApp.Components.Receiver
             {
                 MetadataType.Default => mediaMetadata?.Subtitle ?? string.Empty,
                 MetadataType.Movie => mediaMetadata?.Subtitle ?? string.Empty,
-                MetadataType.TvShow => mediaMetadata?.Subtitle ?? string.Empty,
+                MetadataType.TvShow => mediaMetadata?.SeriesTitle ?? string.Empty,
                 MetadataType.Music => $"{mediaMetadata?.AlbumName ?? string.Empty}{(mediaMetadata?.AlbumName == null && mediaMetadata?.AlbumArtist != null ? mediaMetadata.AlbumArtist : mediaMetadata?.AlbumArtist != null ? $" ({mediaMetadata.AlbumArtist})" : string.Empty)}",
                 MetadataType.Photo => mediaMetadata?.Artist ?? string.Empty,
                 _ => string.Empty,
@@ -202,10 +223,10 @@ namespace HomehookApp.Components.Receiver
 
         protected async Task PlayPauseClick(MouseEventArgs _)
         {
-            if (PlayerState.Equals("Paused", StringComparison.InvariantCultureIgnoreCase) || PlayerState.Equals("Stopped", StringComparison.InvariantCultureIgnoreCase))
-                await _receiverHub.InvokeAsync("Play", Name);
-            else
+            if (PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
                 await _receiverHub.InvokeAsync("Pause", Name);
+            else
+                await _receiverHub.InvokeAsync("Play", Name);
         }
 
         protected async Task StopClick(MouseEventArgs _) =>
@@ -247,7 +268,8 @@ namespace HomehookApp.Components.Receiver
         public async Task LaunchQueue(MouseEventArgs _)
         {
             string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter Jellyfin search term to find items for {Name}'s queue.", "");
-            await _receiverHub.InvokeAsync("LaunchQueue", Name, searchTerm);
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+                await _receiverHub.InvokeAsync("LaunchQueue", Name, searchTerm);
         }
 
         [JSInvokable]

@@ -176,8 +176,8 @@ namespace Homehook.Services
                 "Video" => new MediaMetadata
                 {
                     MetadataType = MetadataType.TvShow,
+                    Title = item.Name,
                     SeriesTitle = string.IsNullOrWhiteSpace(item.SeriesName) ? item.Path : item.SeriesName,
-                    Subtitle = item.Name + (string.IsNullOrWhiteSpace(item.Overview) ? string.Empty : $" - {item.Overview}"),
                     Season = item.ParentIndexNumber,
                     Episode = item.IndexNumber,
                     OriginalAirDate = (item.PremiereDate == null ? item.DateCreated : item.PremiereDate).ToString(),

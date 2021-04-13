@@ -2,6 +2,7 @@
 using Homehook.Models.Jellyfin;
 using Homehook.Services;
 using HomehookCommon.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 
 namespace Homehook.Hubs
 {
+    [Authorize]
     public class ReceiverHub : Hub
     {
         private readonly CastService _castService;
@@ -32,7 +34,7 @@ namespace Homehook.Hubs
             Task.FromResult(_castService.ReceiverServices.Select(receiverService => receiverService.Receiver.FriendlyName));
 
         public async Task<ReceiverStatus> GetStatus(string receiverName) =>
-            await (await _castService.GetReceiverService(receiverName)).GetReceiverStatus();
+            (await _castService.GetReceiverService(receiverName)).GetReceiverStatus();
 
         public async Task Play(string receiverName) =>
             await (await _castService.GetReceiverService(receiverName)).PlayAsync();
@@ -62,7 +64,7 @@ namespace Homehook.Hubs
             await (await _castService.GetReceiverService(receiverName)).SetPlaybackRateAsync(playbackRate);
 
         public async Task LaunchQueue(string receiverName, string searchTerm) =>
-            await (await _castService.GetReceiverService(receiverName)).InitializeQueueAsync(await GetItems(searchTerm));        
+            await _castService.StartJellyfinSession(receiverName, await GetItems(searchTerm));
 
         public async Task InsertQueue(string receiverName, string searchTerm, int? insertBefore) =>
             await (await _castService.GetReceiverService(receiverName)).InsertQueueAsync(await GetItems(searchTerm), insertBefore);        

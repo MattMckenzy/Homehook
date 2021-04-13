@@ -5,7 +5,7 @@
     <i class="col d-flex align-items-center button-bright justify-content-end m-2 p-0 mdi mdi-refresh mdi-36px" @onclick="RefreshReceivers"></i>
 </div>
 
-@if (_receiverHub == null || _receiverHub.State != HubConnectionState.Connected)
+@if (IsLoading || _receiverHub == null || _receiverHub.State != HubConnectionState.Connected)
 {
     <BusyCover />
 }
@@ -22,15 +22,24 @@ else
 
 @code{
 
+    [Inject]
+    private IConfiguration Configuration { get; set; }
+
     private IEnumerable<string> _receivers;
     private HubConnection _receiverHub;
+    private bool IsLoading = false;
+
 
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
 
         _receiverHub = new HubConnectionBuilder()
-            .WithUrl(new Uri("http://localhost:5000/receiverhub"))
+            .WithUrl(new UriBuilder(Configuration["Services:Homehook:ServiceUri"]) { Path = "receiverhub" }.Uri, options =>
+            {
+                options.AccessTokenProvider = () =>
+                    Task.FromResult($"{Configuration["Services:Homehook:AccessToken"]}");
+            })
             .AddNewtonsoftJsonProtocol()
             .WithAutomaticReconnect()
             .Build();
@@ -42,8 +51,13 @@ else
 
     protected async Task RefreshReceivers(MouseEventArgs _)
     {
+        IsLoading = true;
+        await InvokeAsync(StateHasChanged);
+
         await _receiverHub.InvokeAsync<IEnumerable<string>>("RefreshReceivers");
         _receivers = await _receiverHub.InvokeAsync<IEnumerable<string>>("GetReceivers");
+
+        IsLoading = false;
         await InvokeAsync(StateHasChanged);
     }
 

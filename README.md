@@ -146,13 +146,16 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 ## Usage
 
-[Homehook cast hub page](Resources/CastHub.png)
+![Homehook cast hub page](Resources/CastHub.png)
+
 The cast hub page will offer full control over ever cast device in-home while offering a quick and easy way to see each's status. The refresh button in the top right will reload all cast devices available on Homehook. Use this if any of you've changed your available devices or if any of them don't appear.
 
-[Homehook cast hub device controls](Resources/DeviceControls.png)
+![Homehook cast hub device controls](Resources/DeviceControls.png)
+
 Each device has full media controls (to the extent allowed by the sender application). The image shows all four popout menus used to control playback speed, queued items, repeat mode and volume. The queue controls offer a quick way to change current media, add (from Jellyfin search term) or remove items or move items up or down.
 
-[Homehook cast hub launch Jellyfin queue](Resources/LaunchJellyfin.png)
+![Homehook cast hub launch Jellyfin queue](Resources/LaunchJellyfin.png)
+
 You can use the media type icon show in the image here to launch a new Jellyfin queue on any available device! Simply type a jellyfin search term (including order and user keywords) to launch a new queue on the selected device.
 
 ## Configuration

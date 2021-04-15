@@ -6,16 +6,16 @@ EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
 WORKDIR /src
-COPY ["../HomehookApp/HomehookApp.csproj", "../HomehookApp/"]
-RUN dotnet restore "../HomehookApp/HomehookApp.csproj"
+COPY ["HomehookService/Homehook.csproj", "HomehookService/"]
+RUN dotnet restore "HomehookService/Homehook.csproj"
 COPY . .
-WORKDIR "/src/../HomehookApp"
-RUN dotnet build "HomehookApp.csproj" -c Release -o /app/build
+WORKDIR "/src/HomehookService"
+RUN dotnet build "Homehook.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "HomehookApp.csproj" -c Release -o /app/publish
+RUN dotnet publish "Homehook.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "HomehookApp.dll"]
+ENTRYPOINT ["dotnet", "Homehook.dll"]

@@ -34,18 +34,6 @@ namespace HomehookApp
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            app.Use(async (context, next) =>
-            {
-                if (!IsIntranet(context.Request.Host.Host))
-                {
-                    // Forbidden http status code
-                    context.Response.StatusCode = 403;
-                    return;
-                }
-
-                await next.Invoke();
-            });
-
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -64,13 +52,6 @@ namespace HomehookApp
                 endpoints.MapBlazorHub();
                 endpoints.MapFallbackToPage("/_Host");
             });
-        }
-
-        private static bool IsIntranet(string host)
-        {
-            return Regex.IsMatch(host, "(localhost)|(127\\.0\\.0\\.1)|(^192\\.168\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])$)|" +
-                "(^172\\.([1][6-9]|[2][0-9]|[3][0-1])\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])$)|" +
-                "(^10\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])\\.([0-9]|[0-9][0-9]|[0-1][0-9][0-9]|2[0-5][0-5])$)");
         }
     }
 }

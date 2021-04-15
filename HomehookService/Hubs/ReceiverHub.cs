@@ -28,10 +28,13 @@ namespace Homehook.Hubs
         }
 
         public async Task RefreshReceivers() =>
-            await _castService.RefreshReceivers();
+            await _castService.RefreshReceiverServices(true);
+
+        public async Task RefreshReceiverServices() =>
+            await _castService.RefreshReceiverServices();
 
         public Task<IEnumerable<string>> GetReceivers() =>
-            Task.FromResult(_castService.ReceiverServices.Select(receiverService => receiverService.Receiver.FriendlyName));
+            Task.FromResult(_castService.Receivers.Select(receiver => receiver.FriendlyName));
 
         public async Task<ReceiverStatus> GetStatus(string receiverName) =>
             (await _castService.GetReceiverService(receiverName)).GetReceiverStatus();

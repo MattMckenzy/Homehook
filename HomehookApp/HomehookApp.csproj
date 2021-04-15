@@ -4,6 +4,8 @@
     <TargetFramework>net5.0</TargetFramework>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\Homehook</DockerfileContext>
+    <DockerfileFile>..\HomehookApp.Dockerfile</DockerfileFile>
+    <DockerfileContext>.</DockerfileContext>
     <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 

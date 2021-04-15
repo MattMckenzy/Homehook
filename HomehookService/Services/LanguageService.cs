@@ -77,7 +77,7 @@ namespace Homehook.Services
 
             if (phraseTokens.Count() >= 2 && _configuration["Services:Language:DevicePrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(devicePreposition => phraseTokens.Reverse().Skip(1).First().Equals(devicePreposition, StringComparison.InvariantCultureIgnoreCase)))
             {
-                string spokenJellyDevice = _castService.ReceiverServices.Select(receiverService => receiverService.Receiver.FriendlyName).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
+                string spokenJellyDevice = _castService.Receivers.Select(receiver => receiver.FriendlyName).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
 
                 if (string.IsNullOrWhiteSpace(spokenJellyDevice))
                     await _loggingService.LogWarning($"Spoken device is not listed.", "Please add spoken device to configuration.", new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });

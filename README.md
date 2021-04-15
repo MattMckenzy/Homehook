@@ -148,7 +148,7 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 ![Homehook cast hub page](Resources/CastHub.png)
 
-The cast hub page will offer full control over ever cast device in-home while offering a quick and easy way to see each's status. The refresh button in the top right will reload all cast devices available on Homehook. Use this if any of you've changed your available devices or if any of them don't appear.
+The cast hub page will offer full control over ever cast device in-home while offering a quick and easy way to see each's status. The refresh button in the top right will try to locate cast devices. Use this if any of you've changed your available devices or if any of them don't appear.
 
 ![Homehook cast hub device controls](Resources/DeviceControls.png)
 
@@ -173,7 +173,7 @@ Services:Homehook:AccessToken | | Authentication token used for the SignalR conn
 
 # Credits
 
-Big thanks to everyone at the Home Assistant team for their great work!
+Big thanks to everyone at the Jellyfin, Emby and Home Assistant teams for their great work!
 
 # Donate
 

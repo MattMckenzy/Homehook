@@ -479,7 +479,6 @@ namespace Homehook.Services
                 mediaInformation.CustomData.TryGetValue("Username", out string sessionUser))
             {
                 string playerState = isStopped ? "STOPPED" : mediaStatus.PlayerState == "IDLE" ? mediaStatus.IdleReason : mediaStatus.PlayerState;
-                _loggingService.LogInformation("Cast Update.", $"", new { runTime, playerState, mediaId }).GetAwaiter().GetResult();
 
                 switch (playerState)
                 {
@@ -557,7 +556,7 @@ namespace Homehook.Services
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
-            Disposed.Invoke(this, null);
+            Disposed?.Invoke(this, null);
             GC.SuppressFinalize(this);
         }
 

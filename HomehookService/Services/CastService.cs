@@ -8,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,6 +22,9 @@ namespace Homehook
         private readonly IConfiguration _configuration;
         
         private bool _isRefreshingReceivers = false;
+        private CancellationTokenSource findReceiverDelayCancellationTokenSource;
+
+        public ObservableCollection<IReceiver> Receivers { get; set; } = new();
 
         public ObservableCollection<ReceiverService> ReceiverServices { get; } = new();
 
@@ -34,10 +36,33 @@ namespace Homehook
             _receiverHub = receiverHub;
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public Task StartAsync(CancellationToken cancellationToken)
         {
-            foreach (IReceiver receiver in await new DeviceLocator().FindReceiversAsync())
-                RegisterReceiverService(new (receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));            
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                { 
+                    try
+                    {
+                        foreach (IReceiver newReceiver in await new DeviceLocator().FindReceiversAsync())
+                        {
+                            if (!Receivers.Any(receiver => receiver.FriendlyName.Equals(newReceiver.FriendlyName, StringComparison.InvariantCultureIgnoreCase)))
+                            {
+                                Receivers.Add(newReceiver);
+                                RegisterReceiverService(new(newReceiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        findReceiverDelayCancellationTokenSource = new();
+                        findReceiverDelayCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromMinutes(10));
+                    }
+
+                }
+            }, cancellationToken);
+
+            return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -49,16 +74,10 @@ namespace Homehook
 
         public async Task<ReceiverService> GetReceiverService(string receiverName)
         {
+            await WaitForRefresh();
+
             ReceiverService returningReceiverService =
                 ReceiverServices.FirstOrDefault(receiverServices => receiverServices.Receiver.FriendlyName.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase));
-
-            if (returningReceiverService == null)
-            {
-                await RefreshReceivers();
-
-                returningReceiverService =
-                    ReceiverServices.FirstOrDefault(receiverServices => receiverServices.Receiver.FriendlyName.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase));
-            }
 
             if (returningReceiverService == null)
                 await _loggingService.LogError($"{receiverName} not found.", $"Requested receiver {receiverName} is not available. Please make sure device is connected and try again.");
@@ -66,7 +85,7 @@ namespace Homehook
             return returningReceiverService;
         }
 
-        public async Task RefreshReceivers()
+        public async Task WaitForRefresh()
         {
             if (_isRefreshingReceivers)
             {
@@ -74,29 +93,34 @@ namespace Homehook
                     await Task.Delay(250);
                 return;
             }
+        }
+
+        public async Task RefreshReceiverServices(bool refreshReceivers = false)
+        {
+            await WaitForRefresh();
 
             try
             {
                 _isRefreshingReceivers = true;
 
-                IEnumerable<IReceiver> newReceivers = await new DeviceLocator().FindReceiversAsync();
-
-                foreach (IReceiver newReceiver in newReceivers)
+                if (refreshReceivers)
                 {
-                    ReceiverService oldReceiverService =
-                        ReceiverServices.FirstOrDefault(receiverService => receiverService.Receiver.Id.Equals(newReceiver.Id, StringComparison.InvariantCultureIgnoreCase));
-
-                    if (oldReceiverService == null)
-                        RegisterReceiverService(new(newReceiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+                    findReceiverDelayCancellationTokenSource.Cancel();
+                    while (findReceiverDelayCancellationTokenSource.IsCancellationRequested)
+                        await Task.Delay(250);
                 }
-
-                foreach (ReceiverService oldReceiverService in ReceiverServices.ToArray())
+                else
                 {
-                    IReceiver newReceiver =
-                        newReceivers.FirstOrDefault(receiver => receiver.Id.Equals(oldReceiverService.Receiver.Id, StringComparison.InvariantCultureIgnoreCase));
+                    ReceiverService[] currentReceiverServices = ReceiverServices.ToArray();
+                    ReceiverServices.Clear();
+                    foreach (ReceiverService oldReceiverService in currentReceiverServices)
+                    {
+                        oldReceiverService.Disposed -= ReceiverDisposed;
+                        oldReceiverService?.Dispose();
+                    }
 
-                    if (newReceiver == null)
-                        ReceiverServices.Remove(oldReceiverService);
+                    foreach(IReceiver receiver in Receivers)
+                        RegisterReceiverService(new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));                    
                 }
             }
             finally
@@ -107,13 +131,21 @@ namespace Homehook
 
         private void RegisterReceiverService(ReceiverService newReceiverService)
         {
-            newReceiverService.Disposed += async (object sender, EventArgs eventArgs) =>
-            {
-                ReceiverServices.Remove((ReceiverService)sender);
-                await Task.Delay(1000);
-                await RefreshReceivers();
-            };
+            newReceiverService.Disposed += ReceiverDisposed;
             ReceiverServices.Add(newReceiverService);
+        }
+
+        private async void ReceiverDisposed(object sender, EventArgs eventArgs)
+        {
+            _isRefreshingReceivers = true;
+
+            IReceiver receiver = ((ReceiverService)sender).Receiver;
+            ReceiverServices.Remove((ReceiverService)sender);
+            ReceiverServices.Remove(null);
+            await Task.Delay(1000);
+            RegisterReceiverService(new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+
+            _isRefreshingReceivers = false;
         }
 
         public async Task StartJellyfinSession(string receiverName, IEnumerable<QueueItem> items)
@@ -125,22 +157,9 @@ namespace Homehook
                 if (receiverService.IsDifferentApplicationPlaying)
                 {
                     await receiverService.StopAsync();
-                    async void receiverAdded(object sender, NotifyCollectionChangedEventArgs eventArgs) 
-                    {
-                        if (eventArgs.Action == NotifyCollectionChangedAction.Add)
-                        {
-                            ReceiverService receiverService = 
-                                eventArgs.NewItems.Cast<ReceiverService>().FirstOrDefault(receiverService => receiverService.Receiver.FriendlyName.Equals(receiverName, StringComparison.InvariantCultureIgnoreCase));
-                            
-                            if (receiverService != null)
-                            {
-                                await Task.Delay(1000);
-                                await receiverService.InitializeQueueAsync(items);
-                                ReceiverServices.CollectionChanged -= receiverAdded;
-                            }
-                        }
-                    };
-                    ReceiverServices.CollectionChanged += receiverAdded;
+
+                    await Task.Delay(5000);
+                    await receiverService.InitializeQueueAsync(items);                    
                 }
                 else
                     await receiverService.InitializeQueueAsync(items);

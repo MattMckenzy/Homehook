@@ -1,7 +1,7 @@
 ﻿@page "/"
 
 <div class="row m-0 w-100">
-    <h2 class="col m-2 p-0 text-stroke">Homehook Cast Hub</h2>
+    <h3 class="col m-2 p-0 text-stroke">Homehook Cast Hub</h3>
     <i class="col d-flex align-items-center button-bright justify-content-end m-2 p-0 mdi mdi-refresh mdi-36px" @onclick="RefreshReceivers"></i>
 </div>
 
@@ -11,7 +11,7 @@
 }
 else
 {
-    <div class="d-flex flex-wrap">
+    <div class="d-flex flex-wrap m-0 justify-content-center">
         @foreach (string receiver in _receivers)
         {
             <Receiver Name=@receiver />

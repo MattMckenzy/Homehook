@@ -24,10 +24,10 @@ namespace Homehook.Services
             new(_configuration?["Services:Jellyfin:ServiceUri"]);
 
         public string GetToken() =>
-                _configuration["Services:Jellyfin:AccessToken"];
+            _configuration["Services:Jellyfin:AccessToken"];
 
         public Dictionary<string, string> GetCredentials() =>
-             _configuration.GetSection("Services:Jellyfin:Credentials").GetChildren().ToDictionary(configurationSection => configurationSection.Key, configurationSection => configurationSection.Value);
+            _configuration.GetSection("Services:Jellyfin:Credentials").GetChildren().ToDictionary(configurationSection => configurationSection.Key, configurationSection => configurationSection.Value);
 
     }
 }

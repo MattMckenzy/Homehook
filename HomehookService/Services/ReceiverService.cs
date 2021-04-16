@@ -30,8 +30,6 @@ namespace Homehook.Services
         private int _refreshClock = 0;
         private bool _isSessionInitialized = false;
 
-        private bool _disposedValue;
-
         public IReceiver Receiver { get; set; }
 
         private readonly string _applicationId;
@@ -62,7 +60,9 @@ namespace Homehook.Services
         public int? CurrentRunTime { get; set; }
 
         public List<QueueItem> Queue { get; set; } = new();
-        
+
+        public bool IsDisposed { get; set; } = false;
+
         #endregion
 
         #region Factory Methods
@@ -528,7 +528,7 @@ namespace Homehook.Services
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposedValue)
+            if (!IsDisposed)
             {
                 if (disposing)
                 {
@@ -539,18 +539,13 @@ namespace Homehook.Services
                     _timer.Dispose();
                 }
 
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                _disposedValue = true;
+                CurrentMediaStatus = null;
+                CurrentMediaInformation = null;
+                Queue = null;
+
+                IsDisposed = true;
             }
         }
-
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        // ~ReceiverService()
-        // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
-        // }
 
         public void Dispose()
         {

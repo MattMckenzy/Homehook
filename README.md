@@ -1,6 +1,6 @@
 # Homehook
 
-Simple API meant to handle Google Assistant webhooks and reroute them to Home Assistant.
+Simple API meant to handle Google Assistant webhooks and to cast Jellyfin media.
 
 ## Description
 
@@ -182,6 +182,7 @@ If you wish to install Homehook and Homehook App via docker, here are a couple o
 * If you wish to use Homehook App, make sure you fill in the Homehook Service URI configuration variable and assign the same randomly generated token to both Homehook and Homehook App. [This website is always useful for such things.](https://www.guidgenerator.com/)
 * If you want to host Homehook/Homehook App on a server behind a reverse proxy, make sure you configure it like I have below: 
   * Open up your firewall for a loopback on the docker interface for the appropriate ports. 
+  * Also make sure your firewall permits communication on the Bonjour protocol (UDP ports 1900 and 5353 for device discovery)
   * Make sure to replace your upstream_app to an appropriate IP. In my case, it's my Docker network bridge gateway.
 
 Here's how I configure my installation (the GUIDs are randomized, please change them for your installation!) :

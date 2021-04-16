@@ -157,7 +157,6 @@ namespace Homehook
                 if (receiverService.IsDifferentApplicationPlaying)
                 {
                     await receiverService.StopAsync();
-
                     await Task.Delay(5000);
                     await receiverService.InitializeQueueAsync(items);                    
                 }

@@ -9,14 +9,14 @@ This application will help configure and serve incoming and outgoing webhooks to
 Please see swagger at homehook/swagger page on deployed API to see available hooks, how to call them and try them out.
 
 Currently available hooks:
-* [Jellyfin Simple Phrase](#-jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
-* [Jellyfin Conversation Phrase](#-jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
+* [Jellyfin Simple Phrase](#jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
+* [Jellyfin Conversation Phrase](#jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-1)
 
 [A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook)
 
-[See the Docker section below for more information.](#-docker)
+[See the Docker section below for more information.](#docker)
 
 ## Usage
 
@@ -84,7 +84,7 @@ rest_command:
   mode: single
 ```
 
-## <a name="configuration-1">Configuration</a>
+## <a id="configuration-1">Configuration</a>
 
 Configuring the API is done either the appsettings.json found at "/HomehookService", or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 
@@ -146,7 +146,7 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 [A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehookapp)
 
-[See the Docker section below for more information.](#-docker)
+[See the Docker section below for more information.](#docker)
 
 ## Usage
 
@@ -162,7 +162,7 @@ Each device has full media controls (to the extent allowed by the sender applica
 
 You can use the media type icon show in the image here to launch a new Jellyfin queue on any available device. Simply type a jellyfin search term (including order and user keywords) to launch a new queue on the selected device.
 
-## <a name="configuration-2">Configuration</a>
+## <a id="configuration-2">Configuration</a>
 
 Configuring the web app is done either the appsettings.json found in "/HomehookApp", or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 

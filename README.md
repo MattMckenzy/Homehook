@@ -12,9 +12,10 @@ Currently available hooks:
 * [Jellyfin Simple Phrase](#-jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
 * [Jellyfin Conversation Phrase](#-jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
 
-Configuration is done via appsettings.json found at root. [See the configuration section below.](#-configuration-1)
+Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-1)
 
 [A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook)
+
 [See the Docker section below for more information.](#-docker)
 
 ## Usage
@@ -144,6 +145,7 @@ The cast hub page also gives an easy way to launch a new Jellyfin media queue.
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-2)
 
 [A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehookapp)
+
 [See the Docker section below for more information.](#-docker)
 
 ## Usage
@@ -175,12 +177,14 @@ Services:Homehook:AccessToken | | Authentication token used for the SignalR conn
 
 # Docker
 
-If you wish to install Homehook and Homehook App via docker, there are a couple of considerations:
-* Use host network mode: unfortunately, Google Cast devices need a whole range of ports that are hard to track down, which includes some used for UDP multicast. Using Host network should alleviate any connection problems. If Homehook still can't see your devices. Either click the refresh button a few times in Homehook App or give it some time (Homehook searches for new devices every 10 minutes and manages to find them at one point.)
+If you wish to install Homehook and Homehook App via docker, here are a couple of considerations:
+* Use "Host" network mode: unfortunately, Google Cast devices need a whole range of ports that are hard to track down. This includes some used for UDP multicast. Using "Host" network mode should alleviate any connection problems. If Homehook still can't see your devices, either click the refresh button a few times in Homehook App or give it some time. Homehook searches for new devices every 10 minutes and cound find them at one point.
 * If you wish to use Homehook App, make sure you fill in the Homehook Service URI configuration variable and assign the same randomly generated token to both Homehook and Homehook App. [This website is always useful for such things.](https://www.guidgenerator.com/)
-* If you want to host Homehook/Homehook App on a server behind a reverse proxy, make sure you configure it like I have below and open up your firewall for a loopback on the docker interface for the appropriate ports. Make sure to replace your upstream_app to an appropriate IP. In my case, it's my Docker network bridge gateway.
+* If you want to host Homehook/Homehook App on a server behind a reverse proxy, make sure you configure it like I have below: 
+  * Open up your firewall for a loopback on the docker interface for the appropriate ports. 
+  * Make sure to replace your upstream_app to an appropriate IP. In my case, it's my Docker network bridge gateway.
 
-Here's how I configure my installation (the GUIDs are randomized, please change them for your installation!):
+Here's how I configure my installation (the GUIDs are randomized, please change them for your installation!) :
 
 ## docker-compose.yaml
 ```yaml

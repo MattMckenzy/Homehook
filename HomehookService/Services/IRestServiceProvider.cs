@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Homehook.Services
 {
@@ -30,5 +31,12 @@ namespace Homehook.Services
         /// </summary>
         /// <returns>The service uri.</returns>
         Uri GetServiceUri();
+
+
+        /// <summary>
+        /// Retrieves the credentials that can be used to be authorized on the service.
+        /// </summary>
+        /// <returns>A dictionary of credentials token.</returns>
+        Dictionary<string, string> GetCredentials();
     }
 }

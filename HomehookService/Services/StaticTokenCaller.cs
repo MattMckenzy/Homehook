@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace Homehook.Services
@@ -26,7 +27,7 @@ namespace Homehook.Services
         /// Builds and returns a base request message containing proper configuration and authentication.
         /// </summary>
         /// <returns>The base HttpRequestMessage.</returns>
-        Task<HttpRequestMessage> IRestServiceCaller.GetBaseRequestMessage()
+        Task<HttpRequestMessage> IRestServiceCaller.GetBaseRequestMessage(string credential, Func<string, string, Task<string>> accessTokenDelegate)
         {
             HttpRequestMessage returningHttpRequestMessage = new()
             {

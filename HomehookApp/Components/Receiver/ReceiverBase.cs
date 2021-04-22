@@ -1,5 +1,6 @@
 ﻿using GoogleCast.Models.Media;
 using HomehookApp.Extensions;
+using HomehookApp.Models;
 using HomehookCommon.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -10,12 +11,11 @@ using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomehookApp.Components.Receiver
 {
-    public class ReceiverBase : ComponentBase
+    public class ReceiverBase : ComponentBase, IDisposable
     {
         [Inject]
         public IJSRuntime JSRuntime { get; set; }
@@ -32,7 +32,7 @@ namespace HomehookApp.Components.Receiver
         protected ReceiverStatus _receiverStatus;
         protected HubConnection _receiverHub;
 
-        protected string PlayerState { get; set; }
+        protected string PlayerState { get; set; } = "Disconnected";
         protected bool IsMediaInitialized { get; set; }
         protected IEnumerable<QueueItem> Queue { get; set; } = Array.Empty<QueueItem>();
         protected bool IsEditingQueue { get; set; }
@@ -47,10 +47,23 @@ namespace HomehookApp.Components.Receiver
         protected bool IsMuted { get; set; }
         protected RepeatMode? Repeat { get; set; }
 
-        private bool _isTableInitialized = false;
-        private int? _currentItemId = null;
+        private bool _istableInitialized = false;
+        private IEnumerable<TableQueueItem> _currentTableQueueItems = Array.Empty<TableQueueItem>();
         private bool _showingMessage = false;
+        private bool disposedValue;
         private readonly System.Timers.Timer _timer = new() { AutoReset = true, Interval = 1000 };
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                ReceiverStatus receiverStatus = await _receiverHub.InvokeAsync<ReceiverStatus>("GetStatus", Name);
+                await UpdateStatus(receiverStatus);
+                _currentTableQueueItems = GetTableQueueItems(receiverStatus);
+                await JSRuntime.InvokeVoidAsync("InitializeTable", Name, DotNetObjectReference.Create(this), _currentTableQueueItems);
+                _istableInitialized = true;
+            }
+        }
 
         protected override async Task OnInitializedAsync()
         {
@@ -102,9 +115,6 @@ namespace HomehookApp.Components.Receiver
             });
 
             await _receiverHub.StartAsync();
-
-            await UpdateStatus(await _receiverHub.InvokeAsync<ReceiverStatus>("GetStatus", Name));
-
         }
 
         private async Task UpdateStatus(ReceiverStatus receiverStatus)
@@ -117,6 +127,7 @@ namespace HomehookApp.Components.Receiver
             Volume = receiverStatus.Volume;
             IsMuted = receiverStatus.IsMuted;
             Repeat = receiverStatus.CurrentMediaStatus?.RepeatMode;
+            Queue = receiverStatus.Queue;
 
             MediaMetadata mediaMetadata = receiverStatus.CurrentMediaInformation?.Metadata;
             Title = GetTitle(mediaMetadata);
@@ -149,32 +160,13 @@ namespace HomehookApp.Components.Receiver
                     break;
             }
 
-            bool updateTable = Queue.Any() && 
-                (_currentItemId != receiverStatus.CurrentMediaStatus?.CurrentItemId || 
-                !Enumerable.SequenceEqual(Queue.Select(item => item.ItemId), (receiverStatus.Queue ?? Array.Empty<QueueItem>()).Select(item => item.ItemId)));
+            IEnumerable<TableQueueItem> newTableQueueItems = GetTableQueueItems(receiverStatus);
 
-            Queue = receiverStatus.Queue;
-            _currentItemId = receiverStatus.CurrentMediaStatus?.CurrentItemId;
-            
-            if(updateTable)
+            if (_istableInitialized && !
+                Enumerable.SequenceEqual(newTableQueueItems.Select(item => item.ItemId), (_currentTableQueueItems ?? Array.Empty<TableQueueItem>()).Select(item => item.ItemId)))
             {
-                var queueItems = Queue?.Select(item => new
-                {
-                    OrderId = item.OrderId + 1,
-                    item.ItemId,
-                    Title = GetTitle(item.Media.Metadata),
-                    Subtitle = GetSubtitle(item.Media.Metadata),
-                    IsPlaying = item.ItemId == _currentItemId,
-                    Runtime = item.Media.Duration
-                })?.ToArray();
-
-                if (!_isTableInitialized)
-                {
-                    await JSRuntime.InvokeVoidAsync("InitializeTable", Name, DotNetObjectReference.Create(this), queueItems);
-                    _isTableInitialized = true;
-                }
-                else
-                    await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable", queueItems);                
+                _currentTableQueueItems = newTableQueueItems;
+                await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable", _currentTableQueueItems);
             }
 
             if (IsMediaInitialized && PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
@@ -184,6 +176,20 @@ namespace HomehookApp.Components.Receiver
 
             if (PlayerState.Equals("Disconnected", StringComparison.InvariantCultureIgnoreCase))
                 IsEditingQueue = false;
+        }
+
+
+        private IEnumerable<TableQueueItem> GetTableQueueItems(ReceiverStatus receiverStatus)
+        {
+            return Queue.Select(item => new TableQueueItem
+            {
+                OrderId = (int)(item.OrderId + 1),
+                ItemId = (int)item.ItemId,
+                Title = GetTitle(item.Media.Metadata),
+                Subtitle = GetSubtitle(item.Media.Metadata),
+                IsPlaying = item.ItemId == receiverStatus.CurrentMediaStatus?.CurrentItemId,
+                Runtime = (double)(item.Media.Duration ?? 0)
+            });
         }
 
         protected static string GetTitle(MediaMetadata mediaMetadata)
@@ -291,6 +297,33 @@ namespace HomehookApp.Components.Receiver
         [JSInvokable]
         public async Task RemoveItems(IEnumerable<int> itemIds) =>
             await _receiverHub.InvokeAsync("RemoveQueue", Name, itemIds);
+
+        #endregion
+
+        #region IDisposable Implementation
+
+        protected async virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    await _receiverHub.DisposeAsync();
+                    _timer.Dispose();
+                }
+
+                Queue = null;
+
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
 
         #endregion
     }

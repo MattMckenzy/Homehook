@@ -40,6 +40,8 @@ namespace Homehook
         {
             _ = Task.Run(async () =>
             {
+                await _loggingService.LogDebug("Cast Service starting.", DateTime.Now.ToString());
+
                 while (!cancellationToken.IsCancellationRequested)
                 { 
                     try
@@ -65,11 +67,10 @@ namespace Homehook
             return Task.CompletedTask;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             // TODO: decide to stop session progress or let it continue.
-
-            return Task.CompletedTask;
+            await _loggingService.LogDebug("Cast Service stopping.", DateTime.Now.ToString());
         }
 
         public async Task<ReceiverService> GetReceiverService(string receiverName)
@@ -154,7 +155,7 @@ namespace Homehook
             
             if (receiverService != null)
             {
-                if (receiverService.IsDifferentApplicationPlaying)
+                if (receiverService.IsDifferentApplicationPlaying && receiverService.IsMediaInitialized)
                 {
                     await receiverService.StopAsync();
                     await Task.Delay(5000);

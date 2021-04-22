@@ -35,7 +35,7 @@ InitializeTable = (receiverName, dotnetReference, data) => {
             return row.itemId;
         });
 
-        var searchTerm = prompt("Please enter Jellyfin search term to find items for " + this.$el[0].id.replace("QueueTable", "") + "'s queue. Found items will be inserted before first selected item, or at the end if none selected.", "")
+        var searchTerm = prompt("Please enter Jellyfin search term to find items for " + receiverName + "'s queue. Found items will be inserted before first selected item, or at the end if none selected.", "")
 
         if (searchTerm != null && searchTerm.length > 0)
             dotnetReference.invokeMethodAsync('AddItems', searchTerm, ids[0]);

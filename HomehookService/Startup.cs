@@ -1,21 +1,20 @@
+using Homehook.Hubs;
 using Homehook.Middleware;
 using Homehook.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Primitives;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using System;
-using Homehook.Hubs;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
-using System.Security.Claims;
 using System.Collections.Generic;
-using System.Security.Principal;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Homehook
 {

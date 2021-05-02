@@ -215,7 +215,7 @@ namespace Homehook.Services
                             items.MoveUp(orderId);
                     }
 
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()));
+                    await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()), null);
                 }
             });
 
@@ -231,7 +231,7 @@ namespace Homehook.Services
                             items.MoveDown(orderId);
                     }
 
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()));
+                    await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueReorderAsync(items.Select(item => item.itemId).ToArray()), null);
                 }
             });
 
@@ -241,29 +241,27 @@ namespace Homehook.Services
                 if (queueItems.Any())
                 {
                     Queue<QueueItem> queue = new(new ObservableCollection<QueueItem>(queueItems));
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore));
+                    await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore), null);
                     while (queue.Count > 0)
-                        await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore));
+                        await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueInsertAsync(queue.DequeueMany(20).ToArray(), insertBefore), null);
                 }
             });
         
 
         public async Task RemoveQueueAsync(IEnumerable<int> itemIds) =>
-            await Try(async () =>
-            {
-                if (itemIds.Any())
-                    await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel =>  await mediaChannel.QueueRemoveAsync(itemIds.ToArray()));
-            });
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(Queue.Any() && itemIds.Any(), async mediaChannel =>  await mediaChannel.QueueRemoveAsync(itemIds.ToArray()), null));
         
         public async Task ShuffleQueueAsync() =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(shuffle: true)));
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueUpdateAsync(shuffle: true), null));
         
-
         public async Task ChangeCurrentMediaAsync(int itemId) =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(currentItemId: itemId)));
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueUpdateAsync(currentItemId: itemId), null));
         
         public async Task ChangeRepeatModeAsync(RepeatMode repeatMode) =>
-            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(IsStopped, null, async mediaChannel => await mediaChannel.QueueUpdateAsync(repeatMode: repeatMode, shuffle: repeatMode == RepeatMode.RepeatAllAndShuffle ? true : null )));
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueUpdateAsync(repeatMode: repeatMode, shuffle: repeatMode == RepeatMode.RepeatAllAndShuffle ? true : null ), null));
+
+        public async Task UpdateQueueItems(IEnumerable<QueueItem> items) =>
+            await Try(async () => await SendChannelCommandAsync<IMediaChannel>(Queue.Any(), async mediaChannel => await mediaChannel.QueueUpdateAsync(items: items), null));
 
         #endregion
 
@@ -306,20 +304,26 @@ namespace Homehook.Services
                     currentQueue[currentQueue.IndexOf(currentItem)].Media.Duration = CurrentMediaStatus.Media?.Duration;
                 }
 
-                if (new string[] { "PLAYING", "PAUSED" }.Contains(newMediaStatus.PlayerState))
+                if (new string[] { "PLAYING", "PAUSED" }.Contains(CurrentMediaStatus.PlayerState))
                 {
                     IsMediaInitialized = true;
                     CurrentRunTime = Convert.ToInt32(CurrentMediaStatus.CurrentTime);
                     _timer.Start();
                 }
-                else if (new string[] { "FINISHED" }.Contains(newMediaStatus.PlayerState))
-                {
-                    IsMediaInitialized = true;
-                    _timer.Stop();
-                }
                 else
                 {
+                    if (new string[] { "FINISHED" }.Contains(CurrentMediaStatus.PlayerState))                        
+                    IsMediaInitialized = true;
+                    else
                     IsMediaInitialized = false;
+
+                    if (CurrentMediaStatus?.CurrentItemId != null)
+                    {
+                        QueueItem queueItem = Queue.FirstOrDefault(item => item.ItemId == CurrentMediaStatus?.CurrentItemId);
+                        queueItem.StartTime = (int)Math.Round(CurrentMediaStatus.CurrentTime);
+                        await UpdateQueueItems(new[] { queueItem });
+                    }
+
                     _timer.Stop();
                 }
 

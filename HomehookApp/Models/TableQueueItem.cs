@@ -11,12 +11,12 @@
 
         public override bool Equals(object obj)
         {
-            return OrderId == OrderId && 
-                ItemId == ItemId && 
-                Title == Title && 
-                Subtitle == Subtitle && 
-                IsPlaying == IsPlaying && 
-                Runtime == Runtime;
+            return OrderId == ((TableQueueItem)obj).OrderId && 
+                ItemId == ((TableQueueItem)obj).ItemId && 
+                Title == ((TableQueueItem)obj).Title && 
+                Subtitle == ((TableQueueItem)obj).Subtitle && 
+                IsPlaying == ((TableQueueItem)obj).IsPlaying && 
+                Runtime == ((TableQueueItem)obj).Runtime;
         }
 
         public override int GetHashCode()

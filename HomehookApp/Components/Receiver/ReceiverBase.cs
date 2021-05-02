@@ -32,7 +32,7 @@ namespace HomehookApp.Components.Receiver
         protected ReceiverStatus _receiverStatus;
         protected HubConnection _receiverHub;
 
-        protected string PlayerState { get; set; } = "Disconnected";
+        protected string PlayerState { get; set; } = "Initializing";
         protected bool IsMediaInitialized { get; set; }
         protected IEnumerable<QueueItem> Queue { get; set; } = Array.Empty<QueueItem>();
         protected bool IsEditingQueue { get; set; }
@@ -162,8 +162,8 @@ namespace HomehookApp.Components.Receiver
 
             IEnumerable<TableQueueItem> newTableQueueItems = GetTableQueueItems(receiverStatus);
 
-            if (_istableInitialized && !
-                Enumerable.SequenceEqual(newTableQueueItems.Select(item => item.ItemId), (_currentTableQueueItems ?? Array.Empty<TableQueueItem>()).Select(item => item.ItemId)))
+            if (_istableInitialized && 
+                !Enumerable.SequenceEqual(newTableQueueItems, _currentTableQueueItems))
             {
                 _currentTableQueueItems = newTableQueueItems;
                 await JSRuntime.InvokeVoidAsync("UpdateTable", $"{Name}QueueTable", _currentTableQueueItems);

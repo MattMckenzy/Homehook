@@ -39,12 +39,21 @@ namespace Homehook.Services
             if (exception != null)
                 message = $"{message}{Environment.NewLine}Exception: {JsonConvert.SerializeObject(exception)}";
 
-            if (_configuration.GetValue<int>("Services:Gotify:Priority") <= (int)logLevel)
-                await _gotifyService.PushMessage(new() { Title = title, Message = message, Priority = gotifyPriority });
+            try
+            {
+                if (_configuration.GetValue<int>("Services:Gotify:Priority") <= (int)logLevel)
+                    await _gotifyService.PushMessage(new() { Title = title, Message = message, Priority = gotifyPriority });
+            }
+            catch
+            {
+                _logger.Log(LogLevel.Error, "The gotify service is unavailably and couldn't push log message.");
+            }
+            finally
+            {
+                message = $"{title}{Environment.NewLine}Message: {Environment.NewLine}{message}";
 
-            message = $"{title}{Environment.NewLine}Message: {Environment.NewLine}{message}";
-
-            _logger.Log(logLevel, message);
+                _logger.Log(logLevel, message);
+            }
         }
     }
 }

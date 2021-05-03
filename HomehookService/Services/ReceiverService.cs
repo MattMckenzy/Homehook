@@ -317,12 +317,13 @@ namespace Homehook.Services
                     else
                     IsMediaInitialized = false;
 
-                    if (CurrentMediaStatus?.CurrentItemId != null)
-                    {
-                        QueueItem queueItem = Queue.FirstOrDefault(item => item.ItemId == CurrentMediaStatus?.CurrentItemId);
-                        queueItem.StartTime = (int)Math.Round(CurrentMediaStatus.CurrentTime);
-                        await UpdateQueueItems(new[] { queueItem });
-                    }
+                    // TODO: figure out how to update item starttime without restarting media playback.
+                    //if (CurrentMediaStatus?.CurrentItemId != null)
+                    //{
+                    //    QueueItem queueItem = Queue.FirstOrDefault(item => item.ItemId == CurrentMediaStatus?.CurrentItemId);
+                    //    queueItem.StartTime = (int)Math.Round(CurrentMediaStatus.CurrentTime);
+                    //    await UpdateQueueItems(new[] { queueItem });
+                    //}
 
                     _timer.Stop();
                 }

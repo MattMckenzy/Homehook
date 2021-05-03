@@ -40,25 +40,27 @@ namespace Homehook
         {
             _ = Task.Run(async () =>
             {
-                await _loggingService.LogDebug("Cast Service starting.", DateTime.Now.ToString());
-
                 while (!cancellationToken.IsCancellationRequested)
-                { 
+                {
                     try
                     {
+                        List<string> newReceivers = new();
                         foreach (IReceiver newReceiver in await new DeviceLocator().FindReceiversAsync())
                         {
                             if (!Receivers.Any(receiver => receiver.FriendlyName.Equals(newReceiver.FriendlyName, StringComparison.InvariantCultureIgnoreCase)))
                             {
                                 Receivers.Add(newReceiver);
                                 RegisterReceiverService(new(newReceiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+                                newReceivers.Add(newReceiver.FriendlyName);
                             }
                         }
+                        if (newReceivers.Any())
+                            await _loggingService.LogDebug("Refreshed receivers.", $"Refreshed receivers and found {newReceivers.Count} new receivers ({string.Join(", ", newReceivers)}).");
                     }
                     finally
                     {
                         findReceiverDelayCancellationTokenSource = new();
-                        findReceiverDelayCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromMinutes(10));
+                        findReceiverDelayCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromMinutes(1));
                     }
 
                 }

@@ -36,7 +36,7 @@ namespace HomehookApp.Components.Receiver
         protected bool IsMediaInitialized { get; set; }
         protected IEnumerable<QueueItem> Queue { get; set; } = Array.Empty<QueueItem>();
         protected bool IsEditingQueue { get; set; }
-        protected string MediaTypeIconClass { get; set; }
+        protected string MediaTypeIconClass { get; set; } = "cast-off";
         protected string Title { get; set; }
         protected string Subtitle { get; set; }
         protected string ImageUrl { get; set; }

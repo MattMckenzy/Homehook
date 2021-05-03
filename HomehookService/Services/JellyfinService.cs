@@ -157,7 +157,7 @@ namespace Homehook.Services
             return items.Select((item, index) => new QueueItem
             {
                 Autoplay = true,
-                StartTime = item.UserData.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
+                StartTime = phrase.OrderType == OrderType.Continue && item.UserData.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
                 Media = new()
                 {
                     ContentType = item.MediaType,

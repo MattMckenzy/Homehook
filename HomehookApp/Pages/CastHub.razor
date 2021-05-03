@@ -2,7 +2,7 @@
 
 <div class="row m-0 w-100">
     <h3 class="col m-2 p-0 text-stroke">Homehook Cast Hub</h3>
-    <i class="col d-flex align-items-center button-bright justify-content-end m-2 p-0 mdi mdi-refresh mdi-36px" @onclick="RefreshReceivers"></i>
+    <i class="col-auto d-flex align-items-center button-bright justify-content-end m-2 p-0 mdi mdi-refresh mdi-36px" @onclick="RefreshReceivers"></i>
 </div>
 
 @if (IsLoading || _receiverHub == null || _receiverHub.State != HubConnectionState.Connected)

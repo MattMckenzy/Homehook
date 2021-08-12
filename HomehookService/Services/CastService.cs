@@ -98,7 +98,7 @@ namespace Homehook
             }
         }
 
-        public async Task RefreshReceiverServices(bool refreshReceivers = false)
+        public async Task RefreshReceiverServices()
         {
             await WaitForRefresh();
 
@@ -106,25 +106,9 @@ namespace Homehook
             {
                 _isRefreshingReceivers = true;
 
-                if (refreshReceivers)
-                {
-                    findReceiverDelayCancellationTokenSource.Cancel();
-                    while (findReceiverDelayCancellationTokenSource.IsCancellationRequested)
-                        await Task.Delay(250);
-                }
-                else
-                {
-                    ReceiverService[] currentReceiverServices = ReceiverServices.ToArray();
-                    ReceiverServices.Clear();
-                    foreach (ReceiverService oldReceiverService in currentReceiverServices)
-                    {
-                        oldReceiverService.Disposed -= ReceiverDisposed;
-                        oldReceiverService?.Dispose();
-                    }
-
-                    foreach(IReceiver receiver in Receivers)
-                        RegisterReceiverService(new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));                    
-                }
+                findReceiverDelayCancellationTokenSource.Cancel();
+                while (findReceiverDelayCancellationTokenSource.IsCancellationRequested)
+                    await Task.Delay(250);
             }
             finally
             {
@@ -157,14 +141,7 @@ namespace Homehook
             
             if (receiverService != null)
             {
-                if (receiverService.IsDifferentApplicationPlaying && receiverService.IsMediaInitialized)
-                {
-                    await receiverService.StopAsync();
-                    await Task.Delay(5000);
-                    await receiverService.InitializeQueueAsync(items);                    
-                }
-                else
-                    await receiverService.InitializeQueueAsync(items);
+                await receiverService.InitializeQueueAsync(items);
             }
             else
                 throw new KeyNotFoundException("The given receiver name cannot be found!");

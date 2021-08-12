@@ -28,9 +28,6 @@ namespace Homehook.Hubs
         }
 
         public async Task RefreshReceivers() =>
-            await _castService.RefreshReceiverServices(true);
-
-        public async Task RefreshReceiverServices() =>
             await _castService.RefreshReceiverServices();
 
         public Task<IEnumerable<string>> GetReceivers() =>

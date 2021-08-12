@@ -128,6 +128,7 @@ namespace Homehook
             {
                 endpoints.MapControllers();
                 endpoints.MapHub<ReceiverHub>("/receiverhub");
+                endpoints.MapSwagger();
             });
         }
     }

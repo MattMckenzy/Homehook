@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,13 +22,15 @@ namespace Homehook
         private readonly LoggingService<CastService> _loggingService;
         private readonly IHubContext<ReceiverHub> _receiverHub;
         private readonly IConfiguration _configuration;
-        
+
         private bool _isRefreshingReceivers = false;
         private CancellationTokenSource findReceiverDelayCancellationTokenSource;
 
         public ObservableCollection<IReceiver> Receivers { get; set; } = new();
 
         public ObservableCollection<ReceiverService> ReceiverServices { get; } = new();
+
+        private ConcurrentDictionary<string, IEnumerable<QueueItem>> _awaitingItems { get; } = new();
 
         public CastService(JellyfinService jellyfinService, LoggingService<CastService> loggingService, IHubContext<ReceiverHub> receiverHub, IConfiguration configuration)
         {
@@ -118,6 +122,7 @@ namespace Homehook
 
         private void RegisterReceiverService(ReceiverService newReceiverService)
         {
+            Debug.WriteLine($"Registering {newReceiverService.Receiver.FriendlyName}");
             newReceiverService.Disposed += ReceiverDisposed;
             ReceiverServices.Add(newReceiverService);
         }
@@ -130,7 +135,14 @@ namespace Homehook
             ReceiverServices.Remove((ReceiverService)sender);
             ReceiverServices.Remove(null);
             await Task.Delay(1000);
-            RegisterReceiverService(new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService));
+            ReceiverService newReceiverService = new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService);
+            RegisterReceiverService(newReceiverService);
+
+            if (_awaitingItems.TryRemove(receiver.FriendlyName, out IEnumerable<QueueItem> items))
+            {
+                await Task.Delay(1000);
+                await newReceiverService.InitializeQueueAsync(items);
+            }
 
             _isRefreshingReceivers = false;
         }
@@ -141,7 +153,13 @@ namespace Homehook
             
             if (receiverService != null)
             {
-                await receiverService.InitializeQueueAsync(items);
+                if (receiverService.IsDifferentApplicationPlaying)
+                {
+                    await receiverService.StopAsync();
+                    _awaitingItems.AddOrUpdate(receiverName, items, (key, oldItems) => items);
+                }
+                else
+                    await receiverService.InitializeQueueAsync(items);
             }
             else
                 throw new KeyNotFoundException("The given receiver name cannot be found!");

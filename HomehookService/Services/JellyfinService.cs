@@ -35,7 +35,7 @@ namespace Homehook.Services
             };
         }
 
-        public async Task<IEnumerable<QueueItem>> GetItems(Phrase phrase, string device = "Homehook", string deviceId = "Homehook")
+        public async Task<IEnumerable<QueueItem>> GetItems(JellyPhrase phrase, string device = "Homehook", string deviceId = "Homehook")
         {
             ConcurrentBag<Item> returningItems = new();
             List<Task> recursiveTasks = new();
@@ -114,7 +114,7 @@ namespace Homehook.Services
             return userId;
         }
 
-        private async Task<IEnumerable<Item>> GetItems(Phrase phrase, string parentId, bool isContinueOrder, Dictionary<string, string> headerReplacements)
+        private async Task<IEnumerable<Item>> GetItems(JellyPhrase phrase, string parentId, bool isContinueOrder, Dictionary<string, string> headerReplacements)
         {
             List<Item> returningItems = new();
 
@@ -152,7 +152,7 @@ namespace Homehook.Services
             await _jellyfinCaller.PostRequestAsync<string>(route, content: JsonConvert.SerializeObject(progress), credential: userName, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
         }
 
-        private IEnumerable<QueueItem> ItemsToQueueItems(IEnumerable<Item> items, Phrase phrase)
+        private IEnumerable<QueueItem> ItemsToQueueItems(IEnumerable<Item> items, JellyPhrase phrase)
         {
             return items.Select((item, index) => new QueueItem
             {

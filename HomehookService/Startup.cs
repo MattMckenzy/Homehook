@@ -58,6 +58,9 @@ namespace Homehook
             services.AddHttpClient<AccessTokenCaller<JellyfinAuthenticationServiceAppProvider>>();
             services.AddSingleton<JellyfinAuthenticationServiceAppProvider>();
             services.AddSingleton<JellyfinService>();
+            services.AddHttpClient<AnonymousCaller<HomeassistantServiceAppProvider>>();
+            services.AddSingleton<HomeassistantServiceAppProvider>();
+            services.AddSingleton<HomeAssistantService>();
             services.AddSingleton<LanguageService>();
             services.AddSingleton(typeof(LoggingService<>));
 
@@ -116,8 +119,18 @@ namespace Homehook
 
             app.UseMiddleware<ExceptionHandlerMiddleware>();
 
-            app.UseSwagger();
-            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Homehook v1"));
+            app.UseSwagger(options =>
+            {
+                options.PreSerializeFilters.Add((swagger, httpReq) =>
+                {
+                    //Clear servers -element in swagger.json because it got the wrong port when hosted behind reverse proxy
+                    swagger.Servers.Clear();
+                });
+            });
+            app.UseSwaggerUI(options => 
+            {
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "Homehook v1");
+            });
 
             app.UseRouting();
 

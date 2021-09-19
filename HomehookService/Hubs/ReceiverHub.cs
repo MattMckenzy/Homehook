@@ -89,7 +89,7 @@ namespace Homehook.Hubs
 
         private async Task<IEnumerable<QueueItem>> GetItems(string searchTerm)
         {
-            Phrase phrase = await _languageService.ParseJellyfinSimplePhrase(searchTerm);
+            JellyPhrase phrase = await _languageService.ParseJellyfinSimplePhrase(searchTerm);
             await _loggingService.LogDebug("ReceiverHub - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {searchTerm}", phrase);
 
             phrase.UserId = await _jellyfinService.GetUserId(phrase.User);

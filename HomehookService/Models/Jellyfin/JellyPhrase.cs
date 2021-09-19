@@ -1,6 +1,6 @@
 ﻿namespace Homehook.Models.Jellyfin
 {
-    public class Phrase
+    public class JellyPhrase
     {
         public string SearchTerm { get; set; }
         

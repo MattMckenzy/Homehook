@@ -36,8 +36,11 @@ namespace Homehook.Controllers
         [ApiKey(ApiKeyName="apiKey", ApiKeyRoutes = new [] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
         public async Task<IActionResult> PostJellySimpleHook([FromBody] SimplePhrase simplePhrase)
         {
-            Phrase phrase = await _languageService.ParseJellyfinSimplePhrase(simplePhrase.Content);
+            JellyPhrase phrase = await _languageService.ParseJellyfinSimplePhrase(simplePhrase.Content);
             await _loggingService.LogDebug("PostJellySimpleHook - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {simplePhrase.Content}" , phrase);
+
+            if (string.IsNullOrWhiteSpace(phrase.SearchTerm))
+                return BadRequest("Missing search content! Please specify a search term along with any optional filters.");
 
             return await ProcessJellyPhrase(phrase, nameof(PostJellySimpleHook));
         }
@@ -48,7 +51,7 @@ namespace Homehook.Controllers
         {
             await _loggingService.LogDebug("PostJellyConversationHook - received conversation.", $"Received the following JellyConversation:", conversation);
 
-            Phrase phrase = new()
+            JellyPhrase phrase = new()
             {
                 SearchTerm = conversation.RequestJson?.Intent?.Params?.Content?.Resolved ?? string.Empty,
                 User = conversation.RequestJson?.Intent?.Params?.UserName?.Resolved ?? _configuration["Services:Jellyfin:DefaultUser"],
@@ -64,7 +67,7 @@ namespace Homehook.Controllers
             return await ProcessJellyPhrase(phrase, nameof(PostJellyConversationHook));
         }
 
-        private async Task<IActionResult> ProcessJellyPhrase(Phrase phrase, string controllerName)
+        private async Task<IActionResult> ProcessJellyPhrase(JellyPhrase phrase, string controllerName)
         {
             phrase.UserId = await _jellyfinService.GetUserId(phrase.User);
             if (string.IsNullOrWhiteSpace(phrase.UserId))

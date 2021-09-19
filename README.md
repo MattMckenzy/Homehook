@@ -129,6 +129,9 @@ Services:Jellyfin:MaximumQueueSize | 100 | Maximum media item queue size to post
 Services:IFTTT:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
 Services:Google:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
 Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use. Replace this if you wish to use your own styled application instead of Homehook's.
+Services:HomeAssistant:ServiceUri | | HomeAssistant's API webhook service uri.
+Services:HomeAssistant:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
+Services:HomeAssistant:Webhooks | | A dynamic list of home assistant webhooks, with values of comma delimited words. Used to map available homey webhooks to phrases. (i.e. Services:HomeAssistant:Webhooks:TurnOff = Shutdown, turn off, power down, off).
 Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).

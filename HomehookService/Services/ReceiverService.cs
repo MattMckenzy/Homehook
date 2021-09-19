@@ -20,6 +20,8 @@ namespace Homehook.Services
     {
         #region Private and public properties
 
+        private const string _googleBackdropApplicationId = "E8C28D3C";
+
         private readonly JellyfinService _jellyfinService;
         private readonly IHubContext<ReceiverHub> _receiverHub;
 
@@ -34,7 +36,7 @@ namespace Homehook.Services
 
         private readonly string _applicationId;
         public string HomehookApplicationId { get { return string.IsNullOrWhiteSpace(_applicationId) ? _sender.GetChannel<IMediaChannel>().DefaultApplicationId : _applicationId; } }
-        public string CurrentApplicationId { get { return _sender.GetChannel<IReceiverChannel>()?.Status?.Applications?.FirstOrDefault()?.AppId ?? string.Empty; } }
+        public string CurrentApplicationId { get; set; }
 
         public bool IsMediaInitialized { get; set; }
 
@@ -47,7 +49,24 @@ namespace Homehook.Services
             }
         }
 
-        public bool IsDifferentApplicationPlaying { get { return !string.IsNullOrWhiteSpace(CurrentApplicationId) && !CurrentApplicationId.Equals(HomehookApplicationId, StringComparison.InvariantCultureIgnoreCase); } }
+        public bool IsDifferentApplicationPlaying 
+        { 
+            get 
+            { 
+                return !string.IsNullOrWhiteSpace(CurrentApplicationId) && 
+                    !CurrentApplicationId.Equals(HomehookApplicationId, StringComparison.InvariantCultureIgnoreCase) &&
+                    CurrentApplicationId != _googleBackdropApplicationId; 
+            } 
+        }
+
+        public bool ShouldHomehookBeLaunched
+        {
+            get
+            {
+                return string.IsNullOrWhiteSpace(CurrentApplicationId) ||
+                    CurrentApplicationId == _googleBackdropApplicationId;
+            }
+        }
 
         public float Volume { get; set; }
 
@@ -130,7 +149,7 @@ namespace Homehook.Services
                 {
                     if (mediaInformation != null)
                     {
-                        if (string.IsNullOrWhiteSpace(CurrentApplicationId) || IsDifferentApplicationPlaying)
+                        if (ShouldHomehookBeLaunched)
                             await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
 
                         Queue = new();
@@ -148,11 +167,11 @@ namespace Homehook.Services
         {
             await Try(async () =>
             {
-                await InvokeAsync<IMediaChannel>(async mediaChannel =>
+                    await InvokeAsync<IMediaChannel>(async mediaChannel =>
                 {
                     if (queueItems.Any())
                     {
-                        if (string.IsNullOrWhiteSpace(CurrentApplicationId) || IsDifferentApplicationPlaying)
+                        if (ShouldHomehookBeLaunched)
                             await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
 
                         Queue = new(queueItems);
@@ -183,8 +202,6 @@ namespace Homehook.Services
         public async Task StopAsync() =>        
             await Try(async () =>
             {
-                if (!IsStopped)
-                    await InvokeAsync<IMediaChannel>(mediaChannel => mediaChannel.StopAsync());
                 await InvokeAsync<IReceiverChannel>(receiverChannel => receiverChannel.StopAsync());                
             });        
 
@@ -355,6 +372,7 @@ namespace Homehook.Services
             ReceiverStatus status = ((IReceiverChannel)sender).Status;
             if (status != null)
             {
+                CurrentApplicationId = status.Applications?.FirstOrDefault()?.AppId;
                 if (status.Volume.Level != null)
                 {
                     Volume = (float)status.Volume.Level;

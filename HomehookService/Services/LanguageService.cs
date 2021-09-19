@@ -1,5 +1,6 @@
 ﻿using Homehook.Models;
 using Homehook.Models.Jellyfin;
+using Homehook.Models.Homey;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
@@ -21,9 +22,9 @@ namespace Homehook.Services
             _loggingService = loggingService;
         }
 
-        public async Task<Phrase> ParseJellyfinSimplePhrase(string simplePhrase)
+        public async Task<JellyPhrase> ParseJellyfinSimplePhrase(string simplePhrase)
         {
-            Phrase jellyPhrase = new()
+            JellyPhrase jellyPhrase = new()
             {
                 User = _configuration["Services:Jellyfin:DefaultUser"],
                 Device = _configuration["Services:Jellyfin:DefaultDevice"],
@@ -103,6 +104,41 @@ namespace Homehook.Services
             jellyPhrase.SearchTerm = string.Join(' ', phraseTokens);
 
             return jellyPhrase;
+        }
+
+
+        public Task<HomeyPhrase> ParseHomeySimplePhrase(string simplePhrase)
+        {
+            HomeyPhrase homeyPhrase = new();
+
+            IEnumerable<string> phraseTokens = ProcessWordMappings(simplePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)); ;
+
+            if (phraseTokens.Any())
+            {
+                Dictionary<string, IEnumerable<string>> webhooks =
+                    _configuration.GetSection("Services:HomeAssistant:Webhooks")
+                        .GetChildren()
+                        .Where(section => !string.IsNullOrWhiteSpace(section.Key))
+                        .ToDictionary(section => section.Key, section => section.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).AsEnumerable());
+                                
+                string phrase = string.Join(' ', phraseTokens);
+                foreach (KeyValuePair<string,IEnumerable<string>> webhook in webhooks)
+                {
+                    foreach (string webhookPhrase in webhook.Value)
+                    {
+                        if (phrase.StartsWith(webhookPhrase, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            homeyPhrase.WebhookId = webhook.Key;
+                            phrase = phrase.Remove(0, webhookPhrase.Length).Trim();
+                            break;
+                        }
+                    }
+                }          
+
+                homeyPhrase.Content = phrase;
+            }
+
+            return Task.FromResult(homeyPhrase);
         }
 
         private IEnumerable<string> ProcessWordMappings(string[] phraseTokens)

@@ -30,7 +30,7 @@ namespace Homehook
 
         public ObservableCollection<ReceiverService> ReceiverServices { get; } = new();
 
-        private ConcurrentDictionary<string, IEnumerable<QueueItem>> _awaitingItems { get; } = new();
+        private ConcurrentDictionary<string, (IEnumerable<QueueItem>, DateTime)> _awaitingItems { get; } = new();
 
         public CastService(JellyfinService jellyfinService, LoggingService<CastService> loggingService, IHubContext<ReceiverHub> receiverHub, IConfiguration configuration)
         {
@@ -67,6 +67,25 @@ namespace Homehook
                         findReceiverDelayCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromMinutes(1));
                     }
 
+                }
+            }, cancellationToken);
+
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(1000);
+                    IEnumerable<string> timedOutReceivers = 
+                        _awaitingItems.Where(awaitingItem => DateTime.Now - awaitingItem.Value.Item2 > TimeSpan.FromSeconds(10)).Select(awaitingItem => awaitingItem.Key);
+                    foreach (string timedOutReceiver in timedOutReceivers)
+                    {
+                        if (_awaitingItems.TryRemove(timedOutReceiver, out (IEnumerable<QueueItem> items, DateTime _) awaitingItem))
+                        {
+                            await Task.Delay(2000);
+                            ReceiverService receiver = await GetReceiverService(timedOutReceiver);
+                            await receiver.InitializeQueueAsync(awaitingItem.items);
+                        }
+                    }
                 }
             }, cancellationToken);
 
@@ -138,10 +157,10 @@ namespace Homehook
             ReceiverService newReceiverService = new(receiver, _configuration["Services:Google:ApplicationId"], _jellyfinService, _receiverHub, _loggingService);
             RegisterReceiverService(newReceiverService);
 
-            if (_awaitingItems.TryRemove(receiver.FriendlyName, out IEnumerable<QueueItem> items))
+            if (_awaitingItems.TryRemove(receiver.FriendlyName, out (IEnumerable<QueueItem> items, DateTime _) awaitingItem ))
             {
-                await Task.Delay(1000);
-                await newReceiverService.InitializeQueueAsync(items);
+                await Task.Delay(2000);
+                await newReceiverService.InitializeQueueAsync(awaitingItem.items);
             }
 
             _isRefreshingReceivers = false;
@@ -153,10 +172,12 @@ namespace Homehook
             
             if (receiverService != null)
             {
+                await _loggingService.LogDebug("Starting Jellyfin Session", $"Starting Jellyfin session {receiverService.HomehookApplicationId} against the following {receiverService.CurrentApplicationId}. Is different application playing? \"{receiverService.IsDifferentApplicationPlaying}\"");
+
                 if (receiverService.IsDifferentApplicationPlaying)
                 {
                     await receiverService.StopAsync();
-                    _awaitingItems.AddOrUpdate(receiverName, items, (key, oldItems) => items);
+                    _awaitingItems.AddOrUpdate(receiverName, (_) => new (items, DateTime.Now), (key, oldItems) => (items, DateTime.Now));
                 }
                 else
                     await receiverService.InitializeQueueAsync(items);

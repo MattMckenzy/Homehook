@@ -1,14 +1,15 @@
 ﻿using GoogleCast.Models.Media;
 using Homehook.Attributes;
+using Homehook.Extensions;
 using Homehook.Models;
 using Homehook.Models.Jellyfin;
-using Homehook.Models.Jellyfin.Converation;
 using Homehook.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Homehook.Controllers
@@ -47,21 +48,19 @@ namespace Homehook.Controllers
 
         [HttpPost("conversation")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:Google:Token" })]
-        public async Task<IActionResult> PostJellyConversationHook([FromBody] Conversation conversation)
+        public async Task<IActionResult> PostJellyConversationHook([FromBody] JsonElement entity)
         {
-            await _loggingService.LogDebug("PostJellyConversationHook - received conversation.", $"Received the following JellyConversation:", conversation);
+            await _loggingService.LogDebug("PostJellyConversationHook - received conversation.", $"Received the following JellyConversation:", entity.GetRawText());
 
+            string orderType = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("Order")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultOrder"];
+            string mediaType = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("MediaType")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultMediaType"];
             JellyPhrase phrase = new()
             {
-                SearchTerm = conversation.RequestJson?.Intent?.Params?.Content?.Resolved ?? string.Empty,
-                User = conversation.RequestJson?.Intent?.Params?.UserName?.Resolved ?? _configuration["Services:Jellyfin:DefaultUser"],
-                Device = conversation.RequestJson?.Intent?.Params?.Device?.Resolved ?? _configuration["Services:Jellyfin:DefaultDevice"],
-                OrderType = (OrderType)(conversation.RequestJson?.Intent?.Params?.Order?.Resolved != null ?
-                    Enum.Parse(typeof(OrderType), conversation.RequestJson?.Intent?.Params?.Order?.Resolved) :
-                    Enum.Parse(typeof(OrderType), _configuration["Services:Jellyfin:DefaultOrder"])),
-                MediaType = (Models.MediaType)(conversation.RequestJson?.Intent?.Params?.MediaType?.Resolved != null ?
-                    Enum.Parse(typeof(Models.MediaType), conversation.RequestJson?.Intent?.Params?.MediaType?.Resolved) :
-                    Enum.Parse(typeof(Models.MediaType), _configuration["Services:Jellyfin:DefaultOrder"])),
+                SearchTerm = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("Content")?.Get("resolved")?.GetString() ?? string.Empty,
+                User = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("UserName")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultUser"],
+                Device = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("Device")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultDevice"],
+                OrderType = (OrderType)Enum.Parse(typeof(OrderType), orderType),
+                MediaType = (MediaType)Enum.Parse(typeof(MediaType), mediaType)
             };
 
             return await ProcessJellyPhrase(phrase, nameof(PostJellyConversationHook));

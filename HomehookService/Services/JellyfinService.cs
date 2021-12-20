@@ -89,7 +89,7 @@ namespace Homehook.Services
             items = phrase.OrderType switch
             {
                 OrderType.Continue => items.OrderByDescending(item => item.UserData.LastPlayedDate),
-                OrderType.Shuffle => items.Shuffle(),
+                OrderType.Shuffle => items.OrderBy(_ => Guid.NewGuid()),
                 OrderType.Ordered => items.OrderBy(item => item.AlbumArtist).ThenBy(item => item.Album).ThenBy(item => item.SeriesName).ThenBy(item => item.ParentIndexNumber).ThenBy(item => item.IndexNumber),
                 OrderType.Shortest => items.OrderBy(item => item.RunTimeTicks),
                 OrderType.Longest => items.OrderByDescending(item => item.RunTimeTicks),

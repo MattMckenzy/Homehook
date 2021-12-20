@@ -167,10 +167,12 @@ namespace Homehook.Services
         {
             await Try(async () =>
             {
-                    await InvokeAsync<IMediaChannel>(async mediaChannel =>
+                await InvokeAsync<IMediaChannel>(async mediaChannel =>
                 {
                     if (queueItems.Any())
                     {
+                        await _loggingService.LogDebug("Initializing Queue", $"Initializing {HomehookApplicationId} against the following {CurrentApplicationId}. Should Homehook be launched? \"{ShouldHomehookBeLaunched}\"");
+
                         if (ShouldHomehookBeLaunched)
                             await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
 

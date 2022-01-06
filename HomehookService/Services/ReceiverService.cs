@@ -141,6 +141,12 @@ namespace Homehook.Services
             return receiverStatus;
         }
 
+        public async Task LaunchHomehook()
+        {
+            if (ShouldHomehookBeLaunched)
+                await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
+        }
+
         public async Task InitializeItemAsync(MediaInformation mediaInformation)
         {
             await Try(async () =>
@@ -149,9 +155,6 @@ namespace Homehook.Services
                 {
                     if (mediaInformation != null)
                     {
-                        if (ShouldHomehookBeLaunched)
-                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
-
                         Queue = new();
 
                         await mediaChannel.LoadAsync(mediaInformation);
@@ -171,11 +174,6 @@ namespace Homehook.Services
                 {
                     if (queueItems.Any())
                     {
-                        await _loggingService.LogDebug("Initializing Queue", $"Initializing {HomehookApplicationId} against the following {CurrentApplicationId}. Should Homehook be launched? \"{ShouldHomehookBeLaunched}\"");
-
-                        if (ShouldHomehookBeLaunched)
-                            await _sender.GetChannel<IReceiverChannel>().LaunchAsync(HomehookApplicationId);
-
                         Queue = new(queueItems);
                         Queue<QueueItem> queue = new(Queue);
 

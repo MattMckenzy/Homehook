@@ -142,25 +142,38 @@ namespace Homehook
         public async Task StartJellyfinSession(string receiverName, IEnumerable<QueueItem> items)
         { 
             ReceiverService receiverService = await GetReceiverService(receiverName);
-            if (receiverService != null)
+            if (receiverService != null && items.Any())
             {
                 _ = Task.Run(async () =>
                 {
+                    await _loggingService.LogDebug("Starting Jellyfin Session", $"Launching homehook on receiver: \"{receiverName}\"");
+
                     CancellationTokenSource initializeCancellationTokenSource = new(TimeSpan.FromMinutes(5));
-                    do
+
+                    if (receiverService.ShouldHomehookBeLaunched)
                     {
-                        await _loggingService.LogDebug("Starting Jellyfin Session", $"Initializing media on receiver: \"{receiverName}\"");
-                        await receiverService.InitializeQueueAsync(items);
-                        await Task.Delay(3000);
+                        await receiverService.StopAsync();
+                        await Task.Delay(1000);
                         receiverService = await GetReceiverService(receiverName);
-                    }
-                    while (!initializeCancellationTokenSource.IsCancellationRequested && !(receiverService.CurrentApplicationId.Equals(receiverService.HomehookApplicationId) && receiverService.IsMediaInitialized));
+
+                        await receiverService.LaunchHomehook();
+
+                        while (!initializeCancellationTokenSource.IsCancellationRequested && receiverService.ShouldHomehookBeLaunched)
+                        {
+                            await Task.Delay(250);
+                            receiverService = await GetReceiverService(receiverName);
+                        }
+                    }                  
+
+                    await receiverService.InitializeQueueAsync(items);
 
                     await _loggingService.LogDebug("Started Jellyfin Session", $"Succesfully initialized media on receiver: \"{receiverName}\"");
                 });
             }
-            else
+            else if (items.Any())
                 throw new KeyNotFoundException("The given receiver name cannot be found!");
+            else if (items.Any())
+                throw new KeyNotFoundException("There are no items to initialize!");
         }
     }
 }

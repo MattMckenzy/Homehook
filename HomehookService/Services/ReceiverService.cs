@@ -64,7 +64,7 @@ namespace Homehook.Services
             get
             {
                 return string.IsNullOrWhiteSpace(CurrentApplicationId) ||
-                    CurrentApplicationId == _googleBackdropApplicationId;
+                    CurrentApplicationId != HomehookApplicationId;
             }
         }
 
@@ -414,6 +414,12 @@ namespace Homehook.Services
             try
             {
                 await action();
+            }
+            catch (TimeoutException exception)
+            {
+                await _loggingService.LogDebug("Cast error.", $"Got a timeout while interacting with \"{Receiver.FriendlyName}\"", exception.StackTrace);
+                await _receiverHub.Clients.All.SendAsync("ReceiveMessage", Receiver.FriendlyName, exception.Message);
+                SenderDisconnected(exception.Message, null);
             }
             catch (Exception exception)
             {

@@ -83,8 +83,8 @@ namespace Homehook.Controllers
                 await _loggingService.LogWarning($"{controllerName} - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
                 return NotFound($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user IDs.");
             }
-
-            await _castService.StartJellyfinSession(phrase.Device, items);
+            
+            _ = Task.Run(async () => await _castService.StartJellyfinSession(phrase.Device, items));
 
             return Ok($"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
         }

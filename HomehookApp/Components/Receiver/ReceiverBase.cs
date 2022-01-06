@@ -163,6 +163,7 @@ namespace HomehookApp.Components.Receiver
             IEnumerable<TableQueueItem> newTableQueueItems = GetTableQueueItems(receiverStatus);
 
             if (_istableInitialized && 
+                !(IsMediaInitialized && !newTableQueueItems.Any()) &&
                 !Enumerable.SequenceEqual(newTableQueueItems, _currentTableQueueItems))
             {
                 _currentTableQueueItems = newTableQueueItems;

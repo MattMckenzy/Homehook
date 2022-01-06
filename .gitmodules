@@ -1,0 +1,3 @@
+[submodule "GoogleCast"]
+	path = GoogleCast
+	url = https://github.com/MattMckenzy/GoogleCast.git

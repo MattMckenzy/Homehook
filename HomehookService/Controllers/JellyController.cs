@@ -57,6 +57,7 @@ namespace Homehook.Controllers
             JellyPhrase phrase = new()
             {
                 SearchTerm = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("Content")?.Get("resolved")?.GetString() ?? string.Empty,
+                PathTerm = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("PathTerm")?.Get("resolved")?.GetString() ?? string.Empty,
                 User = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("UserName")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultUser"],
                 Device = entity.Get("requestJson")?.Get("intent")?.Get("params")?.Get("Device")?.Get("resolved")?.GetString() ?? _configuration["Services:Jellyfin:DefaultDevice"],
                 OrderType = (OrderType)Enum.Parse(typeof(OrderType), orderType),

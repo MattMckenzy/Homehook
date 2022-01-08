@@ -23,14 +23,15 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 ### Jellyfin Simple Phrase
 Once configured appropriately, Homehook can receive POST requests at homehook/jelly/simple to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
-Phrase terms are parsed in the following order:
+Phrase terms are parsed in the following order, though all preposition phrases can be in any order (4,5 and 6):
 1. Order
 2. Search Term
 3. Media Type
-4. Device
-5. User
+4. Device preposition and phrase
+5. User preposition and phrase
+6. Path term preposition and phrase
 
-i.e.: [random] [chrono cross] [songs] [on basement] [as matt]
+i.e.: [random] [chrono cross] [songs] [on basement] [as matt] [from Chrono Cross OST]
 
 The incoming webhook can come from any source, such as IFTTT's simple phrase with text ingredient trigger with a webhook action, but you can also simply call the endpoint from anywhere. Here's a CURL example:
 
@@ -47,6 +48,7 @@ This endpoint expects to receive a Google Conversation Action webhook POST to ho
 3. MediaType
 4. Device
 5. UserName 
+6. PathTerm
 
 [Please read the Google Actions documentation for information on configuring its advanced phrase parsing features.](https://console.actions.google.com/)
 
@@ -132,8 +134,9 @@ Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use
 Services:HomeAssistant:ServiceUri | | HomeAssistant's API webhook service uri.
 Services:HomeAssistant:Token | | Authentication token used to post to Homehook, can be anything you generate and use on both sides.
 Services:HomeAssistant:Webhooks | | A dynamic list of home assistant webhooks, with values of comma delimited words. Used to map available homey webhooks to phrases. (i.e. Services:HomeAssistant:Webhooks:TurnOff = Shutdown, turn off, power down, off).
-Services:Language:UserPrepositions | as,from | List of available prepositions to identify a user in a search term.
+Services:Language:UserPrepositions | as | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
+Services:Language:PathTermPrepositions | from,in,inside | List of available prepositions to identify a path term used to filter results further by its path.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
 
 # Homehook App

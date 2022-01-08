@@ -3,7 +3,9 @@
     public class JellyPhrase
     {
         public string SearchTerm { get; set; }
-        
+
+        public string PathTerm { get; set; }
+
         public OrderType OrderType { get; set; }
 
         public MediaType MediaType { get; set; }

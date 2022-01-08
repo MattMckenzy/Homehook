@@ -11,6 +11,14 @@ namespace Homehook.Services
 {
     public class LanguageService
     {
+        private enum PrepositionType
+        { 
+            None,
+            User,
+            Device,
+            Path
+        }
+
         private readonly IConfiguration _configuration;
         private readonly CastService _castService;
         private readonly LoggingService<LanguageService> _loggingService;
@@ -34,6 +42,9 @@ namespace Homehook.Services
 
             IEnumerable<string> phraseTokens = ProcessWordMappings(simplePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));;
 
+
+            // Prepare recognized tokens and prepositions.
+
             Dictionary<string, IEnumerable<string>> orderTokens = new()
             { 
                 { "Continue", _configuration["Services:Jellyfin:OrderTerms:Continue"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
@@ -51,61 +62,130 @@ namespace Homehook.Services
                 { "Photo", _configuration["Services:Jellyfin:MediaTypeTerms:Photo"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
             };
 
+            IEnumerable<string> userPrepositions = _configuration["Services:Language:UserPrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            IEnumerable<string> devicePrepositions = _configuration["Services:Language:DevicePrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            IEnumerable<string> pathPrepositions = _configuration["Services:Language:PathPrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            IEnumerable<(PrepositionType type, string preposition)> prepositions = 
+                userPrepositions.Select(preposition => (PrepositionType.User, preposition))
+                .Union(devicePrepositions.Select(preposition => (PrepositionType.Device, preposition)))
+                .Union(pathPrepositions.Select(preposition => (PrepositionType.Path, preposition)));
+
+            IEnumerable<(PrepositionType type, string token)> typedPhraseTokens = 
+                phraseTokens.Select(token=> (token, prepositions.FirstOrDefault(prepositionItem => prepositionItem.preposition.Equals(token, StringComparison.InvariantCultureIgnoreCase)).type))
+                .Select(prepositionItem => (prepositionItem.type, prepositionItem.token));
+
+
+            // Map spoken Jelly device.
+
+            string spokenJellyDevice = string.Empty;
+            (spokenJellyDevice, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.Device, typedPhraseTokens);
+            string jellyDevice = _castService.Receivers
+                .FirstOrDefault(receiver => receiver.FriendlyName.Equals(spokenJellyDevice, StringComparison.InvariantCultureIgnoreCase))
+                ?.FriendlyName;
+
+            if (string.IsNullOrWhiteSpace(jellyDevice))
+                await _loggingService.LogWarning($"Spoken device is not listed.", $"Please add  \"{spokenJellyDevice}\" to device configuration.", jellyPhrase);
+            else
+            {
+                await _loggingService.LogDebug($"Mapped spoken device token to {jellyDevice}.", string.Empty, jellyPhrase);
+                jellyPhrase.Device = jellyDevice;
+            }
+
+
+            // Map spoken user.
+
+            string spokenJellyUser = string.Empty;
+            (spokenJellyUser, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.User, typedPhraseTokens);
+            string jellyUser = 
+                _configuration.GetSection("UserMappings").Get<UserMappings[]>()
+                .FirstOrDefault(userMappings => userMappings.Spoken.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(spokenMapping => spokenMapping.Equals(spokenJellyUser, StringComparison.InvariantCultureIgnoreCase)))?
+                .Jellyfin;
+
+            if (string.IsNullOrWhiteSpace(jellyUser))
+                await _loggingService.LogWarning($"Spoken user not mapped.", $"Please map \"{spokenJellyUser}\" to a Jellyfin user.", jellyPhrase);
+            else
+            {
+                await _loggingService.LogDebug($"Mapped spoken user token to {jellyUser}.", string.Empty, jellyPhrase);
+                jellyPhrase.User = jellyUser;
+            }
+
+
+            // Map spoken path term.
+
+            string spokenPathTerm = string.Empty;
+            (spokenPathTerm, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.Path, typedPhraseTokens);
+
+            await _loggingService.LogDebug($"Mapped spoken path term to {spokenPathTerm}.", string.Empty, jellyPhrase);
+            jellyPhrase.PathTerm = spokenPathTerm;
+
+            phraseTokens = typedPhraseTokens.Select(tokenItem => tokenItem.token);
+
+
+            // Map spoken media order.
+
             if (phraseTokens.Any() && orderTokens.SelectMany(tokens => tokens.Value).Any(orderToken => phraseTokens.First().Equals(orderToken, StringComparison.InvariantCultureIgnoreCase)))
             {
                 string spokenJellyOrderType = orderTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.First(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
-                await _loggingService.LogDebug($"Mapped spoken order token to {spokenJellyOrderType}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
+                await _loggingService.LogDebug($"Mapped spoken order token to {spokenJellyOrderType}.", string.Empty, jellyPhrase);
                 jellyPhrase.OrderType = (OrderType)Enum.Parse(typeof(OrderType), spokenJellyOrderType);
 
                 phraseTokens = phraseTokens.Skip(1).AsEnumerable();
             }
 
-            if (phraseTokens.Count() >= 2 && _configuration["Services:Language:UserPrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(userPreposition => phraseTokens.Reverse().Skip(1).First().Equals(userPreposition, StringComparison.InvariantCultureIgnoreCase)))
-            {
-                string spokenJellyUser = _configuration.GetSection("UserMappings").Get<UserMappings[]>().FirstOrDefault(userMappings => userMappings.Spoken.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(spokenMapping => spokenMapping.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase)))?.Jellyfin;
-                
-                if (string.IsNullOrWhiteSpace(spokenJellyUser))
-                    await _loggingService.LogWarning($"Spoken user not mapped.", "Please map a spoken user to a Jellyfin user.", new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                else
-                {
-                    await _loggingService.LogDebug($"Mapped spoken user token to {spokenJellyUser}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                    jellyPhrase.User = spokenJellyUser;
-                }
 
-                phraseTokens = phraseTokens.SkipLast(2).AsEnumerable();
-            }
-
-            if (phraseTokens.Count() >= 2 && _configuration["Services:Language:DevicePrepositions"].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(devicePreposition => phraseTokens.Reverse().Skip(1).First().Equals(devicePreposition, StringComparison.InvariantCultureIgnoreCase)))
-            {
-                string spokenJellyDevice = _castService.Receivers.Select(receiver => receiver.FriendlyName).FirstOrDefault(mediaPlayer => mediaPlayer.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase));
-
-                if (string.IsNullOrWhiteSpace(spokenJellyDevice))
-                    await _loggingService.LogWarning($"Spoken device is not listed.", "Please add spoken device to configuration.", new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                else
-                {
-                    await _loggingService.LogDebug($"Mapped spoken device token to {spokenJellyDevice}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
-                    jellyPhrase.Device = spokenJellyDevice;
-                }
-
-                phraseTokens = phraseTokens.SkipLast(2).AsEnumerable();
-            }
+            // Map spoken media type.
 
             if (phraseTokens.Any() && mediaTypeTokens.SelectMany(tokens => tokens.Value).Any(mediaTypeToken => phraseTokens.Last().Equals(mediaTypeToken, StringComparison.InvariantCultureIgnoreCase)))
             {
                 string spokenJellyMediaType = mediaTypeTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
-                await _loggingService.LogDebug($"Mapped spoken media type token to {spokenJellyMediaType}.", string.Empty, new { SearchTerm = simplePhrase, JellyPhrase = jellyPhrase });
+                await _loggingService.LogDebug($"Mapped spoken media type token to {spokenJellyMediaType}.", string.Empty, jellyPhrase);
                 jellyPhrase.MediaType = (MediaType)Enum.Parse(typeof(MediaType), spokenJellyMediaType);
 
                 phraseTokens = phraseTokens.SkipLast(1).AsEnumerable();
             }
 
-            jellyPhrase.SearchTerm = string.Join(' ', phraseTokens);
+
+            // Remaining phrase tokens are search term.
+            
+            jellyPhrase.SearchTerm = string.Join(' ', phraseTokens); 
+            await _loggingService.LogDebug($"Mapped search term to {jellyPhrase.SearchTerm}.", string.Empty, jellyPhrase);
+
 
             return jellyPhrase;
         }
 
+        private (string, IEnumerable<(PrepositionType type, string token)>) ExtractPrepositionTerm(PrepositionType type, IEnumerable<(PrepositionType type, string token)> typedPhraseTokens)
+        {
+            List<string> extractedTokens = new();
+            List<(PrepositionType type, string token)> remainderTokens = new();
+            bool isExtracting = false;
+            foreach((PrepositionType type, string token) typedPhraseToken in typedPhraseTokens)
+            {
+                if (typedPhraseToken.type == type)
+                {
+                    isExtracting = true;
+                }
+                else if (typedPhraseToken.type != PrepositionType.None)
+                {
+                    isExtracting = false;
+                    remainderTokens.Add(typedPhraseToken);
+                }
+                else if (isExtracting)
+                {
+                    extractedTokens.Add(typedPhraseToken.token);
+                }
+                else
+                {
+                    remainderTokens.Add(typedPhraseToken);
+                }
+            }
+
+            return (string.Join(' ', extractedTokens), remainderTokens);
+        }
 
         public Task<HomeyPhrase> ParseHomeySimplePhrase(string simplePhrase)
         {

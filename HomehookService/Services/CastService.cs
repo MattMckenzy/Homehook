@@ -156,10 +156,9 @@ namespace Homehook
                         await Task.Delay(1000);
                         receiverService = await GetReceiverService(receiverName);
 
-                        await receiverService.LaunchHomehook();
-
                         while (!initializeCancellationTokenSource.IsCancellationRequested && receiverService.ShouldHomehookBeLaunched)
                         {
+                            await receiverService.LaunchHomehook();
                             await Task.Delay(250);
                             receiverService = await GetReceiverService(receiverName);
                         }

@@ -46,16 +46,21 @@ namespace Homehook.Services
             // Search for media matching search terms and add them to returning list.
             recursiveTasks.Add(Task.Run(async () =>
             {
-                foreach (Item item in await GetItems(phrase, null, isContinueOrder, headerReplacements))
+                foreach (Item item in await GetItems(phrase, null, isContinueOrder, headerReplacements))    
+                {
                     returningItems.Add(item);
+                }
             }));
 
             // Search for and retrieve media from folders matching search terms.
-            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "searchTerm", phrase.SearchTerm } };
+            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "fields", "Path" }, { "filters", "IsFolder" }, { "searchTerm", phrase.SearchTerm } };
             CallResult<string> foldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{phrase.UserId}/Items", queryParameters, credential: phrase.User, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
 
             foreach (Item folder in JsonConvert.DeserializeObject<JellyfinItems>(foldersCallResult.Content).Items)
             {
+                if (!string.IsNullOrWhiteSpace(phrase.PathTerm) && (!folder.Path?.Contains(phrase.PathTerm, StringComparison.InvariantCultureIgnoreCase) ?? true))
+                    continue;
+
                 // Retrieve media for matching parent folder items.
                 recursiveTasks.Add(Task.Run(async () =>
                 {
@@ -66,7 +71,7 @@ namespace Homehook.Services
                 // Retrieve media in all child folders that contain items.
                 recursiveTasks.Add(Task.Run(async () =>
                 {
-                    Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "filters", "IsFolder" }, { "parentId", folder.Id } };
+                    Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "fields", "Path" }, { "filters", "IsFolder" }, { "parentId", folder.Id } };
                     CallResult<string> childFoldersCallResult = await _jellyfinCaller.GetRequestAsync<string>($"Users/{phrase.UserId}/Items", queryParameters, credential: phrase.User, headerReplacements: headerReplacements, accessTokenDelegate: _accessTokenDelegate);
 
                     foreach (Item childFolder in JsonConvert.DeserializeObject<JellyfinItems>(childFoldersCallResult.Content).Items)
@@ -129,6 +134,9 @@ namespace Homehook.Services
             List<Task> recursiveTasks = new();
             foreach (Item item in JsonConvert.DeserializeObject<JellyfinItems>(callResult.Content).Items)
             {
+                if (!string.IsNullOrWhiteSpace(phrase.PathTerm) && (!item.Path?.Contains(phrase.PathTerm, StringComparison.InvariantCultureIgnoreCase) ?? true))
+                    continue;
+
                 if (phrase.MediaType == MediaType.All || phrase.MediaType.ToString().Equals(item.MediaType, StringComparison.InvariantCultureIgnoreCase))
                     returningItems.Add(item);                
             }

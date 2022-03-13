@@ -33,6 +33,82 @@ namespace Homehook.Controllers
             _configuration = configuration;
         }
 
+        [HttpGet("{receiver}/toggleplayback")]
+        [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
+        public async Task<IActionResult> TogglePlayback([FromRoute] string receiver)
+        {
+            ReceiverService receiverService = await _castService.GetReceiverService(receiver);
+
+            if (receiverService == null)
+                return NotFound("Requested receiver not found!");
+
+            if (receiverService.CurrentMediaStatus?.PlayerState != null && 
+                receiverService.CurrentMediaStatus.PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
+                await receiverService.PauseAsync();
+            else if (receiverService.CurrentMediaStatus?.PlayerState != null)
+                await receiverService.PlayAsync();
+
+            return Ok();
+        }
+
+        [HttpGet("{receiver}/togglemute")]
+        [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
+        public async Task<IActionResult> ToggleMute([FromRoute] string receiver)
+        {
+            ReceiverService receiverService = await _castService.GetReceiverService(receiver);
+
+            if (receiverService == null)
+                return NotFound("Requested receiver not found!");
+
+            await receiverService.ToggleMutedAsync();
+
+            return Ok();
+        }
+
+        [HttpGet("{receiver}/next")]
+        [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
+        public async Task<IActionResult> Next([FromRoute] string receiver)
+        {
+            ReceiverService receiverService = await _castService.GetReceiverService(receiver);
+
+            if (receiverService == null)
+                return NotFound("Requested receiver not found!");
+
+            await receiverService.NextAsync();
+
+            return Ok();
+        }
+
+
+        [HttpGet("{receiver}/previous")]
+        [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
+        public async Task<IActionResult> Previous([FromRoute] string receiver)
+        {
+            ReceiverService receiverService = await _castService.GetReceiverService(receiver);
+
+            if (receiverService == null)
+                return NotFound("Requested receiver not found!");
+
+            await receiverService.PreviousAsync();
+
+            return Ok();
+        }
+
+        [HttpGet("{receiver}/stop")]
+        [ApiKey(ApiKeyName = "apiKey", ApiKeyRoutes = new[] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
+        public async Task<IActionResult> Stop([FromRoute] string receiver)
+        {
+            ReceiverService receiverService = await _castService.GetReceiverService(receiver);
+
+            if (receiverService == null)
+                return NotFound("Requested receiver not found!");
+
+            await receiverService.StopAsync();
+
+            return Ok();
+        }
+
+
         [HttpPost("simple")]
         [ApiKey(ApiKeyName="apiKey", ApiKeyRoutes = new [] { "Services:IFTTT:Token", "Services:HomeAssistant:Token" })]
         public async Task<IActionResult> PostJellySimpleHook([FromBody] SimplePhrase simplePhrase)

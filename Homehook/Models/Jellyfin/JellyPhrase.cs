@@ -2,18 +2,21 @@
 {
     public class JellyPhrase
     {
-        public string SearchTerm { get; set; }
+        public required string SearchTerm { get; set; }
 
-        public string PathTerm { get; set; }
+        public required string Device { get; set; }
 
-        public OrderType OrderType { get; set; }
+        public required string User { get; set; }
 
-        public MediaType MediaType { get; set; }
+        public required string UserId { get; set; }
 
-        public string Device { get; set; }
+        public string? PathTerm { get; set; }
 
-        public string User { get; set; }
+        public bool Cache { get; set; } = false;
 
-        public string UserId { get; set; }
+        public OrderType OrderType { get; set; } = OrderType.Newest;
+
+        public MediaType MediaType { get; set; } = MediaType.All;
+
     }
 }

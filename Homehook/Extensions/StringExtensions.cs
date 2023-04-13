@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-
-namespace HomehookApp.Extensions
+﻿namespace HomehookApp.Extensions
 {
     public static class StringExtensions
     {

@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Homehook.Extensions
+﻿namespace Homehook.Extensions
 {
     public static class QueueExtensions
     {

@@ -3,6 +3,8 @@ using Homehook.Models;
 using Homehook.Models.Jellyfin;
 using Homehook.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR.Client;
+using WonkCast.Common.Models;
 
 namespace Homehook.Controllers
 {
@@ -27,46 +29,47 @@ namespace Homehook.Controllers
 
         [HttpGet("{receiver}/toggleplayback")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> TogglePlayback([FromRoute] string receiver)
+        public async Task<IActionResult> TogglePlayback([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            if (receiverService.CurrentMediaStatus?.PlayerState != null && 
-                receiverService.CurrentMediaStatus.PlayerState.Equals("Playing", StringComparison.InvariantCultureIgnoreCase))
-                await receiverService.PauseAsync();
-            else if (receiverService.CurrentMediaStatus?.PlayerState != null)
-                await receiverService.PlayAsync();
+            if (deviceConnection.Device.DeviceStatus == DeviceStatus.Playing ||
+                deviceConnection.Device.DeviceStatus == DeviceStatus.Unpausing)
+                await deviceConnection.HubConnection.InvokeAsync("Pause");
+            else if (deviceConnection.Device.DeviceStatus == DeviceStatus.Paused ||
+                deviceConnection.Device.DeviceStatus == DeviceStatus.Pausing)
+                await deviceConnection.HubConnection.InvokeAsync("Play");
 
             return Ok();
         }
 
         [HttpGet("{receiver}/togglemute")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> ToggleMute([FromRoute] string receiver)
+        public async Task<IActionResult> ToggleMute([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.ToggleMutedAsync();
+            await deviceConnection.HubConnection.InvokeAsync("ToggleMute");
 
             return Ok();
         }
 
         [HttpGet("{receiver}/next")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Next([FromRoute] string receiver)
+        public async Task<IActionResult> Next([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.NextAsync();
+            await deviceConnection.HubConnection.InvokeAsync("Next");
 
             return Ok();
         }
@@ -74,28 +77,28 @@ namespace Homehook.Controllers
 
         [HttpGet("{receiver}/previous")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Previous([FromRoute] string receiver)
+        public async Task<IActionResult> Previous([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.PreviousAsync();
+            await deviceConnection.HubConnection.InvokeAsync("Previous");
 
             return Ok();
         }
 
         [HttpGet("{receiver}/stop")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Stop([FromRoute] string receiver)
+        public async Task<IActionResult> Stop([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.StopAsync();
+            await deviceConnection.HubConnection.InvokeAsync("Stop");
 
             return Ok();
         }
@@ -103,29 +106,28 @@ namespace Homehook.Controllers
 
         [HttpGet("{receiver}/seek")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Seek([FromRoute] string receiver, [FromQuery]int seconds = 30)
+        public async Task<IActionResult> Seek([FromRoute] string deviceName, [FromQuery]int seconds = 30)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            if (receiverService.CurrentRunTime != null)
-                await receiverService.SeekAsync((double)receiverService.CurrentRunTime + seconds);
+            await deviceConnection.HubConnection.InvokeAsync("Seek", deviceConnection.Device.CurrentTime + seconds);
 
             return Ok();
         }
 
         [HttpGet("{receiver}/volume")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Volume([FromRoute] string receiver, [FromQuery] int change = 10)
+        public async Task<IActionResult> Volume([FromRoute] string deviceName, [FromQuery] double change = 10)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.SetVolumeAsync(receiverService.Volume + ((float)change / 100));
+            await deviceConnection.HubConnection.InvokeAsync("SetVolume", deviceConnection.Device.Volume + ((double)change / 100));
 
             return Ok();
         }
@@ -133,58 +135,57 @@ namespace Homehook.Controllers
 
         [HttpGet("{receiver}/playbackrate")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> PlaybackRate([FromRoute] string receiver, [FromQuery] double change = 0.5)
+        public async Task<IActionResult> PlaybackRate([FromRoute] string deviceName, [FromQuery] double change = 0.5)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            if (receiverService?.CurrentMediaStatus?.PlaybackRate != null)
-                await receiverService.SetPlaybackRateAsync(receiverService.CurrentMediaStatus.PlaybackRate + change);
+            await deviceConnection.HubConnection.InvokeAsync("PlaybackRate", deviceConnection.Device.PlaybackRate + change);
 
             return Ok();
         }
 
         [HttpGet("{receiver}/shuffle")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> Shuffle([FromRoute] string receiver)
+        public async Task<IActionResult> Shuffle([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.ShuffleQueueAsync();
-            await receiverService.ChangeRepeatModeAsync(RepeatMode.RepeatAllAndShuffle);
+            await deviceConnection.HubConnection.InvokeAsync("ShuffleQueue");
+            await deviceConnection.HubConnection.InvokeAsync("ChangeRepeatMode", RepeatMode.All);
 
             return Ok();
         }
 
         [HttpGet("{receiver}/repeatone")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> RepeatOne([FromRoute] string receiver)
+        public async Task<IActionResult> RepeatOne([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.ChangeRepeatModeAsync(RepeatMode.RepeatSingle);
+            await deviceConnection.HubConnection.InvokeAsync("ChangeRepeatMode", RepeatMode.One);
 
             return Ok();
         }
 
         [HttpGet("{receiver}/repeatall")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:Homehook:Tokens")]
-        public async Task<IActionResult> RepeatAll([FromRoute] string receiver)
+        public async Task<IActionResult> RepeatAll([FromRoute] string deviceName)
         {
-            ReceiverService receiverService = await CastService.GetReceiverService(receiver);
+            (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
-            if (receiverService == null)
-                return NotFound("Requested receiver not found!");
+            if (!getSuccess || deviceConnection == null)
+                return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await receiverService.ChangeRepeatModeAsync(RepeatMode.RepeatAll);
+            await deviceConnection.HubConnection.InvokeAsync("ChangeRepeatModeAsync", RepeatMode.All);
 
             return Ok();
         }
@@ -211,18 +212,18 @@ namespace Homehook.Controllers
                 return BadRequest($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user Ids");
             }
 
-            IEnumerable<QueueItem> items = await JellyfinService.GetItems(phrase);
-            await LoggingService.LogDebug($"{controllerName} - items found.", $"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
-            await LoggingService.LogInformation($"{controllerName} - items found.", "Found the following items:", items);
-            if (!items.Any())
+            List<Media> queueItems = await JellyfinService.GetItems(phrase);
+            await LoggingService.LogDebug($"{controllerName} - items found.", $"Found {queueItems.Count} item(s) with the search term {phrase.SearchTerm}.");
+            await LoggingService.LogInformation($"{controllerName} - items found.", "Found the following items:", queueItems);
+            if (!queueItems.Any())
             {
                 await LoggingService.LogWarning($"{controllerName} - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
                 return NotFound($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user IDs.");
             }
             
-            _ = Task.Run(async () => await CastService.StartJellyfinSession(phrase.Device, items));
+            _ = Task.Run(async () => await CastService.StartJellyfinSession(phrase.Device, queueItems));
 
-            return Ok($"Found {items.Count()} item(s) with the search term {phrase.SearchTerm}.");
+            return Ok($"Found {queueItems.Count} item(s) with the search term {phrase.SearchTerm}.");
         }
     }
 }

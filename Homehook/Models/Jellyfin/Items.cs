@@ -1,9 +1,7 @@
-﻿using System.Collections.Generic;
-
-namespace Homehook.Models.Jellyfin
+﻿namespace Homehook.Models.Jellyfin
 {
     public class JellyfinItems
     {
-        public IEnumerable<Item> Items { get; set; }
+        public IEnumerable<Item>? Items { get; set; }
     }
 }

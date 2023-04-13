@@ -5,9 +5,9 @@ namespace Homehook.Models.Jellyfin
 {
     public class Progress
     {
-        public string ItemId { get; set; }
+        public required string ItemId { get; set; }
 
-        public string MediaSourceId { get; set; }
+        public required string MediaSourceId { get; set; }
 
         [JsonConverter(typeof(StringEnumConverter))]
         public ProgressEvents? EventName { get; set; }

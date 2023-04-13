@@ -155,48 +155,61 @@ namespace Homehook
                 (string key) => new DeviceConnection { Device = device, HubConnection = hubConnection },
                 (string currentKey, DeviceConnection currentDeviceConnection) => new DeviceConnection { Device = device, HubConnection = currentDeviceConnection.HubConnection });
 
+            Media? currentMedia = device.MediaQueue.ElementAtOrDefault(device.CurrentMediaIndex ?? 0) ?? null;
+            if (currentMedia == null)
+                return;
+
             switch (device.DeviceStatus)
             {
-                case DeviceStatus.Stopped:
-                    await JellyfinService.UpdateProgress(GetProgress(device), device.User, device.Name, ServiceName, true);
-                    break;
                 case DeviceStatus.Playing:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
                     break;
                 case DeviceStatus.Paused:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
                     break;
                 case DeviceStatus.Pausing:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.Pause), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.Pause), device.User, device.Name, ServiceName);
                     break;
                 case DeviceStatus.Unpausing:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.Unpause), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.Unpause), device.User, device.Name, ServiceName);
                     break;
                 case DeviceStatus.StartingMedia:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia), device.User, device.Name, ServiceName);
                     break;
                 case DeviceStatus.FinishingMedia:
-                    await JellyfinService.UpdateProgress(GetProgress(device, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), device.User, device.Name, ServiceName);
                     break;
+                case DeviceStatus.Stopping:
+                    await JellyfinService.UpdateProgress(GetProgress(device, currentMedia), device.User, device.Name, ServiceName, true);
+                    break;
+                case DeviceStatus.Stopped:
                 default:
                     break;
             }
         }
 
-        private Progress GetProgress(Device device, ProgressEvents? progressEvent = null)
+        private static Progress GetProgress(Device device, Media media, ProgressEvents? progressEvent = null)
         {
-            return new Progress
+            Progress returningProgress = new()
             {
                 EventName = progressEvent,
-                ItemId = mediaId,
-                MediaSourceId = mediaId,
-                PositionTicks = device != null ? Convert.ToInt64(device. * 10000000) : null,
-                VolumeLevel = Convert.ToInt32(device.Volume * 100),
-                IsMuted = device.IsMuted,
-                IsPaused = device.DeviceStatus == DeviceStatus.Pausing || device.DeviceStatus == DeviceStatus.Paused,
-                PlaybackRate = device.PlaybackSpeed,
-                PlayMethod = PlayMethod.DirectPlay
+                ItemId = media.Id,
+                MediaSourceId = media.Id
             };
+
+            if (device.DeviceStatus != DeviceStatus.Stopping || device.DeviceStatus != DeviceStatus.Stopped)
+            {
+                returningProgress.PositionTicks = device.DeviceStatus == DeviceStatus.StartingMedia ? 0 : 
+                    device.DeviceStatus == DeviceStatus.FinishingMedia ? Convert.ToInt64(media.Runtime * 10000000) : 
+                    Convert.ToInt64(device.CurrentTime * 10000000);
+                returningProgress.VolumeLevel = Convert.ToInt32(device.Volume * 100);
+                returningProgress.IsMuted = device.IsMuted;
+                returningProgress.IsPaused = device.DeviceStatus == DeviceStatus.Pausing || device.DeviceStatus == DeviceStatus.Paused;
+                returningProgress.PlaybackRate = device.PlaybackSpeed;
+                returningProgress.PlayMethod = PlayMethod.DirectPlay;                
+            }
+
+            return returningProgress;
         }
     }
 }

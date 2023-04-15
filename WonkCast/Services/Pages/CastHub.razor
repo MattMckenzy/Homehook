@@ -1,0 +1,13 @@
+﻿@page "/"
+
+<div class="d-flex flex-wrap m-0 justify-content-center">
+    @foreach (DeviceConnection deviceConnection in CastService.DeviceConnections.Values.OrderBy(deviceConnection => deviceConnection.Device.Name))
+    {
+        <DeviceCard DeviceConnection=@deviceConnection />
+    }
+</div>
+
+@code{
+    [Inject]
+    private CastService CastService { get; set; } = null!;
+}

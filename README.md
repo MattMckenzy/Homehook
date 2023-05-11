@@ -1,4 +1,4 @@
-# WonkCast
+# HomeHook
 
 Simple API meant to handle Google Assistant webhooks and to cast Jellyfin media.
 
@@ -7,7 +7,7 @@ Simple API meant to handle Google Assistant webhooks and to cast Jellyfin media.
 
 This application will help configure and serve incoming and outgoing webhooks to help you route Google Assistant spoken or text commands to your Google Cast devices.
 
-Please see swagger at wonkcast/swagger page on deployed API to see available hooks, how to call them and try them out.
+Please see swagger at homehook/swagger page on deployed API to see available hooks, how to call them and try them out.
 
 Currently available hooks:
 * [Jellyfin Simple Phrase](#jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
@@ -15,14 +15,14 @@ Currently available hooks:
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-1)
 
-[A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/wonkcast)
+[A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook)
 
 [See the Docker section below for more information.](#docker)
 
 ## Usage
 
 ### Jellyfin Simple Phrase
-Once configured appropriately, WonkCast can receive POST requests at wonkcast/jelly/simple to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
+Once configured appropriately, HomeHook can receive POST requests at homehook/jelly/simple to receive a Jellyfin search term, parse it, search for media items, and post them to Home Assistant.
 Phrase terms are parsed in the following order, though all preposition phrases can be in any order (4,5 and 6):
 1. Order
 2. Search Term
@@ -36,13 +36,13 @@ i.e.: [random] [chrono cross] [songs] [on basement] [as matt] [from Chrono Cross
 The incoming webhook can come from any source, such as IFTTT's simple phrase with text ingredient trigger with a webhook action, but you can also simply call the endpoint from anywhere. Here's a CURL example:
 
 ```bash
-curl -X POST "http://wonkcast/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
+curl -X POST "http://homehook/jelly/simple?apiKey=69141f00c5fb4a4a93a1eb9e1a74aed7" -H  "accept: */*" -H  "Content-Type: application/json" -d "{\"content\":\"random chrono cross songs on basement\"}"
 ```
 
 ### Jellyfin Conversation Phrase
-Google Conversation Actions can help build some very powerful phrase parsing intents that can be used to pre-parse search terms before sending them to WonkCast.
+Google Conversation Actions can help build some very powerful phrase parsing intents that can be used to pre-parse search terms before sending them to HomeHook.
 
-This endpoint expects to receive a Google Conversation Action webhook POST to wonkcast/jelly/conversation (including apiKey query parameter). The following Action parameter names match the phrase terms defined in WonkCast:
+This endpoint expects to receive a Google Conversation Action webhook POST to homehook/jelly/conversation (including apiKey query parameter). The following Action parameter names match the phrase terms defined in HomeHook:
 1. Order
 2. Content - i.e. the search term.
 3. MediaType
@@ -54,7 +54,7 @@ This endpoint expects to receive a Google Conversation Action webhook POST to wo
 
 ### Home Assistant
 
-I like to use Home Assistant to interact with WonkCast through automations by using the RESTful Command integration.
+I like to use Home Assistant to interact with HomeHook through automations by using the RESTful Command integration.
 
 Here's an example of the REST command and an automation configuration:
 
@@ -62,7 +62,7 @@ Here's an example of the REST command and an automation configuration:
 ```yaml
 rest_command:
   homehook_jelly:
-    url: "http://wonkcast/jelly/simple?apiKey=be3366f6711e46eea8998770547ccc27"
+    url: "http://homehook/jelly/simple?apiKey=be3366f6711e46eea8998770547ccc27"
     method: post
     payload: '{ "content":"{{ search_term }}" }'
     content_type: "application/json"
@@ -102,15 +102,15 @@ UserMappings:0:Jellyfin | | A user's Jellyfin username.
 UserMappings:0:HomeAssistant | | A user's HomeAssistant username.
 UserMappings:0:Google | | A user's Google username (i.e. e-mail address).
 UserMappings:0:Spoken | | Any spoken names or nicknames to represent the user (comma delimited supported).
-Services:HomehookApp:Token | | Authentication token used for the SignalR connection between WonkCast's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
+Services:HomehookApp:Token | | Authentication token used for the SignalR connection between HomeHook's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
 Services:Gotify:ServiceUri | | Gotify's service uri.
 Services:Gotify:Header | X-Gotify-Key | Gotify's authentication header to use (the default is typically correct).
 Services:Gotify:AccessToken | | Gotify's authentication token.
 Services:Gotify:Priority | 4 | The minimum level of log to post to Gotify (1: Debug; 2: Information; 3: Warning; 4: Error; 5: Off;).
 Services:Jellyfin:ServiceUri | | Jellyfin's service uri.
 Services:Jellyfin:Header | X-Emby-Authorization | Jellyfin's authentication header name to use (the default is typically correct).
-Services:Jellyfin:HeaderValue | MediaBrowser Client=\"WonkCast\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\", Token=\"{0}\" | Jellyfin's header value to use (the default is typically correct).
-Services:Jellyfin:HeaderAuthValue | MediaBrowser Client=\"WonkCast\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\"" | Jellyfin's authentication header value to use (the default is typically correct).
+Services:Jellyfin:HeaderValue | MediaBrowser Client=\"HomeHook\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\", Token=\"{0}\" | Jellyfin's header value to use (the default is typically correct).
+Services:Jellyfin:HeaderAuthValue | MediaBrowser Client=\"HomeHook\",<br />Device=\"$Device\", DeviceId=\"$DeviceId\",<br /> Version=\"1.0.0\"" | Jellyfin's authentication header value to use (the default is typically correct).
 Services:Jellyfin:Credentials |  | A dynamic list of Jellyfin credentials used to authenticate users and provide session progress. (i.e. "Geoff":"1234", "George":"4567").
 Services:Jellyfin:AccessToken | | Jellyfin's authentication token, if using static or API token.
 Services:Jellyfin:DefaultUser | | The default user to use if the search term doesn't specify one.
@@ -128,24 +128,24 @@ Services:Jellyfin:MediaTypeTerms:Audio | Song,Songs,Music,Track,<br />Tracks,Aud
 Services:Jellyfin:MediaTypeTerms:Video | Video,Videos,Movies,Movie,<br />Show,Shows,Episode,Episodes | Alternative terms that can be used to specify video media items.
 Services:Jellyfin:MediaTypeTerms:Photo | Photo,Photos,Pictures,Picture | Alternative terms that can be used to specify photo media items.
 Services:Jellyfin:MaximumQueueSize | 100 | Maximum media item queue size to post to Home Assistant.
-Services:IFTTT:Token | | Authentication token used to post to WonkCast, can be anything you generate and use on both sides.
-Services:Google:Token | | Authentication token used to post to WonkCast, can be anything you generate and use on both sides.
-Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use. Replace this if you wish to use your own styled application instead of WonkCast's.
+Services:IFTTT:Token | | Authentication token used to post to HomeHook, can be anything you generate and use on both sides.
+Services:Google:Token | | Authentication token used to post to HomeHook, can be anything you generate and use on both sides.
+Services:Google:ApplicationId | C8030EA3 | The Google Cast Application Id to use. Replace this if you wish to use your own styled application instead of HomeHook's.
 Services:HomeAssistant:ServiceUri | | HomeAssistant's API webhook service uri.
-Services:HomeAssistant:Token | | Authentication token used to post to WonkCast, can be anything you generate and use on both sides.
+Services:HomeAssistant:Token | | Authentication token used to post to HomeHook, can be anything you generate and use on both sides.
 Services:HomeAssistant:Webhooks | | A dynamic list of home assistant webhooks, with values of comma delimited words. Used to map available homey webhooks to phrases. (i.e. Services:HomeAssistant:Webhooks:TurnOff = Shutdown, turn off, power down, off).
 Services:Language:UserPrepositions | as | List of available prepositions to identify a user in a search term.
 Services:Language:DevicePrepositions | on,to | List of available prepositions to identify a device in a search term.
 Services:Language:PathTermPrepositions | from,in,inside | List of available prepositions to identify a path term used to filter results further by its path.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
 
-# WonkCast App
+# HomeHook App
 
 A web application that offers a real-time hub to all Google cast devices in home.
 
 ## Description
 
-The WonkCast web app will offer full control over all in-home Google cast devices through it's main (and currently only) page. You can control playback, media speed, repeat mode, queue items (move, add and remove) and volume. Whatever features the google API permit with the currently playing media should be available!
+The HomeHook web app will offer full control over all in-home Google cast devices through it's main (and currently only) page. You can control playback, media speed, repeat mode, queue items (move, add and remove) and volume. Whatever features the google API permit with the currently playing media should be available!
 
 The cast hub page also gives an easy way to launch a new Jellyfin media queue.
 
@@ -157,15 +157,15 @@ Configuration is done via appsettings.json found at root. [See the configuration
 
 ## Usage
 
-![WonkCast cast hub page](Resources/CastHub.png)
+![HomeHook cast hub page](Resources/CastHub.png)
 
 The cast hub page will offer full control over every cast device in-home while offering a quick and easy way to see each one's status. The refresh button in the top right will try to locate cast devices. Use this if any of you've changed your available devices or if any of them don't initially appear.
 
-![WonkCast cast hub device controls](Resources/DeviceControls.png)
+![HomeHook cast hub device controls](Resources/DeviceControls.png)
 
 Each device has full media controls (to the extent allowed by the sender application). The image shows all four popout menus used to control playback speed, queued items, repeat mode and volume. The queue controls offer a quick way to change current media, add (from Jellyfin search term) or remove items, or move items up or down.
 
-![WonkCast cast hub launch Jellyfin queue](Resources/LaunchJellyfin.png)
+![HomeHook cast hub launch Jellyfin queue](Resources/LaunchJellyfin.png)
 
 You can use the media type icon show in the image here to launch a new Jellyfin queue on any available device. Simply type a jellyfin search term (including order and user keywords) to launch a new queue on the selected device.
 
@@ -179,15 +179,15 @@ Logging:LogLevel:Default | Debug | Default .NET logging level.
 Logging:LogLevel:Microsoft | Warning | Default .NET Microsoft logging level.
 Logging:LogLevel:Microsoft.Hosting.Lifetime | Information |  Default .NET Microsoft Hosting logging level.
 AllowedHosts | * | Allowed Hosts.
-Services:WonkCast:ServiceUri | | WonkCast's service uri.
-Services:WonkCast:AccessToken | | Authentication token used for the SignalR connection between WonkCast's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
+Services:HomeHook:ServiceUri | | HomeHook's service uri.
+Services:HomeHook:AccessToken | | Authentication token used for the SignalR connection between HomeHook's API and app, necessary for use of HomehookApp. Can be anything you generate and use on both sides.
 
 # Docker
 
-If you wish to install WonkCast and WonkCast App via docker, here are a couple of considerations:
-* Use "Host" network mode: unfortunately, Google Cast devices need a whole range of ports that are hard to track down. This includes some used for UDP multicast. Using "Host" network mode should alleviate any connection problems. If WonkCast still can't see your devices, either click the refresh button a few times in WonkCast App or give it some time. WonkCast searches for new devices every 10 minutes and cound find them at one point.
-* If you wish to use WonkCast App, make sure you fill in the WonkCast Service URI configuration variable and assign the same randomly generated token to both WonkCast and WonkCast App. [This website is always useful for such things.](https://www.guidgenerator.com/)
-* If you want to host WonkCast/WonkCast App on a server behind a reverse proxy, make sure you configure it like I have below: 
+If you wish to install HomeHook and HomeHook App via docker, here are a couple of considerations:
+* Use "Host" network mode: unfortunately, Google Cast devices need a whole range of ports that are hard to track down. This includes some used for UDP multicast. Using "Host" network mode should alleviate any connection problems. If HomeHook still can't see your devices, either click the refresh button a few times in HomeHook App or give it some time. HomeHook searches for new devices every 10 minutes and cound find them at one point.
+* If you wish to use HomeHook App, make sure you fill in the HomeHook Service URI configuration variable and assign the same randomly generated token to both HomeHook and HomeHook App. [This website is always useful for such things.](https://www.guidgenerator.com/)
+* If you want to host HomeHook/HomeHook App on a server behind a reverse proxy, make sure you configure it like I have below: 
   * Open up your firewall for a loopback on the docker interface for the appropriate ports. 
   * Also make sure your firewall permits communication on the Bonjour protocol (UDP ports 1900 and 5353 for device discovery)
   * Make sure to replace your upstream_app to an appropriate IP. In my case, it's my Docker network bridge gateway.
@@ -199,11 +199,11 @@ Here's how I configure my installation (the GUIDs are randomized, please change 
 version: "3"
 
 services:
-  wonkcast:
-    container_name: wonkcast
+  homehook:
+    container_name: homehook
     entrypoint:
       - dotnet
-      - WonkCast.dll
+      - HomeHook.dll
     environment:
       - PUID=999
       - PGID=996
@@ -235,10 +235,10 @@ services:
       - Services:Homeassistant:Token=cb2b330d531a4360a95e2b4f9bfa7ac4
       - Services:Language:WordMappings:Paddy=Pady
     network_mode: "host"
-    image: mattmckenzy/wonkcast:latest
+    image: mattmckenzy/homehook:latest
     restart: always
-  wonkcast-app:
-    container_name: wonkcast-app
+  homehook-app:
+    container_name: homehook-app
     entrypoint:
       - dotnet
       - HomehookApp.dll
@@ -246,20 +246,20 @@ services:
       - PUID=999
       - PGID=996      
       - ASPNETCORE_URLS=http://+:8125
-      - Services:WonkCast:ServiceUri=http://localhost:8124
-      - Services:WonkCast:AccessToken=2de4af8801f0401b9cd9ff11cfb70125
+      - Services:HomeHook:ServiceUri=http://localhost:8124
+      - Services:HomeHook:AccessToken=2de4af8801f0401b9cd9ff11cfb70125
     network_mode: "host"
     image: mattmckenzy/homehookapp:latest
     restart: always
 ```
 
-## wonkcast.subdomain.conf (nginx reverse proxy configuration, with docker bridge gateway)
+## homehook.subdomain.conf (nginx reverse proxy configuration, with docker bridge gateway)
 ```nginx
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
 
-    server_name wonkcast.*;
+    server_name homehook.*;
 
     include /config/nginx/ssl.conf;
 

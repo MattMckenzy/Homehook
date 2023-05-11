@@ -1,0 +1,5 @@
+do_connect: could not connect to socket
+connect: No such file or directory
+Failed to open LIRC support. You will not be able to use your remote control.
+File not found: 'file'
+Failed to open file.

@@ -1,0 +1,6 @@
+MPlayer 1.4 (Debian), built with gcc-10 (C) 2000-2019 MPlayer Team
+
+Playing file.
+
+
+Exiting... (End of file)

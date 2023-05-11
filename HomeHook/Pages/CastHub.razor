@@ -1,0 +1,27 @@
+﻿@page "/"
+
+<div class="d-flex flex-wrap m-0 justify-content-center">
+    @foreach (DeviceConnection deviceConnection in DeviceConnections)
+    {
+        <DeviceCard DeviceConnection=@deviceConnection />
+    }
+</div>
+
+@code{
+    [Inject]
+    private CastService CastService { get; set; } = null!;
+
+    private IEnumerable<DeviceConnection> DeviceConnections { get; set; } = Array.Empty<DeviceConnection>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        DeviceConnections = CastService.DeviceConnections.Values.OrderBy(deviceConnection => deviceConnection.Device.Name).ToArray();
+
+        CastService.DeviceConnectionsUpdated += async (_, _) =>
+        {
+            DeviceConnections = CastService.DeviceConnections.Values.OrderBy(deviceConnection => deviceConnection.Device.Name).ToArray();
+            await InvokeAsync(StateHasChanged);
+        };
+    }
+}

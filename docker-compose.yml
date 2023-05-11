@@ -1,0 +1,14 @@
+version: '3.4'
+
+services:
+  homecast:
+    image: ${DOCKER_REGISTRY-}homecast
+    build:
+      context: .
+      dockerfile: HomeCast/HomeCast.dockerfile
+      
+  homehook:
+    image: ${DOCKER_REGISTRY-}homehook
+    build:
+      context: .
+      dockerfile: HomeHook/HomeHook.dockerfile

@@ -53,7 +53,6 @@ namespace HomeHook.Shared
         private bool IsEditingQueue { get; set; }
         private bool IsLoading = true;
 
-        private readonly PeriodicTimer PeriodicTimer = new(TimeSpan.FromSeconds(TimerIntervalSeconds));
         private readonly CancellationTokenSource PeriodicTimerCancellationTokenSource = new();
         private bool DisposedValue { get; set; }
 
@@ -82,8 +81,6 @@ namespace HomeHook.Shared
             {
                 IsLoading = false;
                 await UpdateStatus();
-
-                StartTimer();
             }
 
         }
@@ -146,27 +143,19 @@ namespace HomeHook.Shared
             return medias;
         }
 
-        public async void StartTimer()
-        {
-            while (await PeriodicTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
-            {
-                if(Device.DeviceStatus == DeviceStatus.Playing)
-                {
-                    Device.CurrentTime += TimerIntervalSeconds * Device.PlaybackRate;
-                    await InvokeAsync(StateHasChanged);
-                }
-            }         
-        }
-
         #endregion
 
         #region Commands
 
         protected async Task SeekClick(MouseEventArgs mouseEventArgs)
         {
-            if (Media == null) return;
+            if (Media == null) 
+                return;
+
             double width = await JSRuntime.InvokeAsync<double>("GetElementWidth", ProgressBar);
             double seekSeconds = mouseEventArgs.OffsetX / width * Media.Runtime;
+
+            DeviceConnection.CurrentTime = Math.Max(Math.Min(seekSeconds, (double?)Media?.Runtime ?? 0), 0);
             await HubConnection.InvokeAsync("Seek", seekSeconds);
         }
 
@@ -181,11 +170,17 @@ namespace HomeHook.Shared
         protected async Task StopClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Stop");
 
-        protected async Task RewindClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("Seek", Device.CurrentTime - 10);
+        protected async Task RewindClick(MouseEventArgs _)
+        {
+            DeviceConnection.CurrentTime = Math.Max(DeviceConnection.CurrentTime - 10, 0);
+            await HubConnection.InvokeAsync("SeekRelative", -10);
+        }
 
-        protected async Task FastForwardClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("Seek", Device.CurrentTime + 10);
+        protected async Task FastForwardClick(MouseEventArgs _)
+        {
+            DeviceConnection.CurrentTime = Math.Min(DeviceConnection.CurrentTime + 10, (double?)Media?.Runtime ?? 0);
+            await HubConnection.InvokeAsync("SeekRelative", +10);
+        }
 
         protected async Task PreviousClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Previous");

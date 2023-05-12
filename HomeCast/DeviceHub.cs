@@ -36,6 +36,9 @@ namespace HomeCast
         public async Task Seek(float timeToSeek) =>
             await PlayerService.SeekAsync(timeToSeek);
 
+        public async Task SeekRelative(float timeDifference) =>
+            await PlayerService.SeekRelativeAsync(timeDifference);
+
         public async Task ChangeCurrentMedia(int mediaId) =>
             await PlayerService.ChangeCurrentMediaAsync(mediaId);
 

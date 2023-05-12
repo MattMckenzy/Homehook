@@ -107,14 +107,14 @@ namespace HomeHook.Controllers
 
         [HttpGet("{receiver}/seek")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:HomeHook:Tokens")]
-        public async Task<IActionResult> Seek([FromRoute] string deviceName, [FromQuery]int seconds = 30)
+        public async Task<IActionResult> Seek([FromRoute] string deviceName, [FromQuery]float seconds = 30)
         {
             (bool getSuccess, DeviceConnection? deviceConnection) = await CastService.TryGetDevice(deviceName);
 
             if (!getSuccess || deviceConnection == null)
                 return NotFound($"Requested device \"{deviceName}\" not found!");
 
-            await deviceConnection.HubConnection.InvokeAsync("Seek", deviceConnection.Device.CurrentTime + seconds);
+            await deviceConnection.HubConnection.InvokeAsync("SeekRelative", seconds);
 
             return Ok();
         }

@@ -26,7 +26,8 @@ namespace HomeHook
             Configuration = configuration;
         }
 
-        CancellationTokenSource RefreshDevicesCancellationTokenSource = new();
+        private readonly List<CancellationTokenSource> PeriodicTimerCancellationTokenSources = new();
+        private CancellationTokenSource RefreshDevicesCancellationTokenSource { get; set; } = new();
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -72,19 +73,22 @@ namespace HomeHook
                             .WithAutomaticReconnect(new DeviceRetryPolicy<CastService>(deviceConfiguration, Logger))
                             .Build();
 
-                            hubConnection.On<Device>("UpdateDevice", async (device) =>
-                                await UpdateDevice(device));
-
                             await hubConnection.StartAsync(cancellationToken);
                             Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
 
-                            if (DeviceConnections.TryAdd(deviceConfiguration.Name,
-                                new DeviceConnection
-                                {
-                                    Device = device,
-                                    HubConnection = hubConnection
-                                }))                         
+                            DeviceConnection deviceConnection = new()
+                            {
+                                Device = device,
+                                HubConnection = hubConnection
+                            };
+                            if (DeviceConnections.TryAdd(deviceConfiguration.Name, deviceConnection))
+                            {
                                 newDevicesAdded.Add(deviceConfiguration.Name);
+                                StartDeviceTick(deviceConnection);
+                            }
+
+                            hubConnection.On<Device>("UpdateDevice", (device) =>
+                                UpdateDevice(device));
                         }
 
                         if (newDevicesAdded.Any())
@@ -111,6 +115,9 @@ namespace HomeHook
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
+            foreach (CancellationTokenSource periodicTimerCancellationTokenSource in PeriodicTimerCancellationTokenSources)
+                periodicTimerCancellationTokenSource.Cancel();
+
             foreach (HubConnection hubConnection in DeviceConnections.Values.Select(deviceConnection => deviceConnection.HubConnection))
                 await hubConnection.DisposeAsync();
 
@@ -160,13 +167,31 @@ namespace HomeHook
             }
         }
 
-        private async Task UpdateDevice(Device device)
+        private async void StartDeviceTick(DeviceConnection deviceConnection)
+        {
+            CancellationTokenSource PeriodicTimerCancellationTokenSource = new();
+            PeriodicTimerCancellationTokenSources.Add(PeriodicTimerCancellationTokenSource);
+            PeriodicTimer periodicTimer = new(TimeSpan.FromSeconds(1));
+            while (await periodicTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
+            {
+                if (deviceConnection.Device.DeviceStatus == DeviceStatus.Playing)
+                {
+                    double newTime = deviceConnection.CurrentTime +deviceConnection.Device.PlaybackRate;
+                    if (newTime <= deviceConnection.Device.CurrentMedia?.Runtime)
+                    {
+                        deviceConnection.CurrentTime = newTime;
+                        deviceConnection.InvokeDeviceUpdatedAsync();
+                    }
+                }
+            }
+        }
+
+        private void UpdateDevice(Device device)
         {
             if (DeviceConnections.TryGetValue(device.Name, out DeviceConnection? deviceConnection) &&
                 deviceConnection != null) 
             {
                 deviceConnection.Device = device;
-                deviceConnection.InvokeDeviceUpdatedAsync();
 
                 MediaItem? currentMedia = device.CurrentMedia;
                 if (currentMedia == null)
@@ -175,34 +200,40 @@ namespace HomeHook
                 switch (device.DeviceStatus)
                 {
                     case DeviceStatus.Playing:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Paused:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Pausing:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.Pause), currentMedia.User, device.Name, ServiceName, device.Version);
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.Pause), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Unpausing:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.Unpause), currentMedia.User, device.Name, ServiceName, device.Version);
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.Unpause), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Starting:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version);
+                        deviceConnection.CurrentTime = 0;
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Finishing:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
                         break;
                     case DeviceStatus.Stopping:
-                        await JellyfinService.UpdateProgress(GetProgress(device, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version, true);
+                        deviceConnection.CurrentTime = 0;
+                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version, true);
                         break;
                     case DeviceStatus.Stopped:
+                        deviceConnection.CurrentTime = 0;
+                        break;
                     default:
                         break;
-                    }
+                }
+
+                deviceConnection.InvokeDeviceUpdatedAsync();
             }
         }
 
-        private static Progress GetProgress(Device device, MediaItem media, ProgressEvents? progressEvent = null)
+        private static Progress GetProgress(DeviceConnection deviceConnection, MediaItem media, ProgressEvents? progressEvent = null)
         {
             Progress returningProgress = new()
             {
@@ -211,11 +242,12 @@ namespace HomeHook
                 MediaSourceId = media.Id
             };
 
+            Device device = deviceConnection.Device;
             if (device.DeviceStatus != DeviceStatus.Stopping || device.DeviceStatus != DeviceStatus.Stopped)
             {
                 returningProgress.PositionTicks = (long)(device.DeviceStatus == DeviceStatus.Starting ? 0 : 
-                    device.DeviceStatus == DeviceStatus.Finishing ? media.Runtime * 10000000f : 
-                    device.CurrentTime * 10000000f);
+                    device.DeviceStatus == DeviceStatus.Finishing ? media.Runtime * 10000000f :
+                    deviceConnection.CurrentTime * 10000000f);
                 returningProgress.VolumeLevel = Convert.ToInt32(device.Volume * 100);
                 returningProgress.IsMuted = device.IsMuted;
                 returningProgress.IsPaused = device.DeviceStatus == DeviceStatus.Pausing || device.DeviceStatus == DeviceStatus.Paused;

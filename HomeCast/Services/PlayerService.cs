@@ -8,14 +8,12 @@ using System.Reflection;
 
 namespace HomeCast.Services
 {
-    public class PlayerService : IDisposable
+    public class PlayerService
     {
         #region Constants
 
-        private const string MPlayerLocation = "mplayer";
-        private const int CurrentTimeUpdateIntervalMilliseconds = 10000;
-        private const float CurrentTimeTickIntervalSeconds = 1f;
         private const string DefaultVersion = "1.0.0";
+        private const string MPlayerLocation = "mplayer";
 
         #endregion
 
@@ -49,10 +47,7 @@ namespace HomeCast.Services
             "-af scaletempo"
         };
 
-        private readonly PeriodicTimer CurrentTimeUpdateTimer = new(TimeSpan.FromMilliseconds(CurrentTimeUpdateIntervalMilliseconds));
-        private readonly PeriodicTimer CurrentTimeTickTimer = new(TimeSpan.FromSeconds(CurrentTimeTickIntervalSeconds));
-        private readonly CancellationTokenSource PeriodicTimerCancellationTokenSource = new();
-        private bool DisposedValue { get; set; }
+        
 
         #endregion
 
@@ -90,9 +85,6 @@ namespace HomeCast.Services
 
             if (!videoCapable)
                 Arguments.Add("-novideo");
-
-            StartCurrentTimeUpdateTimer();
-            StartCurrentTimeTickTimer();
         }
 
         #endregion
@@ -102,7 +94,6 @@ namespace HomeCast.Services
         public async Task UpdateClients()
         {
             await DeviceHubContext.Clients.All.SendAsync("UpdateDevice", Device);
-            Console.WriteLine($"Updating Clients... Status: {Device.DeviceStatus}; Time: {Device.CurrentTime}");
         }
         
         public async Task PlayAsync()
@@ -165,11 +156,15 @@ namespace HomeCast.Services
         {
             if (IsPlayerActive)
             {
-                UpdateDeviceProperty(nameof(Device.CurrentTime), Math.Min(Math.Max(timeToSeek, 0), Device.CurrentMedia!.Runtime));
+                await Player!.StandardInput.WriteLineAsync($"seek {Math.Min(Math.Max(timeToSeek, 0), Device.CurrentMedia!.Runtime)} 2");
+            }
+        }
 
-                await Player!.StandardInput.WriteLineAsync($"seek {Device.CurrentTime} 2");
-
-                await UpdateClients();
+        public async Task SeekRelativeAsync(float timeDifference)
+        {
+            if (IsPlayerActive)
+            {
+                await Player!.StandardInput.WriteLineAsync($"seek {timeDifference} 0");
             }
         }
 
@@ -322,18 +317,8 @@ namespace HomeCast.Services
             {
                 await LoggingService.LogDebug("Player Standard Output", dataReceivedEventArgs.Data);
 
-                string getTimePrefix = "ANS_TIME_POSITION=";
                 string startingKey = "Starting playback...";
-                if (dataReceivedEventArgs.Data.StartsWith(getTimePrefix))
-                {
-                    string? currentTime = dataReceivedEventArgs.Data.Remove(0, getTimePrefix.Length);
-                    if (currentTime != null && float.TryParse(currentTime, out float parsedTime))
-                    {
-                        UpdateDeviceProperty(nameof(Device.CurrentTime), Math.Min(Math.Max(parsedTime, 0), Device.CurrentMedia!.Runtime));
-                        await UpdateClients();
-                    }
-                }
-                else if (Device.DeviceStatus != DeviceStatus.Playing && dataReceivedEventArgs.Data.Equals(startingKey))
+                if (Device.DeviceStatus != DeviceStatus.Playing && dataReceivedEventArgs.Data.Equals(startingKey))
                     await SetDeviceStatus(DeviceStatus.Playing);
             }
         }
@@ -390,8 +375,6 @@ namespace HomeCast.Services
 
         private async Task StopMedia()
         {
-            UpdateDeviceProperty(nameof(Device.CurrentTime), 0);
-
             if (IsPlayerActive)
                 await Player!.StandardInput.WriteLineAsync("quit 1");
             else
@@ -416,7 +399,6 @@ namespace HomeCast.Services
             {
                 typeof(Device).GetProperty(propertyName)?.SetValue(Device, value);
             }
-            Console.WriteLine($"Updating {propertyName}... Status: {Device.DeviceStatus}; Time: {Device.CurrentTime}");
         }
 
         private void MediaQueueClear()
@@ -449,61 +431,6 @@ namespace HomeCast.Services
             {
                 Device.MediaQueue.RemoveAt(mediaId);
             }
-        }
-
-        public async void StartCurrentTimeUpdateTimer()
-        {
-            while (await CurrentTimeUpdateTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
-            {
-                if (IsPlayerActive &&
-                    Device.DeviceStatus != DeviceStatus.Pausing &&
-                    Device.DeviceStatus != DeviceStatus.Paused) 
-                    await Player!.StandardInput.WriteLineAsync("get_time_pos");
-            }
-        }
-
-        public void StartCurrentTimeTickTimer()
-        {
-            _ = Task.Run(async () =>
-            {
-                while (await CurrentTimeTickTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
-                {
-                    if (Device.DeviceStatus == DeviceStatus.Playing)
-                        UpdateDeviceProperty(nameof(Device.CurrentTime), (Device.CurrentTime + CurrentTimeTickIntervalSeconds) * Device.PlaybackRate);
-                }
-            });
-        }
-
-        #endregion
-
-        #region IDisposable Implementation
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!DisposedValue)
-            {
-                if (disposing)
-                {
-                    PeriodicTimerCancellationTokenSource.Cancel();
-                }
-
-                Player?.Dispose();
-                Player = null;
-                DisposedValue = true;
-            }
-        }
-
-        ~PlayerService()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: false);
-        }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
         }
 
         #endregion

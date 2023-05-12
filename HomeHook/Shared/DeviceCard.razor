@@ -24,9 +24,9 @@ else
                     @if (Media != null)
                     {
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
-                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(Device.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
+                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceConnection.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                             <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
-                                <div class="progress-bar" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Device.CurrentTime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
+                                <div class="progress-bar" role="progressbar" aria-valuenow="@DeviceConnection.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceConnection.CurrentTime" style="width:@(Math.Round(@DeviceConnection.CurrentTime * 100 / Media.Runtime))%;"></div>
                             </div>
                             <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                         </div>

@@ -10,7 +10,6 @@ namespace HomeHook.Common.Models
         public float Volume { get; set; } = 0.5f;
         public bool IsMuted { get; set; } = false;
         public float PlaybackRate { get; set; } = 1;
-        public float CurrentTime { get; set; } = 0;
         public string? StatusMessage { get; set; }
         public DeviceStatus DeviceStatus { get; set; } = DeviceStatus.Stopped;
         public RepeatMode RepeatMode { get; set; } = RepeatMode.Off;

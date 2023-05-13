@@ -1,9 +1,9 @@
 ﻿@page "/"
 
 <div class="d-flex flex-wrap m-0 justify-content-center">
-    @foreach (DeviceConnection deviceConnection in DeviceConnections)
+    @foreach (DeviceService deviceService in DeviceServices)
     {
-        <DeviceCard DeviceConnection=@deviceConnection />
+        <DeviceCard DeviceService=@deviceService />
     }
 </div>
 
@@ -11,16 +11,16 @@
     [Inject]
     private CastService CastService { get; set; } = null!;
 
-    private IEnumerable<DeviceConnection> DeviceConnections { get; set; } = Array.Empty<DeviceConnection>();
+    private IEnumerable<DeviceService> DeviceServices { get; set; } = Array.Empty<DeviceService>();
 
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        DeviceConnections = CastService.DeviceConnections.Values.OrderBy(deviceConnection => deviceConnection.Device.Name).ToArray();
+        DeviceServices = CastService.DeviceServices.Values.OrderBy(deviceService => deviceService.Device.Name).ToArray();
 
-        CastService.DeviceConnectionsUpdated += async (_, _) =>
+        CastService.DeviceServicesUpdated += async (_, _) =>
         {
-            DeviceConnections = CastService.DeviceConnections.Values.OrderBy(deviceConnection => deviceConnection.Device.Name).ToArray();
+            DeviceServices = CastService.DeviceServices.Values.OrderBy(deviceService => deviceService.Device.Name).ToArray();
             await InvokeAsync(StateHasChanged);
         };
     }

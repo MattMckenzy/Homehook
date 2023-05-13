@@ -48,11 +48,14 @@ namespace HomeCast
         public async Task SetPlaybackRate(float playbackRate) =>
             await PlayerService.SetPlaybackRateAsync(playbackRate);
 
-        public async Task LaunchQueue(List<MediaItem> mediaItem) =>
-            await PlayerService.LaunchQueue(mediaItem);
+        public async Task LaunchQueue(List<MediaItem> mediaItems) =>
+            await PlayerService.LaunchQueue(mediaItems);
 
-        public async Task InsertQueue(List<MediaItem> media, int? insertBefore) =>
-            await PlayerService.InsertQueueAsync(media, insertBefore);        
+        public async Task InsertQueue(List<MediaItem> mediaItems, int? insertBefore) =>
+            await PlayerService.InsertQueueAsync(mediaItems, insertBefore);
+
+        public async Task UpdateQueue(List<MediaItem> mediaItems) =>
+            await PlayerService.UpdateQueueAsync(mediaItems);
 
         public async Task RemoveQueue(IEnumerable<int> itemIds) =>
             await PlayerService.RemoveQueueAsync(itemIds);

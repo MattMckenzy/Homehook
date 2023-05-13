@@ -165,8 +165,11 @@ namespace HomeHook.Services
             return returningItems;
         }
     
-        public async Task UpdateProgress(Progress progress, string userName, string? device = null, string? service = null, string? version = null, bool isStopped = false)
+        public async Task UpdateProgress(Progress? progress, string? userName, string? device = null, string? service = null, string? version = null, bool isStopped = false)
         {
+            if (progress == null || userName == null)
+                return;
+
             string route;
             if (progress.EventName == null && isStopped)
                 route = "Sessions/Playing/Stopped";

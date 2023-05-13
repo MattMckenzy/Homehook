@@ -45,9 +45,7 @@ namespace HomeCast.Services
             "-input nodefault-bindings",
             "-codecs-file scripts/codecs.conf",
             "-af scaletempo"
-        };
-
-        
+        };        
 
         #endregion
 
@@ -114,8 +112,6 @@ namespace HomeCast.Services
 
         public async Task StopAsync()
         {
-            await SetDeviceStatus(DeviceStatus.Stopping);
-
             UpdateDeviceProperty(nameof(Device.CurrentMediaIndex), null);
             MediaQueueClear();
 
@@ -207,6 +203,13 @@ namespace HomeCast.Services
             await PlayMedia();
         }
 
+        public async Task UpdateQueueAsync(List<MediaItem> mediaItems)
+        {
+            UpdateDeviceProperty(nameof(Device.MediaQueue), mediaItems);
+
+            await UpdateClients();
+        }
+
         public async Task InsertQueueAsync(List<MediaItem> mediaItems, int? insertBefore)
         {
             if (insertBefore == null || insertBefore < 0 || insertBefore > (Device.MediaQueue.Count - 1))
@@ -273,9 +276,9 @@ namespace HomeCast.Services
                 await SetDeviceStatus(DeviceStatus.Starting);
 
                 List<string> arguments = Arguments.ToList();
-                arguments.Add($"-volume {(Device.IsMuted ? 0 : (int)(Device.Volume * 100))} 1");
+                arguments.Add($"-ss {Math.Round(Device.CurrentMedia.StartTime)}");
+                arguments.Add($"-volume {(Device.IsMuted ? 0 : (int)(Device.Volume * 100))}");
                 arguments.Add($"-speed {Device.PlaybackRate}");
-                arguments.Add($"-ss {Device.CurrentMedia.StartTime}");
                 arguments.Add(parsedUri.ToString());
 
                 Player = new Process
@@ -375,6 +378,8 @@ namespace HomeCast.Services
 
         private async Task StopMedia()
         {
+            await SetDeviceStatus(DeviceStatus.Stopping);
+
             if (IsPlayerActive)
                 await Player!.StandardInput.WriteLineAsync("quit 1");
             else

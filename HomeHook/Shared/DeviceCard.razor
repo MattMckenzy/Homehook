@@ -5,7 +5,10 @@
 else
 {
     <div class="card bg-dark text-white card-receiver m-2" @ref="CardReference" style="@(Media == null ? "height: 250px;" : string.Empty)">
-        <img src="@Media?.Metadata.ThumbnailUri" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
+        @if (Media != null)
+        {
+            <img src="@Media?.Metadata.ThumbnailUri" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
+        }
         <div class="card-img-overlay">
 
             <div class="row m-0 receiver-title position-absolute fixed-top w-100">
@@ -24,9 +27,9 @@ else
                     @if (Media != null)
                     {
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
-                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceConnection.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
+                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceService.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                             <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
-                                <div class="progress-bar" role="progressbar" aria-valuenow="@DeviceConnection.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceConnection.CurrentTime" style="width:@(Math.Round(@DeviceConnection.CurrentTime * 100 / Media.Runtime))%;"></div>
+                                <div class="progress-bar" role="progressbar" aria-valuenow="@DeviceService.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceService.CurrentTime" style="width:@(Math.Round(@DeviceService.CurrentTime * 100 / Media.Runtime))%;"></div>
                             </div>
                             <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                         </div>
@@ -109,27 +112,55 @@ else
                         </div>
                     }
                 </div>
+                @{ 
+                    // TODO: Hook up buttons to commands
+                    // TOOD: change area of effect when clicking for collapse or selection
+                }
                 <div class="queue-edit-container bg-dark p-2 w-100">
-                    <div class="btn-group btn-group-sm mt-2 float-left" role="group" aria-label="Queue item buttons.">
+                    <div class="btn-group btn-group-sm m-2 mb-3 float-left" role="group" aria-label="Queue item buttons.">
                         <button id="@(Device.Name)QueuePlayButton" class="btn btn-secondary" disabled><i class="mdi mdi-playlist-play"></i></button>
                         <button id="@(Device.Name)QueuePlusButton" class="btn btn-secondary"><i class="mdi mdi-playlist-plus"></i></button>
                         <button id="@(Device.Name)QueueMinusButton" class="btn btn-secondary" disabled><i class="mdi mdi-playlist-minus"></i></button>
                         <button id="@(Device.Name)QueueUpButton" class="btn btn-secondary" disabled><i class="mdi mdi-chevron-up"></i></button>
                         <button id="@(Device.Name)QueueDownButton" class="btn btn-secondary" disabled><i class="mdi mdi-chevron-down"></i></button>
                     </div>
-                    <table id="@(Device.Name)QueueTable" height="472">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>#</th>
-                                <th>Title</th>
-                                <th>Id</th>
-                                <th>Subtitle</th>
-                                <th>Runtime</th>
-                                <th>Is Playing</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div class="list-group list-group-flush bg-transparent">
+                        @foreach(MediaItem mediaItem in Device.MediaQueue)
+                        {
+                            <button class="media-item list-group-item list-group-item-action @(Media.Id == mediaItem.Id ? "active" : string.Empty) bg-transparent" aria-current="@(Media.Id == mediaItem.Id)">
+                                @if (Media.Id == mediaItem.Id)
+                                {
+                                    <div id="bars">
+                                    @foreach(string barStyle in BarStyles)
+                                    {                                        
+                                        <div class="bar" style="@barStyle" />
+                                    }
+                                    </div>
+                                }
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <button class="btn btn-collapse rounded p-0 text-white text-start text-truncate mw-100 collapsed" data-bs-toggle="collapse" data-bs-target="#collapse@(mediaItem.Id)" aria-expanded="false">
+                                        <i class="mdi mdi-chevron-right"></i>
+                                        <span>@($"{mediaItem.Metadata.Title}")</span>
+                                    </button>
+                                    <input class="form-check-input ms-1" type="checkbox" value="" id="firstCheckbox">
+                                </div>
+                                <div class="collapse" id="collapse@(mediaItem.Id)">
+                                    @if (mediaItem.Metadata.Subtitle != null)
+                                    {
+                                        <small class="text-white text-start text-truncate mw-100">@($"{mediaItem.Metadata.Subtitle}")</small>
+                                    }
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-white text-start text-truncate mw-100"><i class="mdi mdi-@(GetIcon(mediaItem.MediaItemKind)) m-1"></i>@TimeSpan.FromSeconds(mediaItem.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</small>
+                                        @if (mediaItem.Metadata.CreationDate != null)
+                                        {
+                                            <small class="text-white text-start text-truncate mw-100">@($"{mediaItem.Metadata.CreationDate}")</small>
+                                        }
+                                    </div>
+
+                                </div>
+                            </button>
+                        }
+                    </div>
                 </div>
                 }
             </div>

@@ -1,7 +1,6 @@
 ﻿using HomeHook.Common.Models;
 using HomeHook.Common.Services;
 using HomeHook.Models;
-using HomeHook.Models.Jellyfin;
 using HomeHook.Services;
 using Microsoft.AspNetCore.SignalR.Client;
 using System.Collections.Concurrent;
@@ -10,24 +9,42 @@ namespace HomeHook
 {
     public class CastService : IHostedService
     {
-        private const string ServiceName = "HomeCast";
+        #region Injections
 
         private JellyfinService JellyfinService { get; }
-        private LoggingService<CastService> Logger { get; }
+        private LoggingService<CastService> LoggingService { get; }
+        private LoggingService<DeviceService> DeviceLoggingService { get; }
         private IConfiguration Configuration { get; }
 
-        public ConcurrentDictionary<string, DeviceConnection> DeviceConnections { get; set; } = new(StringComparer.InvariantCultureIgnoreCase);
-        public event EventHandler? DeviceConnectionsUpdated;
+        #endregion
 
-        public CastService(JellyfinService jellyfinService, LoggingService<CastService> loggingService, IConfiguration configuration)
+        #region Public Properties
+
+        public ConcurrentDictionary<string, DeviceService> DeviceServices { get; set; } = new(StringComparer.InvariantCultureIgnoreCase);
+
+        public event EventHandler? DeviceServicesUpdated;
+
+        #endregion
+
+        #region Private Variables
+
+        private CancellationTokenSource RefreshDevicesCancellationTokenSource { get; set; } = new();
+
+        #endregion
+
+        #region Constructor
+
+        public CastService(JellyfinService jellyfinService, LoggingService<CastService> loggingService, LoggingService<DeviceService> deviceLoggingService, IConfiguration configuration)
         {
             JellyfinService = jellyfinService;
-            Logger = loggingService;
+            LoggingService = loggingService;
+            DeviceLoggingService = deviceLoggingService;
             Configuration = configuration;
         }
 
-        private readonly List<CancellationTokenSource> PeriodicTimerCancellationTokenSources = new();
-        private CancellationTokenSource RefreshDevicesCancellationTokenSource { get; set; } = new();
+        #endregion
+
+        #region Service Control Methods
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -43,17 +60,17 @@ namespace HomeHook
                             if (string.IsNullOrWhiteSpace(deviceConfiguration.Name) ||
                                 deviceConfiguration.Name.Any(character => !char.IsLetter(character)))
                             {
-                                await Logger.LogError("Invalid device name", $"The device name given: \"{deviceConfiguration.Name}\" at \"{deviceConfiguration.Address}\" is not valid! Give the device a unique name with only letters.");
+                                await LoggingService.LogError("Invalid device name", $"The device name given: \"{deviceConfiguration.Name}\" at \"{deviceConfiguration.Address}\" is not valid! Give the device a unique name with only letters.");
                                 continue;
                             }
 
                             if (!Uri.IsWellFormedUriString(deviceConfiguration.Address, UriKind.Absolute))
                             {
-                                await Logger.LogError("Invalid address", $"The device address given: \"{deviceConfiguration.Address}\" with name \"{deviceConfiguration.Name}\" is not valid! Supply the device's valid, absolute host address.");
+                                await LoggingService.LogError("Invalid address", $"The device address given: \"{deviceConfiguration.Address}\" with name \"{deviceConfiguration.Name}\" is not valid! Supply the device's valid, absolute host address.");
                                 continue;
                             }
 
-                            if (DeviceConnections.TryGetValue(deviceConfiguration.Name, out _))
+                            if (DeviceServices.TryGetValue(deviceConfiguration.Name, out _))
                                 continue;
 
                             HubConnection hubConnection = new HubConnectionBuilder()
@@ -70,36 +87,35 @@ namespace HomeHook
                                 logging.SetMinimumLevel(LogLevel.Debug);
                             })
                             .AddNewtonsoftJsonProtocol()
-                            .WithAutomaticReconnect(new DeviceRetryPolicy<CastService>(deviceConfiguration, Logger))
+                            .WithAutomaticReconnect(new DeviceRetryPolicy<CastService>(deviceConfiguration, LoggingService))
                             .Build();
 
                             await hubConnection.StartAsync(cancellationToken);
                             Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
 
-                            DeviceConnection deviceConnection = new()
+                            DeviceService deviceService = new(JellyfinService, DeviceLoggingService)
                             {
                                 Device = device,
                                 HubConnection = hubConnection
                             };
-                            if (DeviceConnections.TryAdd(deviceConfiguration.Name, deviceConnection))
+                            if (DeviceServices.TryAdd(deviceConfiguration.Name, deviceService))
                             {
                                 newDevicesAdded.Add(deviceConfiguration.Name);
-                                StartDeviceTick(deviceConnection);
                             }
 
-                            hubConnection.On<Device>("UpdateDevice", (device) =>
-                                UpdateDevice(device));
+                            hubConnection.On<Device>("UpdateDevice", async (device) =>
+                                await deviceService.UpdateDevice(device));
                         }
 
                         if (newDevicesAdded.Any())
                         {
-                            await Logger.LogDebug("Refreshed receivers.", $"Refreshed devices and found {newDevicesAdded.Count} new devices ({string.Join(", ", newDevicesAdded)}).");
-                            DeviceConnectionsUpdated?.Invoke(this, EventArgs.Empty);
+                            await LoggingService.LogDebug("Refreshed receivers.", $"Refreshed devices and found {newDevicesAdded.Count} new devices ({string.Join(", ", newDevicesAdded)}).");
+                            DeviceServicesUpdated?.Invoke(this, EventArgs.Empty);
                         }
                     }
                     catch(Exception exception)
                     {
-                        await Logger.LogDebug("Cast Service Error.", $"Error while connecting to devices: {string.Join("; ", exception.Message, exception.InnerException?.Message)}");
+                        await LoggingService.LogDebug("Cast Service Error.", $"Error while connecting to devices: {string.Join("; ", exception.Message, exception.InnerException?.Message)}");
                     }
                     finally
                     {
@@ -115,147 +131,43 @@ namespace HomeHook
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            foreach (CancellationTokenSource periodicTimerCancellationTokenSource in PeriodicTimerCancellationTokenSources)
-                periodicTimerCancellationTokenSource.Cancel();
+            foreach (DeviceService deviceService in DeviceServices.Values)
+                deviceService.Dispose();
 
-            foreach (HubConnection hubConnection in DeviceConnections.Values.Select(deviceConnection => deviceConnection.HubConnection))
-                await hubConnection.DisposeAsync();
+            DeviceServices.Clear();
 
-            DeviceConnections.Clear();
-
-            await Logger.LogDebug("Cast Service stopping.", DateTime.Now.ToString());
+            await LoggingService.LogDebug("Cast Service stopping.", DateTime.Now.ToString());
         }
 
-        public async Task<(bool, DeviceConnection?)> TryGetDevice(string deviceName)
+        #endregion
+
+        #region Device Control Methods
+
+        public async Task<(bool, DeviceService?)> TryGetDeviceService(string deviceName)
         {
-            if (!DeviceConnections.TryGetValue(deviceName, out DeviceConnection? deviceConnection) || deviceConnection == null)
+            if (!DeviceServices.TryGetValue(deviceName, out DeviceService? deviceService) || deviceService == null)
             {
-                await Logger.LogError("Jellyfin Session Start", "The given device name cannot be found!!");
+                await LoggingService.LogError("Jellyfin Session Start", "The given device name cannot be found!!");
                 return (false, null);
             }
-            else if (deviceConnection.HubConnection.State != HubConnectionState.Connected)
+            else if (deviceService.HubConnection.State != HubConnectionState.Connected)
             {
                 CancellationToken waitForConnectionCancellationToken = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
                 while (waitForConnectionCancellationToken.IsCancellationRequested &&
-                    (deviceConnection.HubConnection.State == HubConnectionState.Reconnecting || deviceConnection.HubConnection.State == HubConnectionState.Connecting))
+                    (deviceService.HubConnection.State == HubConnectionState.Reconnecting || deviceService.HubConnection.State == HubConnectionState.Connecting))
                     await Task.Delay(TimeSpan.FromSeconds(1));
 
-                if (deviceConnection.HubConnection.State != HubConnectionState.Connected)
+                if (deviceService.HubConnection.State != HubConnectionState.Connected)
                 {
-                    await Logger.LogError("Jellyfin Session Start", $"The given device \"{deviceConnection.Device.Name}\" at \"{deviceConnection.Device.Address}\" is not connected, please verify its status and try again.");
+                    await LoggingService.LogError("Jellyfin Session Start", $"The given device \"{deviceService.Device.Name}\" at \"{deviceService.Device.Address}\" is not connected, please verify its status and try again.");
                     return (false, null);
                 }
             }
 
-            return (true, deviceConnection);
+            return (true, deviceService);
         }
 
-        public async Task StartJellyfinSession(string deviceName, List<MediaItem> items)
-        {
-            if (!items.Any())
-                await Logger.LogError("Jellyfin Session Start", "There are no items to initialize!");
+        #endregion
 
-            (bool gotDevice, DeviceConnection? deviceConnection) = await TryGetDevice(deviceName);
-            if (gotDevice && deviceConnection != null)
-            {
-                _ = Task.Run(async () =>
-                {
-                    await deviceConnection.HubConnection.InvokeAsync("LaunchQueue", items);
-
-                    await Logger.LogDebug("Started Jellyfin Session", $"Succesfully initialized media on device: \"{deviceConnection.Device.Name}\"");
-                });
-            }
-        }
-
-        private async void StartDeviceTick(DeviceConnection deviceConnection)
-        {
-            CancellationTokenSource PeriodicTimerCancellationTokenSource = new();
-            PeriodicTimerCancellationTokenSources.Add(PeriodicTimerCancellationTokenSource);
-            PeriodicTimer periodicTimer = new(TimeSpan.FromSeconds(1));
-            while (await periodicTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
-            {
-                if (deviceConnection.Device.DeviceStatus == DeviceStatus.Playing)
-                {
-                    double newTime = deviceConnection.CurrentTime +deviceConnection.Device.PlaybackRate;
-                    if (newTime <= deviceConnection.Device.CurrentMedia?.Runtime)
-                    {
-                        deviceConnection.CurrentTime = newTime;
-                        deviceConnection.InvokeDeviceUpdatedAsync();
-                    }
-                }
-            }
-        }
-
-        private void UpdateDevice(Device device)
-        {
-            if (DeviceConnections.TryGetValue(device.Name, out DeviceConnection? deviceConnection) &&
-                deviceConnection != null) 
-            {
-                deviceConnection.Device = device;
-
-                MediaItem? currentMedia = device.CurrentMedia;
-                if (currentMedia == null)
-                    return;
-
-                switch (device.DeviceStatus)
-                {
-                    case DeviceStatus.Playing:
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Paused:
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Pausing:
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.Pause), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Unpausing:
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.Unpause), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Starting:
-                        deviceConnection.CurrentTime = 0;
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Finishing:
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia, ProgressEvents.TimeUpdate), currentMedia.User, device.Name, ServiceName, device.Version);
-                        break;
-                    case DeviceStatus.Stopping:
-                        deviceConnection.CurrentTime = 0;
-                        _ = JellyfinService.UpdateProgress(GetProgress(deviceConnection, currentMedia), currentMedia.User, device.Name, ServiceName, device.Version, true);
-                        break;
-                    case DeviceStatus.Stopped:
-                        deviceConnection.CurrentTime = 0;
-                        break;
-                    default:
-                        break;
-                }
-
-                deviceConnection.InvokeDeviceUpdatedAsync();
-            }
-        }
-
-        private static Progress GetProgress(DeviceConnection deviceConnection, MediaItem media, ProgressEvents? progressEvent = null)
-        {
-            Progress returningProgress = new()
-            {
-                EventName = progressEvent,
-                ItemId = media.Id,
-                MediaSourceId = media.Id
-            };
-
-            Device device = deviceConnection.Device;
-            if (device.DeviceStatus != DeviceStatus.Stopping || device.DeviceStatus != DeviceStatus.Stopped)
-            {
-                returningProgress.PositionTicks = (long)(device.DeviceStatus == DeviceStatus.Starting ? 0 : 
-                    device.DeviceStatus == DeviceStatus.Finishing ? media.Runtime * 10000000f :
-                    deviceConnection.CurrentTime * 10000000f);
-                returningProgress.VolumeLevel = Convert.ToInt32(device.Volume * 100);
-                returningProgress.IsMuted = device.IsMuted;
-                returningProgress.IsPaused = device.DeviceStatus == DeviceStatus.Pausing || device.DeviceStatus == DeviceStatus.Paused;
-                returningProgress.PlaybackRate = device.PlaybackRate;
-                returningProgress.PlayMethod = PlayMethod.DirectPlay;                
-            }
-
-            return returningProgress;
-        }
     }
 }

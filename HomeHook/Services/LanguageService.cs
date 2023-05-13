@@ -97,7 +97,7 @@ namespace HomeHook.Services
             
             if (!string.IsNullOrWhiteSpace(spokenJellyDevice))
             {
-                string? jellyDevice = _castService.DeviceConnections.TryGetValue(spokenJellyDevice, out DeviceConnection? deviceConnection) ? deviceConnection.Device.Name : null;
+                string? jellyDevice = _castService.DeviceServices.TryGetValue(spokenJellyDevice, out DeviceService? deviceService) ? deviceService.Device.Name : null;
 
                 if (string.IsNullOrWhiteSpace(jellyDevice))
                     await _loggingService.LogWarning($"Spoken device is not listed.", $"Please add  \"{spokenJellyDevice}\" to device configuration.", simplePhrase);

@@ -1,6 +1,5 @@
 ﻿using HomeHook.Common.Models;
 using HomeHook.Common.Services;
-using HomeHook.Models;
 using HomeHook.Models.Jellyfin;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Components;
@@ -37,7 +36,7 @@ namespace HomeHook.Shared
         #region Parameters
 
         [Parameter]
-        public required DeviceConnection DeviceConnection { get; set; }
+        public required DeviceService DeviceService { get; set; }
 
         #endregion
 
@@ -56,6 +55,9 @@ namespace HomeHook.Shared
         private readonly CancellationTokenSource PeriodicTimerCancellationTokenSource = new();
         private bool DisposedValue { get; set; }
 
+        private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
+        private List<string> BarStyles { get; } = new();
+
         #endregion
 
         #region Lifecycle Overrides
@@ -64,11 +66,16 @@ namespace HomeHook.Shared
         {
             await base.OnInitializedAsync();
 
-            HubConnection = DeviceConnection.HubConnection;
-            Device = DeviceConnection.Device;
+            HubConnection = DeviceService.HubConnection;
+            Device = DeviceService.Device;
             Media = Device.CurrentMedia;
 
-            DeviceConnection.DeviceUpdatedHandler += async (object sender, Device device) =>
+            for(int barNumber = 0 ; barNumber < 122; barNumber++)
+            {
+                BarStyles.Add($"left: {barNumber * 4}px; animation-duration: {Math.Round(400 + (Random.NextDouble() * 100))}ms");
+            }
+
+            DeviceService.DeviceUpdated += async (object sender, Device device) =>
             {
                 Device = device;
                 await UpdateStatus();
@@ -91,8 +98,8 @@ namespace HomeHook.Shared
 
         private async Task UpdateStatus()
         {
-            HubConnection = DeviceConnection.HubConnection;
-            Device = DeviceConnection.Device;
+            HubConnection = DeviceService.HubConnection;
+            Device = DeviceService.Device;
             Media = Device.CurrentMedia;
              
             if (Device.DeviceStatus == DeviceStatus.Stopped)
@@ -147,7 +154,7 @@ namespace HomeHook.Shared
 
         #region Commands
 
-        protected async Task SeekClick(MouseEventArgs mouseEventArgs)
+        public async Task SeekClick(MouseEventArgs mouseEventArgs)
         {
             if (Media == null) 
                 return;
@@ -155,52 +162,46 @@ namespace HomeHook.Shared
             double width = await JSRuntime.InvokeAsync<double>("GetElementWidth", ProgressBar);
             double seekSeconds = mouseEventArgs.OffsetX / width * Media.Runtime;
 
-            DeviceConnection.CurrentTime = Math.Max(Math.Min(seekSeconds, (double?)Media?.Runtime ?? 0), 0);
-            await HubConnection.InvokeAsync("Seek", seekSeconds);
+            await DeviceService.Seek(seekSeconds);
         }
 
-        protected async Task PlayPauseClick(MouseEventArgs _)
-        {
-            if (Device.DeviceStatus == DeviceStatus.Playing)
-                await HubConnection.InvokeAsync("Pause");
-            else
-                await HubConnection.InvokeAsync("Play");
-        }
+        public async Task PlayPauseClick(MouseEventArgs _) =>
+            await DeviceService.PlayPause();
 
-        protected async Task StopClick(MouseEventArgs _) =>
+        public async Task StopClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Stop");
 
-        protected async Task RewindClick(MouseEventArgs _)
+        public async Task RewindClick(MouseEventArgs _)
         {
-            DeviceConnection.CurrentTime = Math.Max(DeviceConnection.CurrentTime - 10, 0);
+            DeviceService.CurrentTime = Math.Max(DeviceService.CurrentTime - 10, 0);
             await HubConnection.InvokeAsync("SeekRelative", -10);
         }
 
-        protected async Task FastForwardClick(MouseEventArgs _)
+        public async Task FastForwardClick(MouseEventArgs _)
         {
-            DeviceConnection.CurrentTime = Math.Min(DeviceConnection.CurrentTime + 10, (double?)Media?.Runtime ?? 0);
+            DeviceService.CurrentTime = Math.Min(DeviceService.CurrentTime + 10, (double?)Media?.Runtime ?? 0);
             await HubConnection.InvokeAsync("SeekRelative", +10);
         }
 
-        protected async Task PreviousClick(MouseEventArgs _) =>
+        public async Task PreviousClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Previous");
 
-        protected async Task NextClick(MouseEventArgs _) =>
+        public async Task NextClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Next");
 
-        protected async Task SetRepeatMode(RepeatMode repeatMode) =>
+        public async Task SetRepeatMode(RepeatMode repeatMode) =>
             await HubConnection.InvokeAsync("ChangeRepeatMode", repeatMode);
 
-        protected async Task SetPlaybackRate(double playBackRate) =>
+        public async Task SetPlaybackRate(double playBackRate) =>
             await HubConnection.InvokeAsync("SetPlaybackRate", playBackRate);
 
-        protected async Task SetVolume(ChangeEventArgs changeEventArgs) =>
+        public async Task SetVolume(ChangeEventArgs changeEventArgs) =>
             await HubConnection.InvokeAsync("SetVolume", float.Parse(changeEventArgs.Value?.ToString() ?? "0.5"));
 
-        protected async Task ToggleMute(MouseEventArgs _) =>
+        public async Task ToggleMute(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("ToggleMute");
 
-        protected async Task ToggleEditingQueue(MouseEventArgs _)
+        public async Task ToggleEditingQueue(MouseEventArgs _)
         {
             IsEditingQueue = !IsEditingQueue;
             if (IsEditingQueue)

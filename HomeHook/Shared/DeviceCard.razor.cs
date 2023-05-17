@@ -171,18 +171,12 @@ namespace HomeHook.Shared
         public async Task StopClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Stop");
 
-        public async Task RewindClick(MouseEventArgs _)
-        {
-            DeviceService.CurrentTime = Math.Max(DeviceService.CurrentTime - 10, 0);
+        public async Task RewindClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("SeekRelative", -10);
-        }
-
-        public async Task FastForwardClick(MouseEventArgs _)
-        {
-            DeviceService.CurrentTime = Math.Min(DeviceService.CurrentTime + 10, (double?)Media?.Runtime ?? 0);
+        
+        public async Task FastForwardClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("SeekRelative", +10);
-        }
-
+        
         public async Task PreviousClick(MouseEventArgs _) =>
             await HubConnection.InvokeAsync("Previous");
 

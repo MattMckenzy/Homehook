@@ -26,8 +26,6 @@ namespace HomeHook.Services
         public required Device Device { get; set; }
         public required HubConnection HubConnection { get; set; }
 
-        public double CurrentTime { get; set; }
-
         public DeviceEvent? DeviceUpdated;
 
         public delegate void DeviceEvent(object sender, Device device);
@@ -36,7 +34,6 @@ namespace HomeHook.Services
 
         #region Private Variables
 
-        private CancellationTokenSource PeriodicTimerCancellationTokenSource { get; } = new();
         private bool DisposedValue { get; set; }
 
         #endregion
@@ -47,8 +44,6 @@ namespace HomeHook.Services
         {
             JellyfinService = jellyfinService;
             LoggingService = loggingService;
-
-            StartDeviceTick();
         }
 
         #endregion
@@ -92,17 +87,13 @@ namespace HomeHook.Services
         public async Task RemoveItems(IEnumerable<int> itemIds) =>
             await HubConnection.InvokeAsync("RemoveQueue", itemIds);
 
-        public async Task Seek(double seekSeconds)
-        {
-            CurrentTime = Math.Max(Math.Min(seekSeconds, Device.CurrentMedia?.Runtime ?? 0), 0);
+        public async Task Seek(double seekSeconds) =>
             await HubConnection.InvokeAsync("Seek", seekSeconds);
-        }
+        
 
-        public async Task SeekRelative(double relativeSeconds)
-        {
-            CurrentTime = Math.Max(Math.Min(CurrentTime + relativeSeconds, Device.CurrentMedia?.Runtime ?? 0), 0);
+        public async Task SeekRelative(double relativeSeconds) =>
             await HubConnection.InvokeAsync("SeekRelative", relativeSeconds);
-        }
+        
 
         public async Task PlayPause()
         {
@@ -137,30 +128,13 @@ namespace HomeHook.Services
 
         #region Private Helpers
 
-        private async void StartDeviceTick()
-        {
-            PeriodicTimer periodicTimer = new(TimeSpan.FromSeconds(1));
-            while (await periodicTimer.WaitForNextTickAsync(PeriodicTimerCancellationTokenSource.Token))
-            {
-                if (Device.DeviceStatus == DeviceStatus.Playing)
-                {
-                    double newTime = CurrentTime + Device.PlaybackRate;
-                    if (newTime <= Device.CurrentMedia?.Runtime)
-                    {
-                        CurrentTime = newTime;
-                        if (Math.Round(CurrentTime) % 10 == 0)
-                            await UpdateDevice();
-
-                        DeviceUpdated?.Invoke(this, Device);
-                    }
-                }
-            }
-        }
-
         public async Task UpdateDevice(Device? device = null)
         {
             if (device != null)
+            {
                 Device = device;
+                DeviceUpdated?.Invoke(this, Device);
+            }
 
             switch (Device.DeviceStatus)
             {
@@ -177,15 +151,12 @@ namespace HomeHook.Services
                     await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Unpause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                     break;
                 case DeviceStatus.Starting:
-                    CurrentTime = Device.CurrentMedia?.StartTime ?? 0;
                     await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                     break;
                 case DeviceStatus.Finishing:
-                    CurrentTime = Device.CurrentMedia?.Runtime ?? CurrentTime;
                     await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                     break;
                 case DeviceStatus.Stopping:
-                    // TODO: update start time when stopping an item, propagate changes to device.
                     await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
                     break;
                 case DeviceStatus.Stopped:
@@ -204,7 +175,7 @@ namespace HomeHook.Services
                 EventName = progressEvent,
                 ItemId = Device.CurrentMedia.Id,
                 MediaSourceId = Device.CurrentMedia.Id,
-                PositionTicks = (long)(CurrentTime * 10000000d),
+                PositionTicks = (long)(Device.CurrentTime * 10000000d),
                 VolumeLevel = Convert.ToInt32(Device.Volume * 100),
                 IsMuted = Device.IsMuted,
                 IsPaused = Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused,
@@ -225,7 +196,6 @@ namespace HomeHook.Services
             {
                 if (disposing)
                 {
-                    PeriodicTimerCancellationTokenSource.Cancel();
                     await HubConnection.DisposeAsync();
                 }
 

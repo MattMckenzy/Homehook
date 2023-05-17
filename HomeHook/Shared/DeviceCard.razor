@@ -27,9 +27,9 @@ else
                     @if (Media != null)
                     {
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
-                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceService.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
+                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(Device.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                             <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
-                                <div class="progress-bar" role="progressbar" aria-valuenow="@DeviceService.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceService.CurrentTime" style="width:@(Math.Round(@DeviceService.CurrentTime * 100 / Media.Runtime))%;"></div>
+                                <div class="progress-bar" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Device.CurrentTime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
                             </div>
                             <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                         </div>
@@ -114,7 +114,8 @@ else
                 </div>
                 @{ 
                     // TODO: Hook up buttons to commands
-                    // TOOD: change area of effect when clicking for collapse or selection
+                    // TODO: change area of effect when clicking for collapse or selection
+                    // TODO: add scrollbar for media queue.
                 }
                 <div class="queue-edit-container bg-dark p-2 w-100">
                     <div class="btn-group btn-group-sm m-2 mb-3 float-left" role="group" aria-label="Queue item buttons.">
@@ -127,7 +128,7 @@ else
                     <div class="list-group list-group-flush bg-transparent">
                         @foreach(MediaItem mediaItem in Device.MediaQueue)
                         {
-                            <button class="media-item list-group-item list-group-item-action @(Media.Id == mediaItem.Id ? "active" : string.Empty) bg-transparent" aria-current="@(Media.Id == mediaItem.Id)">
+                            <button class="media-item list-group-item list-group-item-action @(Media?.Id == mediaItem.Id ? "active" : string.Empty) bg-transparent" aria-current="@(Media.Id == mediaItem.Id)">
                                 @if (Media.Id == mediaItem.Id)
                                 {
                                     <div id="bars">

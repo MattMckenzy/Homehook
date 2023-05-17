@@ -1,7 +1,7 @@
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
 FROM mcr.microsoft.com/dotnet/aspnet:latest AS base
-RUN apt update && apt install -y alsa-utils pulseaudio evtest mplayer ffmpeg
+RUN apt update && apt install -y alsa-utils pulseaudio evtest mpv socat
 WORKDIR /app
 EXPOSE 8121
 

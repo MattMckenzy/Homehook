@@ -6,6 +6,9 @@ namespace HomeHook.Services
 {
     public class LanguageService
     {
+        // TODO: add youtube search
+        // TODO: add caching language
+
         private enum PrepositionType
         { 
             None,

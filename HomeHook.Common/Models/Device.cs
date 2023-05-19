@@ -9,7 +9,7 @@ namespace HomeHook.Common.Models
         public required string Version { get; set; }
 
         public DeviceStatus DeviceStatus { get; set; } = DeviceStatus.Stopped;
-        public int? CurrentMediaIndex { get; set; } = null;
+        public string? CurrentMediaId { get; set; } = null;
         public List<MediaItem> MediaQueue { get; set; } = new List<MediaItem>();
 
         public double CurrentTime { get; set; }
@@ -20,6 +20,6 @@ namespace HomeHook.Common.Models
         public RepeatMode RepeatMode { get; set; } = RepeatMode.Off;
 
         [JsonIgnore]
-        public MediaItem? CurrentMedia { get { return CurrentMediaIndex == null ? null : MediaQueue.ElementAtOrDefault((int)CurrentMediaIndex) ?? null; } }
+        public MediaItem? CurrentMedia { get { return CurrentMediaId == null ? null : MediaQueue.FirstOrDefault(mediaItem => mediaItem.Id == CurrentMediaId); } }
     }
 }

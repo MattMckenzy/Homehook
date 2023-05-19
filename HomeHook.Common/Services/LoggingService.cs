@@ -39,7 +39,7 @@ namespace HomeHook.Common.Services
             try
             {
                 if (Configuration.GetValue<int>("Services:Gotify:Priority") <= (int)logLevel)
-                    await GotifyService.PushMessage(new() { Title = title, Message = message, Priority = gotifyPriority });
+                    await GotifyService.PushMessage(new() { Title = $"{title}{Configuration["Services:Gotify:TitleSuffix"]?.Replace("$DeviceName", Configuration["Device:Name"] ?? string.Empty)}", Message = message, Priority = gotifyPriority });
             }
             catch
             {

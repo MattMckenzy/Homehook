@@ -139,7 +139,8 @@ namespace HomeHook.Services
             switch (Device.DeviceStatus)
             {
                 case DeviceStatus.Playing:
-                    await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                    if (Math.Round(Device.CurrentTime) % 5 == 0)
+                        await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                     break;
                 case DeviceStatus.Paused:
                     await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
@@ -154,10 +155,10 @@ namespace HomeHook.Services
                     await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                     break;
                 case DeviceStatus.Finishing:
-                    await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                    await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.Id);
                     break;
                 case DeviceStatus.Stopping:
-                    await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
+                    await JellyfinService.UpdateProgress(GetProgress(finished: null), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
                     break;
                 case DeviceStatus.Stopped:
                 default:
@@ -165,7 +166,7 @@ namespace HomeHook.Services
             }
         }
 
-        private Progress? GetProgress(ProgressEvents? progressEvent = null)
+        private Progress? GetProgress(ProgressEvents? progressEvent = null, bool? finished = false)
         {
             if (Device.CurrentMedia == null)
                 return null;
@@ -175,13 +176,15 @@ namespace HomeHook.Services
                 EventName = progressEvent,
                 ItemId = Device.CurrentMedia.Id,
                 MediaSourceId = Device.CurrentMedia.Id,
-                PositionTicks = (long)(Device.CurrentTime * 10000000d),
                 VolumeLevel = Convert.ToInt32(Device.Volume * 100),
                 IsMuted = Device.IsMuted,
                 IsPaused = Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused,
                 PlaybackRate = Device.PlaybackRate,
                 PlayMethod = PlayMethod.DirectPlay
             };
+
+            if (finished != null)
+                returningProgress.PositionTicks = (long)((finished == true ? Device.CurrentMedia.Runtime : Device.CurrentTime) * 10000000d);
 
             return returningProgress;
         }

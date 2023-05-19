@@ -180,7 +180,25 @@ namespace HomeHook.Services
 
             Dictionary<string, string> headerReplacements = new() { { "$Device", device ?? DefaultDeviceName }, { "$Service", service ?? DefaultServiceName }, { "$Version", version ?? DefaultVersionString } };
 
-            await JellyfinCaller.PostRequestAsync<string>(route, content: JsonConvert.SerializeObject(progress), credential: userName, headerReplacements: headerReplacements, accessTokenDelegate: AccessTokenDelegate);
+            await JellyfinCaller.PostRequestAsync<string>(route, userName, AccessTokenDelegate, headerReplacements, content: JsonConvert.SerializeObject(progress));
+        }
+
+        public async Task MarkPlayed(string? userName, string? itemId, string? device = null, string? service = null, string? version = null)
+        {
+            if (userName == null || itemId == null)
+                return;
+
+            string? userId = await GetUserId(userName);
+
+            if (userId == null)
+                return;
+
+            string route = $"Users/{userId}/PlayedItems/{itemId}";
+
+            Dictionary<string, string> headerReplacements = new() { { "$Device", device ?? DefaultDeviceName }, { "$Service", service ?? DefaultServiceName }, { "$Version", version ?? DefaultVersionString } };
+            Dictionary<string, string> queryParameters = new() { { "datePlayed", DateTime.UtcNow.ToString("s") + "Z" } };
+
+            await JellyfinCaller.PostRequestAsync<string>(route, userName, AccessTokenDelegate, headerReplacements, queryParameters);
         }
 
         private List<MediaItem> ItemsToMediaQueue(IEnumerable<Item> items, JellyPhrase phrase, string userId)

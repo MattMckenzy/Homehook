@@ -47,7 +47,7 @@ namespace HomeCast.Services
         public async Task SeekRelative(float timeDifference) =>
             await QueueCommand(PlayerService.SeekRelativeAsync, new object?[] { timeDifference });
 
-        public async Task ChangeCurrentMedia(int mediaId) =>
+        public async Task ChangeCurrentMedia(string mediaId) =>
             await QueueCommand(PlayerService.ChangeCurrentMediaAsync, new object?[] { mediaId });
 
         public async Task ChangeRepeatMode(RepeatMode repeatMode) =>
@@ -59,20 +59,20 @@ namespace HomeCast.Services
         public async Task LaunchQueue(List<MediaItem> mediaItems) =>
             await QueueCommand(PlayerService.LaunchQueue, new object?[] { mediaItems });
 
-        public async Task InsertQueue(List<MediaItem> mediaItems, int? insertBefore) =>
+        public async Task InsertQueue(List<MediaItem> mediaItems, string? insertBefore) =>
             await QueueCommand(PlayerService.InsertQueueAsync, new object?[] { mediaItems, insertBefore });
 
         public async Task UpdateQueue(List<MediaItem> mediaItems) =>
             await QueueCommand(PlayerService.UpdateQueueAsync, new object?[] { mediaItems });
 
-        public async Task RemoveQueue(IEnumerable<int> itemIds) =>
-            await QueueCommand(PlayerService.RemoveQueueAsync, new object?[] { itemIds });
+        public async Task RemoveQueue(IEnumerable<string> mediaIds) =>
+            await QueueCommand(PlayerService.RemoveQueueAsync, new object?[] { mediaIds });
 
-        public async Task UpQueue(IEnumerable<int> itemIds) =>
-            await QueueCommand(PlayerService.UpQueueAsync, new object?[] { itemIds });
+        public async Task UpQueue(IEnumerable<string> mediaIds) =>
+            await QueueCommand(PlayerService.UpQueueAsync, new object?[] { mediaIds });
 
-        public async Task DownQueue(IEnumerable<int> itemIds) =>
-            await QueueCommand(PlayerService.DownQueueAsync, new object?[] { itemIds });
+        public async Task DownQueue(IEnumerable<string> mediaIds) =>
+            await QueueCommand(PlayerService.DownQueueAsync, new object?[] { mediaIds });
 
         public async Task SetVolume(float volume) =>
             await QueueCommand(PlayerService.SetVolumeAsync, new object?[] { volume });

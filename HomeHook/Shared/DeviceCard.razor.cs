@@ -58,6 +58,8 @@ namespace HomeHook.Shared
         private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
         private List<string> BarStyles { get; } = new();
 
+        private List<string> MediaIds { get; set; } = new();
+
         #endregion
 
         #region Lifecycle Overrides
@@ -105,6 +107,8 @@ namespace HomeHook.Shared
             if (Device.DeviceStatus == DeviceStatus.Stopped)
                 IsEditingQueue = false;
 
+            MediaIds = Device.MediaQueue.Select(mediaItem => mediaItem.Id).Join(MediaIds, mediaId => mediaId, mediaId => mediaId, (mediaId, mediaInnerId) => mediaId).ToList();
+
             await InvokeAsync(StateHasChanged);
         }
 
@@ -148,6 +152,21 @@ namespace HomeHook.Shared
                 await JSRuntime.InvokeVoidAsync("alert", $"No media found! - {phrase.SearchTerm}, returned no media.", "");
 
             return medias;
+        }
+
+        private async void MediaItemCheckedChanged(string mediaId, ChangeEventArgs changeEventArgs)
+        {
+            if (changeEventArgs.Value != null &&
+                (bool)changeEventArgs.Value &&
+                !MediaIds.Contains(mediaId))
+                MediaIds.Add(mediaId);
+            else if (changeEventArgs.Value != null &&
+                !(bool)changeEventArgs.Value &&
+                MediaIds.Contains(mediaId))
+                MediaIds.Remove(mediaId);
+
+            MediaIds = Device.MediaQueue.Select(mediaItem => mediaItem.Id).Join(MediaIds, mediaId => mediaId, mediaId => mediaId, (mediaId, mediaInnerId) => mediaId).ToList();
+            await InvokeAsync(StateHasChanged);
         }
 
         #endregion
@@ -215,23 +234,27 @@ namespace HomeHook.Shared
             }    
         }
 
-        public async Task PlayItem(int itemId) =>
+        public async Task PlayItem(string itemId) =>
             await HubConnection.InvokeAsync("ChangeCurrentMedia", itemId);
 
-        public async Task UpItems(IEnumerable<int> itemIds) =>
+        public async Task UpItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("UpQueue", itemIds);
 
-        public async Task DownItems(IEnumerable<int> itemIds) =>
+        public async Task DownItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("DownQueue", itemIds);
 
-        public async Task AddItems(string searchTerm, int? insertBefore = null)
+        public async Task AddItems(string? insertBefore = null)
         {
-            List<MediaItem> medias = await GetItems(searchTerm);
-            if (medias.Any())
-                await HubConnection.InvokeAsync("InsertQueue", medias, insertBefore);
+            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter Jellyfin search term to add items to {Device.Name}'s queue.", "");
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                List<MediaItem> medias = await GetItems(searchTerm);
+                if (medias.Any())
+                    await HubConnection.InvokeAsync("InsertQueue", medias, insertBefore);
+            }
         }  
 
-        public async Task RemoveItems(IEnumerable<int> itemIds) =>
+        public async Task RemoveItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("RemoveQueue", itemIds);
 
         #endregion

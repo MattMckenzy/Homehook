@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HomeHook.Common", "HomeHook
 EndProject
 Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{FE6DB328-F3F0-473C-801E-9747E560C1A0}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "YoutubeDLSharp", "YoutubeDLSharp\YoutubeDLSharp\YoutubeDLSharp.csproj", "{B70315C0-4F51-4D28-89A4-0DB24682A21E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,14 @@ Global
 		{FE6DB328-F3F0-473C-801E-9747E560C1A0}.P-Release|Any CPU.Build.0 = Release|Any CPU
 		{FE6DB328-F3F0-473C-801E-9747E560C1A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FE6DB328-F3F0-473C-801E-9747E560C1A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.P-Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.P-Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.P-Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.P-Release|Any CPU.Build.0 = Release|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

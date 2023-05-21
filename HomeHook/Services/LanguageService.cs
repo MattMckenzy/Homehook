@@ -1,60 +1,63 @@
 ﻿using HomeHook.Common.Services;
 using HomeHook.Models;
-using HomeHook.Models.Jellyfin;
+using HomeHook.Models.Language;
 
 namespace HomeHook.Services
 {
     public class LanguageService
     {
-        // TODO: add youtube search
-        // TODO: add caching language
-
-        private enum PrepositionType
-        { 
-            None,
-            User,
-            Device,
-            Path
-        }
-
-        private readonly IConfiguration _configuration;
-        private readonly CastService _castService;
-        private readonly LoggingService<LanguageService> _loggingService;
+        private IConfiguration Configuration { get; }
+        private CastService CastService { get; }
+        private LoggingService<LanguageService> LoggingService { get; }
 
         public LanguageService(IConfiguration configuration, CastService castService, LoggingService<LanguageService> loggingService)
         {
-            _configuration = configuration;
-            _castService = castService;
-            _loggingService = loggingService;
+            Configuration = configuration;
+            CastService = castService;
+            LoggingService = loggingService;
         }
 
-        public async Task<JellyPhrase?> ParseJellyfinSimplePhrase(string simplePhrase)
+        public async Task<LanguagePhrase?> ParseSimplePhrase(string simplePhrase)
         {
-            string? user = _configuration["Services:Jellyfin:DefaultUser"];
+            UserMappings? user = Configuration.GetSection("Services:Language:DefaultUser").Get<UserMappings>();
             if (user == null) 
             {
-                await _loggingService.LogError($"Configuration error", $"Please make sure a default Jellyfin user is set!");
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default user is set!");
                 return null; 
             }
 
-            string? device = _configuration["Services:Jellyfin:DefaultDevice"];
+            string? device = Configuration["Services:Language:DefaultDevice"];
             if (device == null)
             {
-                await _loggingService.LogError($"Configuration error", $"Please make sure a default Jellyfin device is set!");
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default device is set!");
                 return null;
             }
 
-            OrderType? orderType = Enum.TryParse(_configuration["Services:Jellyfin:DefaultOrder"] ?? string.Empty, out OrderType defaultOrderTypeResult) ? defaultOrderTypeResult : null;
+            OrderType? orderType = Enum.TryParse(Configuration["Services:Language:DefaultOrder"] ?? string.Empty, out OrderType defaultOrderTypeResult) ? defaultOrderTypeResult : null;
             if (orderType == null)
             {
-                await _loggingService.LogError($"Configuration error", $"Please make sure a default Jellyfin order type is set!");
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default order type is set!");
                 return null;
             }
             
-            MediaType? mediaType = Enum.TryParse(_configuration["Services:Jellyfin:DefaultMediaType"] ?? string.Empty, out MediaType defaultMediaTypeResult) ? defaultMediaTypeResult : null;
+            MediaType? mediaType = Enum.TryParse(Configuration["Services:Language:DefaultMediaType"] ?? string.Empty, out MediaType defaultMediaTypeResult) ? defaultMediaTypeResult : null;
             if (mediaType == null)
             {
-                await _loggingService.LogError($"Configuration error", $"Please make sure a default Jellyfin media type is set!");
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default media type is set!");
+                return null;
+            }
+
+            PlaybackMethod? playbackMethod = Enum.TryParse(Configuration["Services:Language:DefaultPlaybackMethod"] ?? string.Empty, out PlaybackMethod defaultPlaybackMethodResult) ? defaultPlaybackMethodResult : null;
+            if (playbackMethod == null)
+            {
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default playback method is set!");
+                return null;
+            }
+
+            Source? source = Enum.TryParse(Configuration["Services:Language:DefaultSource"] ?? string.Empty, out Source defaultSourceResult) ? defaultSourceResult : null;
+            if (source == null)
+            {
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default source is set!");
                 return null;
             }
 
@@ -63,27 +66,40 @@ namespace HomeHook.Services
             // Prepare recognized tokens and prepositions.
             Dictionary<string, IEnumerable<string>> orderTokens = new()
             {
-                { "Watch", (_configuration["Services:Jellyfin:OrderTerms:Watch"] ?? "Watch,Play" ).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)   },
-                { "Played", (_configuration["Services:Jellyfin:OrderTerms:Played"] ?? "Watched,Played").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Unplayed", (_configuration["Services:Jellyfin:OrderTerms:Unplayed"] ?? "Unwatched,Unplayed").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Continue", (_configuration["Services:Jellyfin:OrderTerms:Continue"] ?? "Continue,Resume").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Shuffle", (_configuration["Services:Jellyfin:OrderTerms:Shuffle"] ?? "Shuffle,Random,Any").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Ordered", (_configuration["Services:Jellyfin:OrderTerms:Ordered"] ?? "Ordered,Sequential,Order").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Oldest", (_configuration["Services:Jellyfin:OrderTerms:Oldest"] ?? "Oldest,First").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Newest", (_configuration["Services:Jellyfin:OrderTerms:Newest"] ?? "Last,Latest,Newest,Recent").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Shortest", (_configuration["Services:Jellyfin:OrderTerms:Shortest"] ?? "Shortest,Quickest,Fastest").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Longest", (_configuration["Services:Jellyfin:OrderTerms:Longest"] ?? "Longest,Slowest").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-            };
-            Dictionary<string, IEnumerable<string>> mediaTypeTokens = new()
-            {
-                { "Audio", (_configuration["Services:Jellyfin:MediaTypeTerms:Audio"] ?? "Song,Songs,Music,Track,Tracks,Audio").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Video", (_configuration["Services:Jellyfin:MediaTypeTerms:Video"] ?? "Video,Videos,Movies,Movie,Show,Shows,Episode,Episodes").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
-                { "Photo", (_configuration["Services:Jellyfin:MediaTypeTerms:Photo"] ?? "Photo,Photos,Pictures,Picture").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Watch", (Configuration["Services:Language:OrderTerms:Watch"] ?? "Watch,Play" ).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)   },
+                { "Played", (Configuration["Services:Language:OrderTerms:Played"] ?? "Watched,Played").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Unplayed", (Configuration["Services:Language:OrderTerms:Unplayed"] ?? "Unwatched,Unplayed").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Continue", (Configuration["Services:Language:OrderTerms:Continue"] ?? "Continue,Resume").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Shuffle", (Configuration["Services:Language:OrderTerms:Shuffle"] ?? "Shuffle,Random,Any").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Ordered", (Configuration["Services:Language:OrderTerms:Ordered"] ?? "Ordered,Sequential,Order").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Oldest", (Configuration["Services:Language:OrderTerms:Oldest"] ?? "Oldest,First").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Newest", (Configuration["Services:Language:OrderTerms:Newest"] ?? "Last,Latest,Newest,Recent").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Shortest", (Configuration["Services:Language:OrderTerms:Shortest"] ?? "Shortest,Quickest,Fastest").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Longest", (Configuration["Services:Language:OrderTerms:Longest"] ?? "Longest,Slowest").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
             };
 
-            IEnumerable<string> userPrepositions = (_configuration["Services:Language:UserPrepositions"] ?? "as").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            IEnumerable<string> devicePrepositions = (_configuration["Services:Language:DevicePrepositions"] ?? "on,to").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            IEnumerable<string> pathPrepositions = (_configuration["Services:Language:PathPrepositions"] ?? "from,in,inside").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            Dictionary<string, IEnumerable<string>> mediaTypeTokens = new()
+            {
+                { "Audio", (Configuration["Services:Language:MediaTypeTerms:Audio"] ?? "Song,Songs,Music,Track,Tracks,Audio").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Video", (Configuration["Services:Language:MediaTypeTerms:Video"] ?? "Video,Videos,Movies,Movie,Show,Shows,Episode,Episodes").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Photo", (Configuration["Services:Language:MediaTypeTerms:Photo"] ?? "Photo,Photos,Pictures,Picture").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+            };
+
+            Dictionary<string, IEnumerable<string>> sourceTokens = new()
+            {
+                { "Jellyfin", (Configuration["Services:Language:SourceTerms:Jellyfin"] ?? "Jellyfin,Jelly,Local").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "YouTube", (Configuration["Services:Language:SourceTerms:YouTube"] ?? "YouTube,Tube,Online").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) }
+            };
+
+            Dictionary<string, IEnumerable<string>> playbackMethodTokens = new()
+            {
+                { "Direct", (Configuration["Services:Language:PlaybackMethodTerms:Direct"] ?? "Direct,Stream,Streamed").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) },
+                { "Cached", (Configuration["Services:Language:PlaybackMethodTerms:Cached"] ?? "Cached,Saved,Save,Cache").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) }
+            };
+
+            IEnumerable<string> userPrepositions = (Configuration["Services:Language:UserPrepositions"] ?? "as").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            IEnumerable<string> devicePrepositions = (Configuration["Services:Language:DevicePrepositions"] ?? "on,to").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            IEnumerable<string> pathPrepositions = (Configuration["Services:Language:PathPrepositions"] ?? "from,in,inside").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             IEnumerable<(PrepositionType type, string preposition)> prepositions = 
                 userPrepositions.Select(preposition => (PrepositionType.User, preposition))
@@ -94,66 +110,65 @@ namespace HomeHook.Services
                 phraseTokens.Select(token=> (token, prepositions.FirstOrDefault(prepositionItem => prepositionItem.preposition.Equals(token, StringComparison.InvariantCultureIgnoreCase)).type))
                 .Select(prepositionItem => (prepositionItem.type, prepositionItem.token));
 
-            // Map spoken Jelly device.
-            string spokenJellyDevice = string.Empty;
-            (spokenJellyDevice, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.Device, typedPhraseTokens);
+            // Map spoken device.
+            string spokenDevice = string.Empty;
+            (spokenDevice, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.Device, typedPhraseTokens);
             
-            if (!string.IsNullOrWhiteSpace(spokenJellyDevice))
+            if (!string.IsNullOrWhiteSpace(spokenDevice))
             {
-                string? jellyDevice = _castService.DeviceServices.TryGetValue(spokenJellyDevice, out DeviceService? deviceService) ? deviceService.Device.Name : null;
+                string? availableDevice = CastService.DeviceServices.TryGetValue(spokenDevice, out DeviceService? deviceService) ? deviceService.Device.Name : null;
 
-                if (string.IsNullOrWhiteSpace(jellyDevice))
-                    await _loggingService.LogWarning($"Spoken device is not listed.", $"Please add  \"{spokenJellyDevice}\" to device configuration.", simplePhrase);
+                if (string.IsNullOrWhiteSpace(availableDevice))
+                    await LoggingService.LogWarning($"Spoken device is not listed.", $"Please add  \"{spokenDevice}\" to device configuration.", simplePhrase);
                 else
                 {
-                    await _loggingService.LogDebug($"Mapped spoken device token to {jellyDevice}.", string.Empty, jellyDevice);
-                    device = jellyDevice;
+                    await LoggingService.LogDebug($"Mapped spoken device token to {availableDevice}.", string.Empty, availableDevice);
+                    device = availableDevice;
                 }
             }
             else
-                await _loggingService.LogDebug($"No device extracted from the phrase spoken. Defaulting to device: \"{device}\".", string.Empty, simplePhrase);
+                await LoggingService.LogDebug($"No device extracted from the phrase spoken. Defaulting to device: \"{device}\".", string.Empty, simplePhrase);
 
 
             // Map spoken user.
-            string spokenJellyUser = string.Empty;
-            (spokenJellyUser, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.User, typedPhraseTokens);
+            string spokenUser = string.Empty;
+            (spokenUser, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.User, typedPhraseTokens);
             
-            if (!string.IsNullOrWhiteSpace(spokenJellyUser))
+            if (!string.IsNullOrWhiteSpace(spokenUser))
             {
-                string? jellyUser =
-                    _configuration.GetSection("Services:HomeHook:UserMappings").Get<UserMappings[]>()?
+                UserMappings? availableUser =
+                    Configuration.GetSection("Services:HomeHook:UserMappings").Get<UserMappings[]>()?
                     .FirstOrDefault(userMappings => userMappings.Spoken?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)?
-                        .Any(spokenMapping => spokenMapping.Equals(spokenJellyUser, StringComparison.InvariantCultureIgnoreCase)) ?? false)?
-                    .Jellyfin;
+                        .Any(spokenMapping => spokenMapping.Equals(spokenUser, StringComparison.InvariantCultureIgnoreCase)) ?? false);
 
-                if (string.IsNullOrWhiteSpace(jellyUser))
-                    await _loggingService.LogWarning($"Spoken user not mapped.", $"Please map \"{spokenJellyUser}\" to a Jellyfin user.", simplePhrase);
+                if (availableUser == null)
+                    await LoggingService.LogWarning($"Spoken user not mapped.", $"Please map \"{spokenUser}\" to a user.", simplePhrase);
                 else
                 {
-                    await _loggingService.LogDebug($"Mapped spoken user token to {jellyUser}.", string.Empty, simplePhrase);
-                    user = jellyUser;
+                    await LoggingService.LogDebug($"Mapped spoken user token to {availableUser}.", string.Empty, simplePhrase);
+                    user = availableUser;
                 }
             }
             else 
-                await _loggingService.LogDebug($"No user extracted from the phrase spoken. Defaulting to user: \"{user}\".", string.Empty, simplePhrase);
+                await LoggingService.LogDebug($"No user extracted from the phrase spoken. Defaulting to user: \"{user}\".", string.Empty, simplePhrase);
 
             // Map spoken path term.
             string spokenPathTerm = string.Empty;
             (spokenPathTerm, typedPhraseTokens) = ExtractPrepositionTerm(PrepositionType.Path, typedPhraseTokens);
 
-            await _loggingService.LogDebug($"Mapped spoken path term to {spokenPathTerm}.", string.Empty, simplePhrase);
+            await LoggingService.LogDebug($"Mapped spoken path term to {spokenPathTerm}.", string.Empty, simplePhrase);
 
             phraseTokens = typedPhraseTokens.Select(tokenItem => tokenItem.token);
 
             // Map spoken media order.
             if (phraseTokens.Any() && orderTokens.SelectMany(tokens => tokens.Value).Any(orderToken => phraseTokens.First().Equals(orderToken, StringComparison.InvariantCultureIgnoreCase)))
             {
-                string spokenJellyOrderType = orderTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.First(), StringComparison.InvariantCultureIgnoreCase))).Key;
+                string spokenOrderType = orderTokens.FirstOrDefault(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.First(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
-                if (!string.IsNullOrWhiteSpace(spokenJellyOrderType) && Enum.TryParse(spokenJellyOrderType, out OrderType orderTypeResult))
+                if (!string.IsNullOrWhiteSpace(spokenOrderType) && Enum.TryParse(spokenOrderType, out OrderType orderTypeResult))
                 {
                     orderType = orderTypeResult;
-                    await _loggingService.LogDebug($"Mapped spoken order token to {orderType}.", string.Empty, simplePhrase);
+                    await LoggingService.LogDebug($"Mapped spoken order token to {orderType}.", string.Empty, simplePhrase);
                 }
 
                 phraseTokens = phraseTokens.Skip(1).AsEnumerable();
@@ -162,12 +177,41 @@ namespace HomeHook.Services
             // Map spoken media type.
             if (phraseTokens.Any() && mediaTypeTokens.SelectMany(tokens => tokens.Value).Any(mediaTypeToken => phraseTokens.Last().Equals(mediaTypeToken, StringComparison.InvariantCultureIgnoreCase)))
             {
-                string spokenJellyMediaType = mediaTypeTokens.First(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
+                string spokenMediaType = mediaTypeTokens.First(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
-                if (!string.IsNullOrWhiteSpace(spokenJellyMediaType) && Enum.TryParse(spokenJellyMediaType, out MediaType mediaTypeResult))
+                if (!string.IsNullOrWhiteSpace(spokenMediaType) && Enum.TryParse(spokenMediaType, out MediaType mediaTypeResult))
                 {
                     mediaType = mediaTypeResult;
-                    await _loggingService.LogDebug($"Mapped spoken media type token to {mediaType}.", string.Empty, simplePhrase);
+                    await LoggingService.LogDebug($"Mapped spoken media type token to {mediaType}.", string.Empty, simplePhrase);
+                }
+
+                phraseTokens = phraseTokens.SkipLast(1).AsEnumerable();
+            }
+
+            // Map spoken source.
+            if (phraseTokens.Any() && sourceTokens.SelectMany(tokens => tokens.Value).Any(sourceToken => phraseTokens.Last().Equals(sourceToken, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                string spokenSource = sourceTokens.First(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
+
+                if (!string.IsNullOrWhiteSpace(spokenSource) && Enum.TryParse(spokenSource, out Source sourceResult))
+                {
+                    source = sourceResult;
+                    await LoggingService.LogDebug($"Mapped source token to {source}.", string.Empty, simplePhrase);
+                }
+
+                phraseTokens = phraseTokens.SkipLast(1).AsEnumerable();
+            }
+
+
+            // Map spoken playback method.
+            if (phraseTokens.Any() && playbackMethodTokens.SelectMany(tokens => tokens.Value).Any(playbackMethodToken => phraseTokens.Last().Equals(playbackMethodToken, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                string spokenPlaybackMethod = playbackMethodTokens.First(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
+
+                if (!string.IsNullOrWhiteSpace(spokenPlaybackMethod) && Enum.TryParse(spokenPlaybackMethod, out PlaybackMethod playbackMethodResult))
+                {
+                    playbackMethod = playbackMethodResult;
+                    await LoggingService.LogDebug($"Mapped spoken playback method token to {playbackMethod}.", string.Empty, simplePhrase);
                 }
 
                 phraseTokens = phraseTokens.SkipLast(1).AsEnumerable();
@@ -178,21 +222,40 @@ namespace HomeHook.Services
 
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
-                await _loggingService.LogError($"No search terms were extracted from the phrase.", $"Please make sure the phrase includes a search term!", simplePhrase);
+                await LoggingService.LogError($"No search terms were extracted from the phrase.", $"Please make sure the phrase includes a search term!", simplePhrase);
                 return null;
             }
             else
             {
-                await _loggingService.LogDebug($"Mapped search term to {searchTerm}.", string.Empty, simplePhrase);
-                return new JellyPhrase
+                await LoggingService.LogDebug($"Mapped search term to {searchTerm}.", string.Empty, simplePhrase);
+
+                string sourceUser = string.Empty;
+
+                switch (source)
+                {
+                    case Source.Jellyfin:
+                        if (string.IsNullOrWhiteSpace(user.Jellyfin))
+                        {
+                            await LoggingService.LogError($"No Jellyfin user was found.", $"Please make sure the settings includes a default Jellyfin user!", simplePhrase);
+                            return null;
+                        }
+                        sourceUser = user.Jellyfin; 
+                        break;
+                    case Source.YouTube:
+                        sourceUser = user.YouTube ?? string.Empty; 
+                        break;
+                }
+
+                return new LanguagePhrase
                 {
                     SearchTerm = searchTerm,
                     Device = device,
-                    User = user,
+                    User = sourceUser,
                     PathTerm = spokenPathTerm,
+                    PlaybackMethod = (PlaybackMethod)playbackMethod,
+                    Source = (Source)source,
                     MediaType = (MediaType)mediaType,
-                    OrderType = (OrderType)orderType,
-                    Cache = true,
+                    OrderType = (OrderType)orderType
                 };
             }      
         }
@@ -229,7 +292,7 @@ namespace HomeHook.Services
         private IEnumerable<string> ProcessWordMappings(string[] phraseTokens)
         {
             Dictionary<string, IEnumerable<string>?> wordMappings =
-                _configuration.GetSection("Services:Language:WordMappings")
+                Configuration.GetSection("Services:Language:WordMappings")
                     .GetChildren()
                     .Where(section => !string.IsNullOrWhiteSpace(section.Key))
                     .ToDictionary(section => section.Key, section => section.Value?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).AsEnumerable());

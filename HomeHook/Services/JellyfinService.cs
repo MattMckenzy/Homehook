@@ -1,7 +1,7 @@
 ﻿using HomeHook.Common.Models;
 using HomeHook.Common.Services;
-using HomeHook.Models;
 using HomeHook.Models.Jellyfin;
+using HomeHook.Models.Language;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
@@ -39,7 +39,7 @@ namespace HomeHook.Services
             };
         }
 
-        public async Task<List<MediaItem>> GetItems(JellyPhrase phrase, string userId)
+        public async Task<List<MediaItem>> GetItems(LanguagePhrase phrase, string userId)
         {
             ConcurrentBag<Item> returningItems = new();
             List<Task> recursiveTasks = new();
@@ -121,7 +121,7 @@ namespace HomeHook.Services
             return users?.FirstOrDefault(user => user.Name.Equals(userName, StringComparison.InvariantCultureIgnoreCase))?.Id;
         }
 
-        private async Task<IEnumerable<Item>> GetItems(JellyPhrase phrase, string userId, string? parentId, Dictionary<string, string> headerReplacements)
+        private async Task<IEnumerable<Item>> GetItems(LanguagePhrase phrase, string userId, string? parentId, Dictionary<string, string> headerReplacements)
         {
             List<Item> returningItems = new();
 
@@ -201,7 +201,7 @@ namespace HomeHook.Services
             await JellyfinCaller.PostRequestAsync<string>(route, userName, AccessTokenDelegate, headerReplacements, queryParameters);
         }
 
-        private List<MediaItem> ItemsToMediaQueue(IEnumerable<Item> items, JellyPhrase phrase, string userId)
+        private List<MediaItem> ItemsToMediaQueue(IEnumerable<Item> items, LanguagePhrase phrase, string userId)
         {
             return items.Select((item, index) => 
             {
@@ -216,9 +216,9 @@ namespace HomeHook.Services
                         MediaItemKind = (MediaItemKind)mediaKind,
                         Metadata = GetMetadata((MediaItemKind)mediaKind, item, userId),
                         StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
-                        Runtime = (float)(item.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(item.RunTimeTicks.Value).TotalSeconds),                      
+                        Runtime = (float)(item.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(item.RunTimeTicks.Value).TotalSeconds),
                         User = phrase.User,
-                        Cache = true
+                        Cache = phrase.PlaybackMethod == PlaybackMethod.Cached
                     };
             }
             ).Where(media => media != null).Cast<MediaItem>().ToList();

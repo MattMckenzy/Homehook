@@ -1,6 +1,6 @@
 ﻿using HomeHook.Common.Models;
 using HomeHook.Common.Services;
-using HomeHook.Models.Jellyfin;
+using HomeHook.Models.Language;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -128,7 +128,7 @@ namespace HomeHook.Shared
 
         private async Task<List<MediaItem>> GetItems(string searchTerm)
         {
-            JellyPhrase? phrase = await LanguageService.ParseJellyfinSimplePhrase(searchTerm);
+            LanguagePhrase? phrase = await LanguageService.ParseSimplePhrase(searchTerm);
 
             if (phrase == null)
             {

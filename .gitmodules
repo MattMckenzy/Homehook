@@ -1,3 +1,6 @@
 [submodule "GoogleCast"]
 	path = GoogleCast
 	url = https://github.com/MattMckenzy/GoogleCast.git
+[submodule "YoutubeDLSharp"]
+	path = YoutubeDLSharp
+	url = https://github.com/MattMckenzy/YoutubeDLSharp.git

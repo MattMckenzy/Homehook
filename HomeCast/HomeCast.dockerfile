@@ -1,7 +1,8 @@
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
 FROM mcr.microsoft.com/dotnet/aspnet:latest AS base
-RUN apt update && apt install -y alsa-utils pulseaudio evtest mpv socat
+RUN apt update && apt install -y alsa-utils pulseaudio evtest mpv socat python3
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp resources
 WORKDIR /app
 EXPOSE 8121
 

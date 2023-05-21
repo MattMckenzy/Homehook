@@ -1,4 +1,4 @@
-﻿namespace HomeHook.Models
+﻿namespace HomeHook.Models.Language
 {
     public enum MediaType
     {

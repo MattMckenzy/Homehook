@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HomeHook.Common\HomeHook.Common.csproj" />
+    <ProjectReference Include="..\YoutubeDLSharp\YoutubeDLSharp\YoutubeDLSharp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

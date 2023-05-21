@@ -1,11 +1,11 @@
 ﻿using HomeHook.Attributes;
 using HomeHook.Models;
-using HomeHook.Models.Jellyfin;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR.Client;
 using HomeHook.Common.Models;
 using HomeHook.Common.Services;
+using HomeHook.Models.Language;
 
 namespace HomeHook.Controllers
 {
@@ -192,7 +192,7 @@ namespace HomeHook.Controllers
             if (string.IsNullOrWhiteSpace(simplePhrase.Content))
                 return BadRequest("Please post the search phrase in the body as \"Content\"!");
 
-            JellyPhrase? phrase = await LanguageService.ParseJellyfinSimplePhrase(simplePhrase.Content);
+            LanguagePhrase? phrase = await LanguageService.ParseSimplePhrase(simplePhrase.Content);
             
             if (phrase == null)
                 return BadRequest("Missing search content! Please specify a search term along with any optional filters.");
@@ -202,7 +202,7 @@ namespace HomeHook.Controllers
             return await ProcessJellyPhrase(phrase, nameof(PostJellySimpleHook));
         }
 
-        private async Task<IActionResult> ProcessJellyPhrase(JellyPhrase phrase, string controllerName)
+        private async Task<IActionResult> ProcessJellyPhrase(LanguagePhrase phrase, string controllerName)
         {
             string? userId = await JellyfinService.GetUserId(phrase.User);
             if (string.IsNullOrWhiteSpace(userId))

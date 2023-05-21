@@ -1,4 +1,4 @@
-﻿namespace HomeHook.Models.Jellyfin
+﻿namespace HomeHook.Models.Language
 {
     public enum OrderType
     {

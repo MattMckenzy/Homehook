@@ -1,6 +1,8 @@
-﻿namespace HomeHook.Models.Jellyfin
+﻿using HomeHook.Services;
+
+namespace HomeHook.Models.Language
 {
-    public class JellyPhrase
+    public class LanguagePhrase
     {
         public required string SearchTerm { get; set; }
 
@@ -10,9 +12,11 @@
 
         public string? PathTerm { get; set; }
 
-        public bool Cache { get; set; } = false;
-
         public OrderType OrderType { get; set; } = OrderType.Newest;
+
+        public PlaybackMethod PlaybackMethod { get; set; } = PlaybackMethod.Cached;
+
+        public Source Source { get; set; } = Source.Jellyfin;
 
         public MediaType MediaType { get; set; } = MediaType.All;
 

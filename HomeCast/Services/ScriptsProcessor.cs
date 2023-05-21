@@ -16,13 +16,10 @@ namespace HomeCast
         {
         };
 
-        private static IEnumerable<ScriptType> AutoStartScripts { get;} = new ScriptType[]
-        {
-        };
+        private static IEnumerable<ScriptType> AutoStartScripts { get;} = Array.Empty<ScriptType>();
 
         private static ConcurrentDictionary<string, Process> ScriptProcesses { get; } = new();
 
-        private string Name { get; set; } = string.Empty;
         private OSType OSType { get; set; }
         private DeviceModel DeviceModel { get; set; }
 
@@ -36,8 +33,6 @@ namespace HomeCast
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            Name = Configuration["Device:Name"] ?? string.Empty;
-
             if (!Enum.TryParse(Configuration["Device:OS"], out OSType parsedOSType))
                 throw new InvalidOperationException($"Please set a valid OS type in the \"Device:OS\" variable! Possible selections are: {string.Join(", ", Enum.GetNames<OSType>())}");
             else
@@ -103,8 +98,10 @@ namespace HomeCast
             return true;
         }
 
-        private void LinuxProcess_OutputDataReceived(Script script, DataReceivedEventArgs dataReceivedEventArgs)
+        private async void LinuxProcess_OutputDataReceived(Script script, DataReceivedEventArgs dataReceivedEventArgs)
         {
+            await LoggingService.LogDebug($"HomeHook Script Output", $"Script output: {dataReceivedEventArgs.Data}");
+
             switch (script.ScriptType)
             {
                 default:
@@ -113,7 +110,7 @@ namespace HomeCast
         }
                                                                                                                                                                                                                                                                                                                                                                                                                                            
         private void LinuxProcess_ErrorDataReceived(Script script, DataReceivedEventArgs dataReceivedEventArgs) =>
-            _ = Task.Run(async () => await LoggingService.LogError($"HomeHook Device \"{Name}\" Error", $"Error in script \"{script.DeviceModel}-{script.ScriptType}\": {dataReceivedEventArgs.Data}"));
+            _ = Task.Run(async () => await LoggingService.LogError($"HomeHook Script Error", $"Error in script \"{script.DeviceModel}-{script.ScriptType}\": {dataReceivedEventArgs.Data}"));
         
         private void LinuxProcess_Exited(Script script, string additionalArguments)
         {

@@ -106,11 +106,6 @@ a, .btn-link {
     content:"\F0412"
 }
 
-.progress-bar {
-    -webkit-transition: width .1s linear;
-    transition: width .1s linear;
-}
-
 .btn .mdi::before {
     position: relative;
 }

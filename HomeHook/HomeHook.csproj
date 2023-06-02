@@ -43,6 +43,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HomeHook.Common\HomeHook.Common.csproj" />
+    <ProjectReference Include="..\YoutubeDLSharp\YoutubeDLSharp\YoutubeDLSharp.csproj" />
   </ItemGroup>
   <Choose>
     <When Condition=" '$(Configuration)'=='Release' ">
@@ -57,9 +58,9 @@
   </Choose>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Debug' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Utilities\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints local -ImageSuffix 2" />
+    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Docker\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints local -ImageSuffix 2" />
   </Target>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Release' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Utilities\pipeline.ps1 -Project $(ProjectName) -Endpoints local -ImageSuffix 2" />
+    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints local -ImageSuffix 2" />
   </Target>
 </Project>

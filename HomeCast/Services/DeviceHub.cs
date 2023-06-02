@@ -59,7 +59,7 @@ namespace HomeCast.Services
         public async Task LaunchQueue(List<MediaItem> mediaItems) =>
             await QueueCommand(PlayerService.LaunchQueue, new object?[] { mediaItems });
 
-        public async Task InsertQueue(List<MediaItem> mediaItems, string? insertBefore) =>
+        public async Task InsertQueue(List<MediaItem> mediaItems, string? insertBefore = null) =>
             await QueueCommand(PlayerService.InsertQueueAsync, new object?[] { mediaItems, insertBefore });
 
         public async Task UpdateQueue(List<MediaItem> mediaItems) =>

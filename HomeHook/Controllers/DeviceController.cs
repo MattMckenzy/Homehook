@@ -1,31 +1,26 @@
 ﻿using HomeHook.Attributes;
+using HomeHook.Common.Exceptions;
+using HomeHook.Common.Models;
 using HomeHook.Models;
+using HomeHook.Models.Language;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR.Client;
-using HomeHook.Common.Models;
-using HomeHook.Common.Services;
-using HomeHook.Models.Language;
 
 namespace HomeHook.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class JellyController : ControllerBase
+    public class DeviceController : ControllerBase
     {
-        private JellyfinService JellyfinService { get; }
+        // TODO: Add missing device controller commands.
+
         private LanguageService LanguageService { get; }
         private CastService CastService { get; }
-        private LoggingService<JellyController> LoggingService { get; }
-        private IConfiguration Configuration { get; }
 
-        public JellyController(JellyfinService jellyfinService, LanguageService languageService, CastService castService, LoggingService<JellyController> loggingService, IConfiguration configuration)
+        public DeviceController(LanguageService languageService, CastService castService)
         {
-            JellyfinService = jellyfinService;
             LanguageService = languageService;
             CastService = castService;
-            LoggingService = loggingService;
-            Configuration = configuration;
         }
 
         [HttpGet("{receiver}/toggleplayback")]
@@ -187,45 +182,45 @@ namespace HomeHook.Controllers
 
         [HttpPost("simple")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:HomeHook:Tokens")]
-        public async Task<IActionResult> PostJellySimpleHook([FromBody] SimplePhrase simplePhrase)
+        public async Task<IActionResult> PostSimpleHook([FromBody] SimplePhrase simplePhrase, [FromQuery] bool launch = true, [FromQuery] string? insertBefore = null) =>
+            await SearchPlay(simplePhrase, launch, insertBefore);
+
+        private async Task<IActionResult> SearchPlay(SimplePhrase simplePhrase, bool launch, string? insertBefore)
         {
-            if (string.IsNullOrWhiteSpace(simplePhrase.Content))
-                return BadRequest("Please post the search phrase in the body as \"Content\"!");
-
-            LanguagePhrase? phrase = await LanguageService.ParseSimplePhrase(simplePhrase.Content);
-            
-            if (phrase == null)
-                return BadRequest("Missing search content! Please specify a search term along with any optional filters.");
-            else
-                await LoggingService.LogDebug("PostJellySimpleHook - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {simplePhrase.Content}", phrase);
-
-            return await ProcessJellyPhrase(phrase, nameof(PostJellySimpleHook));
-        }
-
-        private async Task<IActionResult> ProcessJellyPhrase(LanguagePhrase phrase, string controllerName)
-        {
-            string? userId = await JellyfinService.GetUserId(phrase.User);
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user Ids");
-            
-            List<MediaItem> queueItems = await JellyfinService.GetItems(phrase, userId);
-            await LoggingService.LogDebug($"{controllerName} - items found.", $"Found {queueItems.Count} item(s) with the search term {phrase.SearchTerm}.");
-            await LoggingService.LogInformation($"{controllerName} - items found.", "Found the following items:", queueItems);
-            if (!queueItems.Any())
+            try
             {
-                await LoggingService.LogWarning($"{controllerName} - no results", $"{phrase.SearchTerm} returned no search results.", phrase);
-                return NotFound($"No user found! - {phrase.SearchTerm}, or the default user, returned no available user IDs.");
+                if (string.IsNullOrWhiteSpace(simplePhrase.Content))
+                    return BadRequest("Please post the search phrase in the body as \"Content\"!");
+
+                LanguagePhrase languagePhrase = await LanguageService.ParseSimplePhrase(simplePhrase.Content);
+
+                (bool getSuccess, DeviceService? deviceService) = await CastService.TryGetDeviceService(languagePhrase.Device);
+
+                if (!getSuccess || deviceService == null)
+                    return NotFound($"Requested device \"{languagePhrase.Device}\" not found!");
+
+                int itemCount = 0;
+                await foreach (MediaItem mediaItem in deviceService.GetItems(languagePhrase))
+                {
+                    if (itemCount++ == 0 && launch)
+                        await deviceService.LaunchQueue(new List<MediaItem> { mediaItem });
+                    else
+                        await deviceService.AddItems(new List<MediaItem> { mediaItem }, insertBefore);
+                }
+
+                if (itemCount == 0)
+                    return NotFound($"No media found! -  \"{languagePhrase.SearchTerm}\", returned no media.");
+                else
+                    return Ok($"Found {itemCount} item(s) with the search term {simplePhrase.Content}.");
             }
-
-            (bool getSuccess, DeviceService? deviceService) = await CastService.TryGetDeviceService(phrase.Device);
-
-            if (!getSuccess || deviceService == null)
-                return NotFound($"Requested device \"{phrase.Device}\" not found!");
-
-            _ = Task.Run(async () => await deviceService.StartJellyfinSession(queueItems));
-
-            return Ok($"Found {queueItems.Count} item(s) with the search term {phrase.SearchTerm}.");
+            catch (ConfigurationException configurationException)
+            {
+                return UnprocessableEntity($"Configuration Error! - {configurationException.Message}.");
+            }
+            catch (ArgumentException argumentException)
+            {
+                return BadRequest($"Search term invalid! - {argumentException.Message}.");
+            }
         }
     }
 }
-  

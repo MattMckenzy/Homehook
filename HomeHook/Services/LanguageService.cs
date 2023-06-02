@@ -1,4 +1,6 @@
-﻿using HomeHook.Common.Services;
+﻿using HomeHook.Common.Exceptions;
+using HomeHook.Common.Models;
+using HomeHook.Common.Services;
 using HomeHook.Models;
 using HomeHook.Models.Language;
 
@@ -17,48 +19,55 @@ namespace HomeHook.Services
             LoggingService = loggingService;
         }
 
-        public async Task<LanguagePhrase?> ParseSimplePhrase(string simplePhrase)
+        /// <summary>
+        /// Parses the simple language phrase and extracts the terms needed to launch media.
+        /// </summary>
+        /// <param name="simplePhrase">The simple phrase to parse.</param>
+        /// <returns>The parsed LanguagePhrase.</returns>
+        /// <exception cref="ConfigurationException">Thrown if the application is missing mandatory configuration.</exception>
+        /// <exception cref="ArgumentException">Thrown if the given phrase is missing crucial information.</exception>
+        public async Task<LanguagePhrase> ParseSimplePhrase(string simplePhrase)
         {
             UserMappings? user = Configuration.GetSection("Services:Language:DefaultUser").Get<UserMappings>();
             if (user == null) 
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default user is set!");
-                return null; 
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default user is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default user is set in the language service configuration!");
             }
 
             string? device = Configuration["Services:Language:DefaultDevice"];
             if (device == null)
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default device is set!");
-                return null;
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default device is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default device is set in the language service configuration!");
             }
 
             OrderType? orderType = Enum.TryParse(Configuration["Services:Language:DefaultOrder"] ?? string.Empty, out OrderType defaultOrderTypeResult) ? defaultOrderTypeResult : null;
             if (orderType == null)
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default order type is set!");
-                return null;
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default order type is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default order type is set in the language service configuration!");
             }
             
             MediaType? mediaType = Enum.TryParse(Configuration["Services:Language:DefaultMediaType"] ?? string.Empty, out MediaType defaultMediaTypeResult) ? defaultMediaTypeResult : null;
             if (mediaType == null)
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default media type is set!");
-                return null;
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default media type is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default media type is set in the language service configuration!");
             }
 
             PlaybackMethod? playbackMethod = Enum.TryParse(Configuration["Services:Language:DefaultPlaybackMethod"] ?? string.Empty, out PlaybackMethod defaultPlaybackMethodResult) ? defaultPlaybackMethodResult : null;
             if (playbackMethod == null)
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default playback method is set!");
-                return null;
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default playback method is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default playback method is set in the language service configuration!");
             }
 
-            Source? source = Enum.TryParse(Configuration["Services:Language:DefaultSource"] ?? string.Empty, out Source defaultSourceResult) ? defaultSourceResult : null;
+            MediaSource? source = Enum.TryParse(Configuration["Services:Language:DefaultSource"] ?? string.Empty, out MediaSource defaultSourceResult) ? defaultSourceResult : null;
             if (source == null)
             {
-                await LoggingService.LogError($"Configuration error", $"Please make sure a default source is set!");
-                return null;
+                await LoggingService.LogError($"Configuration error", $"Please make sure a default source is set in the language service configuration!");
+                throw new ConfigurationException("Please make sure a default source is set in the language service configuration!");
             }
 
             IEnumerable<string> phraseTokens = ProcessWordMappings(simplePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));;
@@ -193,7 +202,7 @@ namespace HomeHook.Services
             {
                 string spokenSource = sourceTokens.First(keyValuePair => keyValuePair.Value.Any(value => value.Equals(phraseTokens.Last(), StringComparison.InvariantCultureIgnoreCase))).Key;
 
-                if (!string.IsNullOrWhiteSpace(spokenSource) && Enum.TryParse(spokenSource, out Source sourceResult))
+                if (!string.IsNullOrWhiteSpace(spokenSource) && Enum.TryParse(spokenSource, out MediaSource sourceResult))
                 {
                     source = sourceResult;
                     await LoggingService.LogDebug($"Mapped source token to {source}.", string.Empty, simplePhrase);
@@ -223,7 +232,7 @@ namespace HomeHook.Services
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
                 await LoggingService.LogError($"No search terms were extracted from the phrase.", $"Please make sure the phrase includes a search term!", simplePhrase);
-                return null;
+                throw new ArgumentException($"No search terms were extracted from \"{searchTerm}\". Please make sure the phrase includes a search term!", nameof(simplePhrase));
             }
             else
             {
@@ -233,15 +242,15 @@ namespace HomeHook.Services
 
                 switch (source)
                 {
-                    case Source.Jellyfin:
+                    case MediaSource.Jellyfin:
                         if (string.IsNullOrWhiteSpace(user.Jellyfin))
                         {
                             await LoggingService.LogError($"No Jellyfin user was found.", $"Please make sure the settings includes a default Jellyfin user!", simplePhrase);
-                            return null;
+                            throw new ArgumentException("No Jellyfin user was found. Please make sure the settings includes a default Jellyfin user!", nameof(simplePhrase));
                         }
                         sourceUser = user.Jellyfin; 
                         break;
-                    case Source.YouTube:
+                    case MediaSource.YouTube:
                         sourceUser = user.YouTube ?? string.Empty; 
                         break;
                 }
@@ -253,7 +262,7 @@ namespace HomeHook.Services
                     User = sourceUser,
                     PathTerm = spokenPathTerm,
                     PlaybackMethod = (PlaybackMethod)playbackMethod,
-                    Source = (Source)source,
+                    MediaSource = (MediaSource)source,
                     MediaType = (MediaType)mediaType,
                     OrderType = (OrderType)orderType
                 };

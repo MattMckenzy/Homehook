@@ -7,6 +7,8 @@
     <DockerLaunchAction>LaunchBrowser</DockerLaunchAction>
     <DockerServiceUrl>{Scheme}://localhost:{ServicePort}/{Scheme}://{ServiceHost}:{ServicePort}</DockerServiceUrl>
     <DockerServiceName>homecast</DockerServiceName>
+    <DockerDevelopmentMode>Regular</DockerDevelopmentMode>
+    <DockerComposeBuildArguments>--build-arg CONFIG="Debug"</DockerComposeBuildArguments>
   </PropertyGroup>
   <ItemGroup>
     <None Include="docker-compose.override.yml">

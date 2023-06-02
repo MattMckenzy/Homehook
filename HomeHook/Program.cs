@@ -4,6 +4,7 @@ using HomeHook.Middleware;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
+using System.Reflection;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +25,8 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v2", new OpenApiInfo { Title = "HomeHook", Version = "v2" });
+    string version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "2.0.0";
+    c.SwaggerDoc($"v{version}", new OpenApiInfo { Title = "HomeHook", Version = $"v{version}" });
 
     OpenApiSecurityScheme openApiSecurityScheme = new()
     {
@@ -41,6 +43,10 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityRequirement(new() { { openApiSecurityScheme, Array.Empty<string>() } });
 });
 
+builder.Services.AddSingleton<LanguageService>();
+builder.Services.AddSingleton<JellyfinService>();
+builder.Services.AddSingleton<SearchService>();
+
 builder.Services.AddHttpClient<StaticTokenCaller<GotifyServiceAppProvider>>();
 builder.Services.AddHttpClient<AccessTokenCaller<JellyfinServiceAppProvider>>();
 builder.Services.AddHttpClient<AccessTokenCaller<JellyfinAuthenticationServiceAppProvider>>();
@@ -50,10 +56,6 @@ builder.Services.AddSingleton<JellyfinServiceAppProvider>();
 builder.Services.AddSingleton<JellyfinAuthenticationServiceAppProvider>();
 
 builder.Services.AddSingleton<GotifyService>();
-builder.Services.AddSingleton<JellyfinService>();
-
-builder.Services.AddSingleton<LanguageService>();
-
 builder.Services.AddSingleton(typeof(LoggingService<>));
 
 builder.Services.AddSingleton<CastService>();

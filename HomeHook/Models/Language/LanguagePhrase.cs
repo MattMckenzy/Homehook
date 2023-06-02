@@ -1,4 +1,5 @@
-﻿using HomeHook.Services;
+﻿using HomeHook.Common.Models;
+using HomeHook.Services;
 
 namespace HomeHook.Models.Language
 {
@@ -16,7 +17,7 @@ namespace HomeHook.Models.Language
 
         public PlaybackMethod PlaybackMethod { get; set; } = PlaybackMethod.Cached;
 
-        public Source Source { get; set; } = Source.Jellyfin;
+        public MediaSource MediaSource { get; set; } = MediaSource.Jellyfin;
 
         public MediaType MediaType { get; set; } = MediaType.All;
 

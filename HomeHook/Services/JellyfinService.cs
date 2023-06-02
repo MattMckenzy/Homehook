@@ -213,6 +213,9 @@ namespace HomeHook.Services
                     {
                         Id = item.Id,
                         Location = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?static=true&api_key={userId}",
+                        MediaSource = phrase.MediaSource,
+                        Container = Path.GetExtension(item.Path ?? ".unknown"),
+                        Size = item.Size ?? 0,
                         MediaItemKind = (MediaItemKind)mediaKind,
                         Metadata = GetMetadata((MediaItemKind)mediaKind, item, userId),
                         StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
@@ -297,7 +300,7 @@ namespace HomeHook.Services
                     ThumbnailUri = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
                 },
                 _ => throw new NotImplementedException()
-            };
+            };;
         }
     }
 }

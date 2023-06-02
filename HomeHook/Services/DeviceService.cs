@@ -1,6 +1,7 @@
-﻿using HomeHook.Common.Models;
-using HomeHook.Common.Services;
+﻿using HomeHook.Common.Exceptions;
+using HomeHook.Common.Models;
 using HomeHook.Models.Jellyfin;
+using HomeHook.Models.Language;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
 
@@ -16,8 +17,8 @@ namespace HomeHook.Services
 
         #region Injections
 
-        private LoggingService<DeviceService> LoggingService { get; }
         private JellyfinService JellyfinService { get; }
+        private SearchService SearchService { get; }
 
         #endregion
 
@@ -40,27 +41,38 @@ namespace HomeHook.Services
 
         #region Constructor
 
-        public DeviceService(JellyfinService jellyfinService, LoggingService<DeviceService> loggingService)
+        public DeviceService(JellyfinService jellyfinService, SearchService searchService)
         {
             JellyfinService = jellyfinService;
-            LoggingService = loggingService;
+            SearchService = searchService;
         }
 
         #endregion
 
         #region Device Commands
 
-        public async Task StartJellyfinSession(List<MediaItem> items)
+        /// <summary>
+        /// Enumerates through the media items found with the given language phrase.
+        /// </summary>
+        /// <param name="languagePhrase">The parsed language phrase.</param>
+        /// <returns>Enumerates through the found MediaItems.</returns>
+        /// <exception cref="ConfigurationException">Thrown if the application is missing mandatory configuration.</exception>
+        /// <exception cref="ArgumentException">Thrown if the given phrase is missing crucial information.</exception>
+        public async IAsyncEnumerable<MediaItem> GetItems(LanguagePhrase languagePhrase)
         {
-            if (!items.Any())
-                await LoggingService.LogError("Jellyfin Session Start", "There are no items to initialize!");
-
-            _ = Task.Run(async () =>
+            languagePhrase.Device = Device.Name;
+            if (languagePhrase.MediaSource == MediaSource.Jellyfin)
             {
-                await HubConnection.InvokeAsync("LaunchQueue", items);
-
-                await LoggingService.LogDebug("Started Jellyfin Session", $"Succesfully initialized media on device: \"{Device.Name}\"");
-            });
+                string? userId = await JellyfinService.GetUserId(languagePhrase.User);
+                if (string.IsNullOrWhiteSpace(userId))
+                    throw new ConfigurationException($"No Jellyfin user found! - {languagePhrase.SearchTerm}, or the default user, returned no available Jellyfin user Ids.");
+                
+                foreach (MediaItem mediaItem in await JellyfinService.GetItems(languagePhrase, userId))
+                    yield return mediaItem;
+            }
+            else
+                await foreach (MediaItem mediaItem in SearchService.Search(languagePhrase))
+                    yield return mediaItem;
         }
 
         public async Task LaunchQueue(List<MediaItem> medias)
@@ -69,22 +81,22 @@ namespace HomeHook.Services
                 await HubConnection.InvokeAsync("LaunchQueue", medias);
         }
 
-        public async Task PlayItem(int itemId) =>
+        public async Task PlayItem(string itemId) =>
             await HubConnection.InvokeAsync("ChangeCurrentMedia", itemId);
 
-        public async Task UpItems(IEnumerable<int> itemIds) =>
+        public async Task UpItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("UpQueue", itemIds);
 
-        public async Task DownItems(IEnumerable<int> itemIds) =>
+        public async Task DownItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("DownQueue", itemIds);
 
-        public async Task AddItems(List<MediaItem> medias, int? insertBefore = null)
+        public async Task AddItems(List<MediaItem> medias, string? insertBefore = null)
         {
             if (medias.Any())
                 await HubConnection.InvokeAsync("InsertQueue", medias, insertBefore);
         }
 
-        public async Task RemoveItems(IEnumerable<int> itemIds) =>
+        public async Task RemoveItems(IEnumerable<string> itemIds) =>
             await HubConnection.InvokeAsync("RemoveQueue", itemIds);
 
         public async Task Seek(double seekSeconds) =>
@@ -135,34 +147,38 @@ namespace HomeHook.Services
                 Device = device;
                 DeviceUpdated?.Invoke(this, Device);
             }
-
-            switch (Device.DeviceStatus)
+            
+            if (Device.CurrentMedia?.MediaSource == MediaSource.Jellyfin)
             {
-                case DeviceStatus.Playing:
-                    if (Math.Round(Device.CurrentTime) % 5 == 0)
+                switch (Device.DeviceStatus)
+                {
+                    case DeviceStatus.Playing:
+                        if (Math.Round(Device.CurrentTime) % 5 == 0)
+                            await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                        break;
+                    case DeviceStatus.Paused:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                    break;
-                case DeviceStatus.Paused:
-                    await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                    break;
-                case DeviceStatus.Pausing:
-                    await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Pause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                    break;
-                case DeviceStatus.Unpausing:
-                    await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Unpause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                    break;
-                case DeviceStatus.Starting:
-                    await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                    break;
-                case DeviceStatus.Finishing:
-                    await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.Id);
-                    break;
-                case DeviceStatus.Stopping:
-                    await JellyfinService.UpdateProgress(GetProgress(finished: null), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
-                    break;
-                case DeviceStatus.Stopped:
-                default:
-                    break;
+                        break;
+                    case DeviceStatus.Pausing:
+                        await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Pause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                        break;
+                    case DeviceStatus.Unpausing:
+                        await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Unpause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                        break;
+                    case DeviceStatus.Starting:
+                        await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
+                        break;
+                    case DeviceStatus.Finishing:
+                        await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.Id);
+                        break;
+                    case DeviceStatus.Stopping:
+                        await JellyfinService.UpdateProgress(GetProgress(finished: null), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
+                        break;
+                    case DeviceStatus.Buffering:
+                    case DeviceStatus.Stopped:
+                    default:
+                        break;
+                }
             }
         }
 

@@ -7,13 +7,14 @@ using System.Collections.Concurrent;
 
 namespace HomeHook
 {
+    // TODO: Properly handle disconnected device.
     public class CastService : IHostedService
     {
         #region Injections
 
         private JellyfinService JellyfinService { get; }
+        private SearchService SearchService { get; }
         private LoggingService<CastService> LoggingService { get; }
-        private LoggingService<DeviceService> DeviceLoggingService { get; }
         private IConfiguration Configuration { get; }
 
         #endregion
@@ -34,11 +35,11 @@ namespace HomeHook
 
         #region Constructor
 
-        public CastService(JellyfinService jellyfinService, LoggingService<CastService> loggingService, LoggingService<DeviceService> deviceLoggingService, IConfiguration configuration)
+        public CastService(JellyfinService jellyfinService, SearchService searchService, LoggingService<CastService> loggingService, IConfiguration configuration)
         {
             JellyfinService = jellyfinService;
+            SearchService = searchService;
             LoggingService = loggingService;
-            DeviceLoggingService = deviceLoggingService;
             Configuration = configuration;
         }
 
@@ -93,9 +94,9 @@ namespace HomeHook
                             await hubConnection.StartAsync(cancellationToken);
                             Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
 
-                            DeviceService deviceService = new(JellyfinService, DeviceLoggingService)
+                            DeviceService deviceService = new(JellyfinService, SearchService)
                             {
-                                Device = device,
+                                Device = device,                                
                                 HubConnection = hubConnection
                             };
                             if (DeviceServices.TryAdd(deviceConfiguration.Name, deviceService))

@@ -1,4 +1,5 @@
-﻿using HomeHook.Common.Models;
+﻿using HomeHook.Common.Exceptions;
+using HomeHook.Common.Models;
 using HomeHook.Common.Services;
 using HomeHook.Models.Language;
 using HomeHook.Services;
@@ -23,12 +24,6 @@ namespace HomeHook.Shared
         private LanguageService LanguageService { get; set; } = null!;
 
         [Inject]
-        private JellyfinService JellyfinService { get; set; } = null!;
-
-        [Inject]
-        private LoggingService<DeviceCard> LoggingService { get; set; } = null!;
-
-        [Inject]
         private IJSRuntime JSRuntime { get; set; } = null!;
 
         #endregion
@@ -42,7 +37,6 @@ namespace HomeHook.Shared
 
         #region Private Variables
 
-        private HubConnection HubConnection { get; set; } = null!;
         private Device Device { get; set; } = null!;
         private MediaItem? Media { get; set; } = null;
 
@@ -68,7 +62,6 @@ namespace HomeHook.Shared
         {
             await base.OnInitializedAsync();
 
-            HubConnection = DeviceService.HubConnection;
             Device = DeviceService.Device;
             Media = Device.CurrentMedia;
 
@@ -100,7 +93,6 @@ namespace HomeHook.Shared
 
         private async Task UpdateStatus()
         {
-            HubConnection = DeviceService.HubConnection;
             Device = DeviceService.Device;
             Media = Device.CurrentMedia;
              
@@ -126,34 +118,6 @@ namespace HomeHook.Shared
             };
         }
 
-        private async Task<List<MediaItem>> GetItems(string searchTerm)
-        {
-            LanguagePhrase? phrase = await LanguageService.ParseSimplePhrase(searchTerm);
-
-            if (phrase == null)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"Missing search content! Please specify a search term along with any optional filters.", "");
-                return Array.Empty<MediaItem>().ToList();
-            }
-            else
-                await LoggingService.LogDebug("PostJellySimpleHook - parsed phrase.", $"Succesfully parsed the following phrase from the search term: {searchTerm}", phrase);
-
-            string? userId = await JellyfinService.GetUserId(phrase.User);
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"No user found! - {phrase.SearchTerm}, or the default user, returned no available user Ids.", "");
-                return Array.Empty<MediaItem>().ToList();
-            }
-                
-            phrase.Device = Device.Name;
-            List<MediaItem> medias = await JellyfinService.GetItems(phrase, userId);
-            
-            if (!medias.Any())
-                await JSRuntime.InvokeVoidAsync("alert", $"No media found! - {phrase.SearchTerm}, returned no media.", "");
-
-            return medias;
-        }
-
         private async void MediaItemCheckedChanged(string mediaId, ChangeEventArgs changeEventArgs)
         {
             if (changeEventArgs.Value != null &&
@@ -167,6 +131,39 @@ namespace HomeHook.Shared
 
             MediaIds = Device.MediaQueue.Select(mediaItem => mediaItem.Id).Join(MediaIds, mediaId => mediaId, mediaId => mediaId, (mediaId, mediaInnerId) => mediaId).ToList();
             await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task SearchPlay(bool launch = true, string? insertBefore = null)
+        {
+            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter search term to {(launch ? "find" : "add")} items for {Device.Name}'s queue.", "");
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                try
+                {
+                    bool firstItem = true;
+
+                    await foreach (MediaItem mediaItem in DeviceService.GetItems(await LanguageService.ParseSimplePhrase(searchTerm)))
+                    {
+                        if (firstItem && launch)
+                            await DeviceService.LaunchQueue(new List<MediaItem> { mediaItem });
+                        else
+                            await DeviceService.AddItems(new List<MediaItem> { mediaItem }, insertBefore);
+
+                        firstItem = false;
+                    }
+
+                    if (firstItem)
+                        await JSRuntime.InvokeVoidAsync("alert", $"No media found! - {searchTerm}, returned no media.", "");
+                }
+                catch (ConfigurationException configurationException)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"Configuration Error! - {configurationException.Message}.", "");
+                }
+                catch (ArgumentException argumentException)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"Search term invalid! - {argumentException.Message}.", "");
+                }
+            }
         }
 
         #endregion
@@ -188,31 +185,31 @@ namespace HomeHook.Shared
             await DeviceService.PlayPause();
 
         public async Task StopClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("Stop");
+            await DeviceService.Stop();
 
         public async Task RewindClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("SeekRelative", -10);
+            await DeviceService.SeekRelative(-10);
         
         public async Task FastForwardClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("SeekRelative", +10);
+            await DeviceService.SeekRelative(+10);
         
         public async Task PreviousClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("Previous");
+            await DeviceService.Previous();
 
         public async Task NextClick(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("Next");
+            await DeviceService.Next();
 
         public async Task SetRepeatMode(RepeatMode repeatMode) =>
-            await HubConnection.InvokeAsync("ChangeRepeatMode", repeatMode);
+            await DeviceService.SetRepeatMode(repeatMode);
 
         public async Task SetPlaybackRate(double playBackRate) =>
-            await HubConnection.InvokeAsync("SetPlaybackRate", playBackRate);
+            await DeviceService.SetPlaybackRate(playBackRate);
 
         public async Task SetVolume(ChangeEventArgs changeEventArgs) =>
-            await HubConnection.InvokeAsync("SetVolume", float.Parse(changeEventArgs.Value?.ToString() ?? "0.5"));
+            await DeviceService.SetVolume(float.Parse(changeEventArgs.Value?.ToString() ?? "0.5"));
 
         public async Task ToggleMute(MouseEventArgs _) =>
-            await HubConnection.InvokeAsync("ToggleMute");
+            await DeviceService.ToggleMute();
 
         public async Task ToggleEditingQueue(MouseEventArgs _)
         {
@@ -225,37 +222,23 @@ namespace HomeHook.Shared
 
         public async Task LaunchQueue(MouseEventArgs _)
         {
-            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter Jellyfin search term to find items for {Device.Name}'s queue.", "");
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
-                List<MediaItem> medias = await GetItems(searchTerm);
-                if (medias.Any())
-                    await HubConnection.InvokeAsync("LaunchQueue", medias);
-            }    
+            await SearchPlay();
         }
 
         public async Task PlayItem(string itemId) =>
-            await HubConnection.InvokeAsync("ChangeCurrentMedia", itemId);
+            await DeviceService.PlayItem(itemId);
 
         public async Task UpItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("UpQueue", itemIds);
+            await DeviceService.UpItems(itemIds);
 
         public async Task DownItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("DownQueue", itemIds);
+            await DeviceService.DownItems(itemIds);
 
-        public async Task AddItems(string? insertBefore = null)
-        {
-            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter Jellyfin search term to add items to {Device.Name}'s queue.", "");
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
-                List<MediaItem> medias = await GetItems(searchTerm);
-                if (medias.Any())
-                    await HubConnection.InvokeAsync("InsertQueue", medias, insertBefore);
-            }
-        }  
-
+        public async Task AddItems(string? insertBefore = null) =>
+            await SearchPlay(false, insertBefore);
+        
         public async Task RemoveItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("RemoveQueue", itemIds);
+            await DeviceService.RemoveItems(itemIds);
 
         #endregion
 

@@ -36,6 +36,11 @@
     height: 8px;
 }
 
+.progress-bar {
+    -webkit-transition: width .1s linear;
+    transition: width .1s linear;
+}
+
 .invisible-toggle {
     position: absolute;
     display: none

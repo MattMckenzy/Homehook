@@ -8,6 +8,7 @@ using HomeCast.Services;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<PlayerService>();
+builder.Services.AddSingleton<CachingService>();
 builder.Services.AddSingleton<ScriptsProcessor>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ScriptsProcessor>());
 

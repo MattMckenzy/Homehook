@@ -16,6 +16,9 @@ namespace HomeHook.Models.Jellyfin
         [JsonProperty("path")]
         public string? Path { get; set; }
 
+        [JsonProperty("size")]
+        public long? Size { get; set; }
+
         [JsonProperty("type")]
         public string? Type { get; set; }
 

@@ -13,13 +13,13 @@ else
 
             <div class="row m-0 receiver-title position-absolute fixed-top w-100">
                 <h4 class="col text-truncate text-stroke m-2 p-0">@Device.Name</h4>
-                <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@Device.DeviceStatus</h6>
+                <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@(Device.StatusMessage ?? Device.DeviceStatus.ToString())</h6>
                 <i class="col d-flex align-items-center button-bright hover-connect justify-content-end m-2 p-0 mdi mdi-@(GetIcon(Media?.MediaItemKind))" @onclick="LaunchQueue"></i>
             </div>
 
             <div class="media-information p-2">
-                <h5 class="text-truncate text-stroke m-1">@(Device.StatusMessage ?? Media?.Metadata.Title)</h5>
-                <p class="text-truncate text-stroke fst-italic m-1">@(Device.StatusMessage == null ? Media?.Metadata.Subtitle : string.Empty)</p>
+                <h5 class="text-truncate text-stroke m-1">@(Media?.Metadata.Title)</h5>
+                <p class="text-truncate text-stroke fst-italic m-1">@(Media?.Metadata.Subtitle)</p>
             </div>
 
             <div class="bottom-container container-fluid position-absolute fixed-bottom p-0 w-100">
@@ -28,9 +28,14 @@ else
                     {
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
                             <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(Device.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
-                            <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
-                                <div class="progress-bar" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Device.CurrentTime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
-                            </div>
+                                <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
+                                    <div class="progress-bar position-absolute h-100" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Media.Runtime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
+                                    @if (Device.CurrentCacheRatio != null)
+                                    {
+                                        // TODO: Disable controls depending on Device Status.
+                                        <div class="progress-bar position-absolute h-100 bg-success opacity-25" role="progressbar" aria-valuenow="@Device.CurrentCacheRatio" aria-valuemin="0" aria-valuemax="1" style="width:@(Math.Round((double)Device.CurrentCacheRatio * 100d))%;"></div>
+                                    }
+                                </div>
                             <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                         </div>
                         <div class="row flex-nowrap align-items-center mx-0 pt-2 pb-3">
@@ -137,6 +142,8 @@ else
                     <div class="list-group list-group-flush bg-transparent">
                         @foreach(MediaItem mediaItem in Device.MediaQueue)
                         {
+                            // TODO: Add controls for audio and subtitles.
+                            // TODO: Change mediaQueue ID to include index, media queue functions should not just use IDs in case of duplicate entries
                             <label class="media-item list-group-item list-group-item-action @(Media?.Id == mediaItem.Id ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(mediaItem.Id)Check" aria-current="@(Media?.Id == mediaItem.Id)">
                                 @if (Media?.Id == mediaItem.Id)
                                 {
@@ -160,7 +167,7 @@ else
                                         <small class="mw-100 fst-italic">@($"{mediaItem.Metadata.Subtitle}")</small>
                                     }
                                     <div class="d-flex justify-content-between align-items-center text-white text-start text-truncate">
-                                        <small><i class="mdi mdi-@(GetIcon(mediaItem.MediaItemKind)) m-1"></i>@TimeSpan.FromSeconds(mediaItem.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</small>
+                                        <small><i class="mdi mdi-@(GetIcon(mediaItem.MediaItemKind)) m-1"></i>@TimeSpan.FromSeconds(mediaItem.Runtime).ToString(Media?.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</small>
                                         @if (mediaItem.Metadata.CreationDate != null)
                                         {
                                             <small>@($"{mediaItem.Metadata.CreationDate}")</small>

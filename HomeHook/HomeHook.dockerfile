@@ -1,6 +1,9 @@
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
 FROM mcr.microsoft.com/dotnet/aspnet:latest AS base
+RUN echo "deb http://ftp.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
+RUN apt update && apt install -t bullseye-backports -y curl python3
+RUN curl --create-dirs --output-dir /usr/local/bin -OLJ https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod 755 /usr/local/bin/yt-dlp
 WORKDIR /app
 EXPOSE 8122
 

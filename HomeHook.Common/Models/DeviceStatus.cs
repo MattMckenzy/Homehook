@@ -6,6 +6,7 @@
         Stopping,
         Finishing,
         Starting,
+        Buffering,
         Pausing,
         Unpausing,
         Playing,

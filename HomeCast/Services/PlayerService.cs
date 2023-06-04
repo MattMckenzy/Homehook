@@ -346,8 +346,9 @@ namespace HomeCast.Services
 
                 bool videoCapable = Configuration.GetValue<bool>("Services:Player:VideoCapable");
 
-                // TODO: Add HDMI-CEC support
-                // TODO: Convert queue to MPV playlist so OSD gets control.
+                // TODO: Persist device settings on restarts.
+                // TODO: Add HDMI-CEC support.
+                // TODO: Create HTML GUI for local control.
                 // TODO: Add EQ presets.
                 // TODO: Add EQ bars control.
 

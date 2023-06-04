@@ -142,6 +142,7 @@ else
                     <div class="list-group list-group-flush bg-transparent">
                         @foreach(MediaItem mediaItem in Device.MediaQueue)
                         {
+                            // TODO: Fix select all/none button. 
                             // TODO: Add controls for audio and subtitles.
                             // TODO: Change mediaQueue ID to include index, media queue functions should not just use IDs in case of duplicate entries
                             <label class="media-item list-group-item list-group-item-action @(Media?.Id == mediaItem.Id ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(mediaItem.Id)Check" aria-current="@(Media?.Id == mediaItem.Id)">

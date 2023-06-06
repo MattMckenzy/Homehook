@@ -80,13 +80,6 @@ namespace HomeHook
                             {
                                 options.AccessTokenProvider = () => Task.FromResult(deviceConfiguration.AccessToken);
                             })
-                            .ConfigureLogging(logging =>
-                            {
-                                // Log to the Output Window
-                                logging.AddDebug();
-                                // This will set ALL logging to Debug level
-                                logging.SetMinimumLevel(LogLevel.Debug);
-                            })
                             .AddNewtonsoftJsonProtocol()
                             .WithAutomaticReconnect(new DeviceRetryPolicy<CastService>(deviceConfiguration, LoggingService))
                             .Build();

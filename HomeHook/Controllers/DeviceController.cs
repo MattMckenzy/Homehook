@@ -182,10 +182,10 @@ namespace HomeHook.Controllers
 
         [HttpPost("simple")]
         [ApiKey(ApiKeyName = "apiKey", ApiKeysRoute = "Services:HomeHook:Tokens")]
-        public async Task<IActionResult> PostSimpleHook([FromBody] SimplePhrase simplePhrase, [FromQuery] bool launch = true, [FromQuery] string? insertBefore = null) =>
-            await SearchPlay(simplePhrase, launch, insertBefore);
+        public async Task<IActionResult> PostSimpleHook([FromBody] SimplePhrase simplePhrase, [FromQuery] bool insertBeforeSelected = false) =>
+            await SearchPlay(simplePhrase, insertBeforeSelected);
 
-        private async Task<IActionResult> SearchPlay(SimplePhrase simplePhrase, bool launch, string? insertBefore)
+        private async Task<IActionResult> SearchPlay(SimplePhrase simplePhrase, bool insertBeforeSelected = false)
         {
             try
             {
@@ -202,10 +202,7 @@ namespace HomeHook.Controllers
                 int itemCount = 0;
                 await foreach (MediaItem mediaItem in deviceService.GetItems(languagePhrase))
                 {
-                    if (itemCount++ == 0 && launch)
-                        await deviceService.LaunchQueue(new List<MediaItem> { mediaItem });
-                    else
-                        await deviceService.AddItems(new List<MediaItem> { mediaItem }, insertBefore);
+                    await deviceService.AddMediaItems(new List<MediaItem> { mediaItem }, insertBeforeSelected);
                 }
 
                 if (itemCount == 0)

@@ -1,7 +1,5 @@
 ﻿using HomeHook.Common.Exceptions;
 using HomeHook.Common.Models;
-using HomeHook.Common.Services;
-using HomeHook.Models.Language;
 using HomeHook.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -52,8 +50,6 @@ namespace HomeHook.Shared
         private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
         private List<string> BarStyles { get; } = new();
 
-        private List<string> MediaIds { get; set; } = new();
-
         #endregion
 
         #region Lifecycle Overrides
@@ -99,8 +95,6 @@ namespace HomeHook.Shared
             if (Device.DeviceStatus == DeviceStatus.Stopped)
                 IsEditingQueue = false;
 
-            MediaIds = Device.MediaQueue.Select(mediaItem => mediaItem.Id).Join(MediaIds, mediaId => mediaId, mediaId => mediaId, (mediaId, mediaInnerId) => mediaId).ToList();
-
             await InvokeAsync(StateHasChanged);
         }
 
@@ -118,41 +112,41 @@ namespace HomeHook.Shared
             };
         }
 
-        private async void MediaItemCheckedChanged(string mediaId, ChangeEventArgs changeEventArgs)
+        private async void UpdateMediaItemsSelection(IEnumerable<MediaItem> mediaItems, bool IsSelected)
         {
-            if (changeEventArgs.Value != null &&
-                (bool)changeEventArgs.Value &&
-                !MediaIds.Contains(mediaId))
-                MediaIds.Add(mediaId);
-            else if (changeEventArgs.Value != null &&
-                !(bool)changeEventArgs.Value &&
-                MediaIds.Contains(mediaId))
-                MediaIds.Remove(mediaId);
+            List<int> mediaItemIndices = new();
+            foreach (MediaItem mediaItem in mediaItems)
+            {
+                if (IsSelected)
+                    mediaItem.IsSelected = true;
+                else
+                    mediaItem.IsSelected = false;
 
-            MediaIds = Device.MediaQueue.Select(mediaItem => mediaItem.Id).Join(MediaIds, mediaId => mediaId, mediaId => mediaId, (mediaId, mediaInnerId) => mediaId).ToList();
-            await InvokeAsync(StateHasChanged);
+                mediaItemIndices.Add(Device.MediaQueue.IndexOf(mediaItem));
+            }
+            
+            if (mediaItemIndices.Any())
+            {
+                await DeviceService.UpdateMediaItemsSelection(mediaItemIndices, IsSelected);
+                await InvokeAsync(StateHasChanged);
+            }
         }
 
-        private async Task SearchPlay(bool launch = true, string? insertBefore = null)
+        private async Task SearchAddMediaItems(bool launch = false, bool insertBeforeSelectedMediaItem = false)
         {
-            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter search term to {(launch ? "find" : "add")} items for {Device.Name}'s queue.", "");
+            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter search term to add items for {Device.Name}'s queue.", "");
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 try
                 {
-                    bool firstItem = true;
-
+                    bool addedItem = false;
                     await foreach (MediaItem mediaItem in DeviceService.GetItems(await LanguageService.ParseSimplePhrase(searchTerm)))
-                    {
-                        if (firstItem && launch)
-                            await DeviceService.LaunchQueue(new List<MediaItem> { mediaItem });
-                        else
-                            await DeviceService.AddItems(new List<MediaItem> { mediaItem }, insertBefore);
-
-                        firstItem = false;
+                    {     
+                        await DeviceService.AddMediaItems(new List<MediaItem> { mediaItem }, !addedItem && launch, insertBeforeSelectedMediaItem);
+                        addedItem = true;
                     }
 
-                    if (firstItem)
+                    if (!addedItem)
                         await JSRuntime.InvokeVoidAsync("alert", $"No media found! - {searchTerm}, returned no media.", "");
                 }
                 catch (ConfigurationException configurationException)
@@ -170,7 +164,19 @@ namespace HomeHook.Shared
 
         #region Commands
 
-        public async Task SeekClick(MouseEventArgs mouseEventArgs)
+        private async Task PlaySelectedMediaItem() =>
+            await DeviceService.PlaySelectedMediaItem();
+
+        private async Task RemoveSelectedMediaItems() =>
+            await DeviceService.RemoveSelectedMediaItems();
+
+        private async Task MoveSelectedMediaItemsUp() =>
+            await DeviceService.MoveSelectedMediaItemsUp();
+
+        private async Task MoveSelectedMediaItemsDown() =>
+            await DeviceService.MoveSelectedMediaItemsDown();
+
+        private async Task SeekClick(MouseEventArgs mouseEventArgs)
         {
             if (Media == null) 
                 return;
@@ -181,37 +187,37 @@ namespace HomeHook.Shared
             await DeviceService.Seek(seekSeconds);
         }
 
-        public async Task PlayPauseClick(MouseEventArgs _) =>
+        private async Task PlayPauseClick(MouseEventArgs _) =>
             await DeviceService.PlayPause();
 
-        public async Task StopClick(MouseEventArgs _) =>
+        private async Task StopClick(MouseEventArgs _) =>
             await DeviceService.Stop();
 
-        public async Task RewindClick(MouseEventArgs _) =>
+        private async Task RewindClick(MouseEventArgs _) =>
             await DeviceService.SeekRelative(-10);
-        
-        public async Task FastForwardClick(MouseEventArgs _) =>
+
+        private async Task FastForwardClick(MouseEventArgs _) =>
             await DeviceService.SeekRelative(+10);
-        
-        public async Task PreviousClick(MouseEventArgs _) =>
+
+        private async Task PreviousClick(MouseEventArgs _) =>
             await DeviceService.Previous();
 
-        public async Task NextClick(MouseEventArgs _) =>
+        private async Task NextClick(MouseEventArgs _) =>
             await DeviceService.Next();
 
-        public async Task SetRepeatMode(RepeatMode repeatMode) =>
+        private async Task SetRepeatMode(RepeatMode repeatMode) =>
             await DeviceService.SetRepeatMode(repeatMode);
 
-        public async Task SetPlaybackRate(double playBackRate) =>
+        private async Task SetPlaybackRate(double playBackRate) =>
             await DeviceService.SetPlaybackRate(playBackRate);
 
-        public async Task SetVolume(ChangeEventArgs changeEventArgs) =>
+        private async Task SetVolume(ChangeEventArgs changeEventArgs) =>
             await DeviceService.SetVolume(float.Parse(changeEventArgs.Value?.ToString() ?? "0.5"));
 
-        public async Task ToggleMute(MouseEventArgs _) =>
+        private async Task ToggleMute(MouseEventArgs _) =>
             await DeviceService.ToggleMute();
 
-        public async Task ToggleEditingQueue(MouseEventArgs _)
+        private async Task ToggleEditingQueue(MouseEventArgs _)
         {
             IsEditingQueue = !IsEditingQueue;
             if (IsEditingQueue)
@@ -219,26 +225,6 @@ namespace HomeHook.Shared
             else
                 await JSRuntime.InvokeVoidAsync("ChangeElementHeight", CardReference, 250);
         }
-
-        public async Task LaunchQueue(MouseEventArgs _)
-        {
-            await SearchPlay();
-        }
-
-        public async Task PlayItem(string itemId) =>
-            await DeviceService.PlayItem(itemId);
-
-        public async Task UpItems(IEnumerable<string> itemIds) =>
-            await DeviceService.UpItems(itemIds);
-
-        public async Task DownItems(IEnumerable<string> itemIds) =>
-            await DeviceService.DownItems(itemIds);
-
-        public async Task AddItems(string? insertBefore = null) =>
-            await SearchPlay(false, insertBefore);
-        
-        public async Task RemoveItems(IEnumerable<string> itemIds) =>
-            await DeviceService.RemoveItems(itemIds);
 
         #endregion
 

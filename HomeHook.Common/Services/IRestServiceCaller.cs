@@ -226,7 +226,7 @@ namespace HomeHook.Common.Services
                 }
                 else if(typeof(T) == typeof(IEnumerable<byte>))
                 {
-                    return (CallResult<T>)Convert.ChangeType(new CallResult<System.Collections.Generic.IEnumerable<byte>>
+                    return (CallResult<T>)Convert.ChangeType(new CallResult<IEnumerable<byte>>
                     {
                         Content = await httpContent.ReadAsByteArrayAsync().ConfigureAwait(false),
                         StatusCode = response.StatusCode,

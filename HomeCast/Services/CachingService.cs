@@ -72,6 +72,7 @@ namespace HomeCast.Services
         #endregion
 
         // TODO: Add Audio only download
+        // TODO: Add pre-emptive playlist caching with configurable media count. (i.e. cache next 2 media.)
 
         #region CacheService Implementation
 

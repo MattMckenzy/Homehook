@@ -3,8 +3,9 @@
     public enum DeviceStatus
     {
         Stopped,
+        Ended,
         Stopping,
-        Finishing,
+        Finished,
         Starting,
         Buffering,
         Pausing,

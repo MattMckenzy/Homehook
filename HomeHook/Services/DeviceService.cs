@@ -68,45 +68,43 @@ namespace HomeHook.Services
                     throw new ConfigurationException($"No Jellyfin user found! - {languagePhrase.SearchTerm}, or the default user, returned no available Jellyfin user Ids.");
                 
                 foreach (MediaItem mediaItem in await JellyfinService.GetItems(languagePhrase, userId))
+                {                    
                     yield return mediaItem;
+                    await Task.Delay(333);
+                }
             }
             else
                 await foreach (MediaItem mediaItem in SearchService.Search(languagePhrase))
                     yield return mediaItem;
         }
 
-        public async Task LaunchQueue(List<MediaItem> medias)
+        public async Task UpdateMediaItemsSelection(IEnumerable<int> mediaItemIndices, bool IsSelected) =>
+            await HubConnection.InvokeAsync("UpdateMediaItemsSelection", mediaItemIndices, IsSelected);
+
+        public async Task PlaySelectedMediaItem() =>
+            await HubConnection.InvokeAsync("PlaySelectedMediaItem");
+
+        public async Task AddMediaItems(List<MediaItem> medias, bool launch = false, bool insertBeforeSelected = false)
         {
             if (medias.Any())
-                await HubConnection.InvokeAsync("LaunchQueue", medias);
+                await HubConnection.InvokeAsync("AddMediaItems", medias.ToArray(), launch, insertBeforeSelected);
         }
 
-        public async Task PlayItem(string itemId) =>
-            await HubConnection.InvokeAsync("ChangeCurrentMedia", itemId);
+        public async Task RemoveSelectedMediaItems() =>
+            await HubConnection.InvokeAsync("RemoveSelectedMediaItems");
 
-        public async Task UpItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("UpQueue", itemIds);
+        public async Task MoveSelectedMediaItemsUp() =>
+            await HubConnection.InvokeAsync("MoveSelectedMediaItemsUp");
 
-        public async Task DownItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("DownQueue", itemIds);
-
-        public async Task AddItems(List<MediaItem> medias, string? insertBefore = null)
-        {
-            if (medias.Any())
-                await HubConnection.InvokeAsync("InsertQueue", medias, insertBefore);
-        }
-
-        public async Task RemoveItems(IEnumerable<string> itemIds) =>
-            await HubConnection.InvokeAsync("RemoveQueue", itemIds);
+        public async Task MoveSelectedMediaItemsDown() =>
+            await HubConnection.InvokeAsync("MoveSelectedMediaItemsDown");
 
         public async Task Seek(double seekSeconds) =>
             await HubConnection.InvokeAsync("Seek", seekSeconds);
-        
-
+       
         public async Task SeekRelative(double relativeSeconds) =>
             await HubConnection.InvokeAsync("SeekRelative", relativeSeconds);
         
-
         public async Task PlayPause()
         {
             if (Device.DeviceStatus == DeviceStatus.Playing)
@@ -168,7 +166,7 @@ namespace HomeHook.Services
                     case DeviceStatus.Starting:
                         await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Finishing:
+                    case DeviceStatus.Finished:
                         await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.Id);
                         break;
                     case DeviceStatus.Stopping:
@@ -194,7 +192,7 @@ namespace HomeHook.Services
                 MediaSourceId = Device.CurrentMedia.Id,
                 VolumeLevel = Convert.ToInt32(Device.Volume * 100),
                 IsMuted = Device.IsMuted,
-                IsPaused = Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused,
+                IsPaused = Device.DeviceStatus == DeviceStatus.Paused,
                 PlaybackRate = Device.PlaybackRate,
                 PlayMethod = PlayMethod.DirectPlay
             };

@@ -12,7 +12,10 @@
         public string User { get; set; } = string.Empty;
         public bool IsSelected { get; set; } = false;
         public long Size { get; set; } = 0;
+
         public bool Cache { get; set; } = false;
+        public CacheFormat? CacheFormat { get; set; } = null;
+        public double? CachedRatio = null;
 
         public double StartTime { get; set; } = 0;
         public double Runtime { get; set; } = 0;

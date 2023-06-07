@@ -35,19 +35,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Scripts\codecs.conf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="Properties\PublishProfiles\" />
+    <Folder Include="Scripts\" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Debug' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Docker\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints LOLBY-SBC,HAWK-SBC" />
+    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Docker\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints LOLBY-SBC" />
   </Target>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Release' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints LOLBY-SBC,HAWK-SBC" />
+    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints LOLBY-SBC" />
   </Target>
 </Project>

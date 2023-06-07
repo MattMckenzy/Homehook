@@ -7,7 +7,7 @@ using YoutubeDLSharp.Options;
 
 namespace HomeCast.Services
 {
-    public class CachingService : IDisposable
+    public partial class CachingService : IDisposable
     {
         #region Injections
 
@@ -27,10 +27,16 @@ namespace HomeCast.Services
             if (!CacheDirectoryInfo.Exists)
                 CacheDirectoryInfo.Create();
 
-            foreach (FileInfo cacheItemFileInfo in CacheDirectoryInfo.GetFiles())            
-                CacheItems.Add(Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name), 
-                    new() { CacheFileInfo = cacheItemFileInfo, IsReady = true, CachedRatio = 1 });
-            
+            foreach (FileInfo cacheItemFileInfo in CacheDirectoryInfo.GetFiles())
+            {
+                IEnumerable<string> fileNameSplit = Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name).Split("-", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                if (fileNameSplit.Count() == 2 && Enum.TryParse(fileNameSplit.Last(), out CacheFormat cacheFormat))
+                {
+                    CacheItems.Add(Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name),
+                        new() { CacheFileInfo = cacheItemFileInfo, CacheFormat = cacheFormat });
+                }
+            }
 
             CacheSizeBytes = Configuration.GetValue<long?>("Services:Caching:CacheSizeBytes") ?? 10737418240;
 
@@ -39,16 +45,16 @@ namespace HomeCast.Services
             YoutubeDL = new YoutubeDL
             {
                 YoutubeDLPath = "yt-dlp",
-                FFmpegPath = "ffmpeg",                
-                RestrictFilenames = true  
+                FFmpegPath = "ffmpeg",
+                RestrictFilenames = true
             };
 
-            OptionSet = new() 
-            { 
-                NoCacheDir = true, 
-                RemoveCacheDir = true, 
-                EmbedSubs = true, 
-                SubLangs = "all", 
+            OptionSet = new()
+            {
+                NoCacheDir = true,
+                RemoveCacheDir = true,
+                EmbedSubs = true,
+                SubLangs = "all",
                 AddHeader = $"User-Agent:{Configuration["Services:Caching:UserAgent"] ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"}"
             };
         }
@@ -71,17 +77,19 @@ namespace HomeCast.Services
 
         #endregion
 
-        // TODO: Add Audio only download
-        // TODO: Add pre-emptive playlist caching with configurable media count. (i.e. cache next 2 media.)
-
         #region CacheService Implementation
+
+        public event EventHandler<CachingFinishedEventArgs>? CachingFinished;
 
         public async Task<CacheItem?> GetCacheItem(MediaItem mediaItem)
         {
-            if (CacheItems.TryGetValue(mediaItem.Id, out CacheItem? cacheItem) && cacheItem != null)
+            if (CacheItems.TryGetValue($"{mediaItem.Id}-{mediaItem.CacheFormat}", out CacheItem? cacheItem) && cacheItem != null)
                 return cacheItem;
             else if (await TryRunCacheDeletionAlgorithm(mediaItem.Size))
-                return await DownloadCacheItem(mediaItem);            
+            {
+                await DownloadCacheItem(mediaItem);
+                return null;
+            }
             else
             {
                 await LoggingService.LogWarning("Caching Service", $"Could not get enough available space to cache \"{mediaItem.Metadata.Title}\".");
@@ -103,8 +111,8 @@ namespace HomeCast.Services
             {
                 DateTime minimumLastAccessed = CacheItems.Min(cacheItem => cacheItem.Value.CacheFileInfo.LastAccessTime);
                 DateTime maximumLastAccessed = CacheItems.Max(cacheItem => cacheItem.Value.CacheFileInfo.LastAccessTime);
-                long lastAccessedDifference = (maximumLastAccessed - minimumLastAccessed).Ticks;           
-                
+                long lastAccessedDifference = (maximumLastAccessed - minimumLastAccessed).Ticks;
+
                 long smallestSize = CacheItems.Min(cacheItem => cacheItem.Value.CacheFileInfo.Length);
                 long largestSize = CacheItems.Max(cacheItem => cacheItem.Value.CacheFileInfo.Length);
                 long sizeDifference = largestSize - smallestSize;
@@ -133,18 +141,28 @@ namespace HomeCast.Services
             }
         }
 
-        private async Task<CacheItem?> DownloadCacheItem(MediaItem mediaItem)
+        internal void CancelCaching(MediaItem mediaItem)
         {
-            CacheItem newCacheItem = new() 
-            { 
-                CacheFileInfo = new FileInfo(Path.Combine(CacheDirectoryInfo.FullName, $"{mediaItem.Id}{(mediaItem.Container.StartsWith(".") ? string.Empty : ".")}{mediaItem.Container}")) 
+            if (CacheItems.TryGetValue($"{mediaItem.Id}-{mediaItem.CacheFormat}", out CacheItem? cacheItem) && cacheItem != null)
+                cacheItem.CacheCancellationTokenSource.Cancel();
+        }
+
+        private async Task DownloadCacheItem(MediaItem mediaItem)
+        {
+            if (mediaItem.CacheFormat == null)
+                return;
+
+            CacheItem newCacheItem = new()
+            {
+                CacheFileInfo = new FileInfo(Path.Combine(CacheDirectoryInfo.FullName, $"{mediaItem.Id}-{mediaItem.CacheFormat}{(mediaItem.Container.StartsWith(".") ? string.Empty : ".")}{mediaItem.Container}")),
+                CacheFormat = (CacheFormat)mediaItem.CacheFormat
             };
-                        
+
             Progress<DownloadProgress> downloadProgress = new(downloadProgress =>
             {
-                newCacheItem.CachedRatio = downloadProgress.Progress;
+                mediaItem.CachedRatio = downloadProgress.Progress;
             });
-            
+
             await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
 
             _ = Task.Run(async () =>
@@ -156,58 +174,65 @@ namespace HomeCast.Services
                     OptionSet optionSet = (OptionSet)OptionSet.Clone();
                     optionSet.Output = Path.Combine("yt-dlp", newCacheItem.CacheFileInfo.Name);
 
-                    runResult = await YoutubeDL.RunVideoDownload(
-                        mediaItem.Location,
-                        progress: downloadProgress,
-                        ct: newCacheItem.CacheCancellationTokenSource.Token,
-                        overrideOptions: optionSet);
+                    if (mediaItem.CacheFormat == CacheFormat.Audio)
+                        runResult = await YoutubeDL.RunAudioDownload(
+                            mediaItem.Location,
+                            progress: downloadProgress,
+                            ct: newCacheItem.CacheCancellationTokenSource.Token,
+                            overrideOptions: optionSet);
+                    else if (mediaItem.CacheFormat == CacheFormat.Video)
+                        runResult = await YoutubeDL.RunVideoDownload(
+                            mediaItem.Location,
+                            progress: downloadProgress,
+                            ct: newCacheItem.CacheCancellationTokenSource.Token,
+                            overrideOptions: optionSet);
 
-                    if (runResult.Success && !string.IsNullOrWhiteSpace(runResult.Data))
+                    if (runResult != null && runResult.Success && !string.IsNullOrWhiteSpace(runResult.Data))
                     {
                         File.Move(runResult.Data, newCacheItem.CacheFileInfo.FullName);
 
                         await LoggingService.LogDebug("Caching Service", $"Succesfully cached \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
 
-                        newCacheItem.CachedRatio = 1;
-                        newCacheItem.IsReady = true;
+                        mediaItem.CachedRatio = 1;
+
+                        CachingFinished?.Invoke(this,
+                            new CachingFinishedEventArgs
+                            {
+                                CacheItem = newCacheItem,
+                                MediaItem = mediaItem
+                            });
                     }
                     else
                     {
-                        newCacheItem.CachedRatio = null;
-                        newCacheItem.IsReady = false;
+                        mediaItem.CachedRatio = null;
 
-                        await LoggingService.LogError("Caching Service", $"Failed to cache \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {string.Join("; ", runResult.ErrorOutput)}.");
+                        await LoggingService.LogError("Caching Service", $"Failed to cache \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {(runResult != null ? string.Join("; ", runResult.ErrorOutput) : "N/A")}.");
                     }
                 }
                 catch (TaskCanceledException)
                 {
-                    newCacheItem.CachedRatio = null;
-                    newCacheItem.IsReady = false;
+                    mediaItem.CachedRatio = null;
 
                     await LoggingService.LogDebug("Caching Service", $"Canceled caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
                 }
                 catch (Exception exception)
                 {
-                    newCacheItem.CachedRatio = null;
-                    newCacheItem.IsReady = false;
+                    mediaItem.CachedRatio = null;
 
                     await LoggingService.LogError("Caching Service", $"Error during caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {exception.Message}");
                 }
-
             });
 
-            CacheItems.Add(mediaItem.Id, newCacheItem);
-
-            return newCacheItem;
+            CacheItems.Add($"{mediaItem.Id}-{mediaItem.CacheFormat}", newCacheItem);
         }
 
         private async Task DeleteCacheItem(CacheItem cacheItem)
         {
-            string id = Path.GetFileNameWithoutExtension(cacheItem.CacheFileInfo.Name);
-            await LoggingService.LogDebug("Caching Service", $"Deleting cache item with id \"{id}\".");
+            string key = Path.GetFileNameWithoutExtension(cacheItem.CacheFileInfo.Name);
+            await LoggingService.LogDebug("Caching Service", $"Deleting cache item \"{key}\".");
 
             cacheItem.CacheFileInfo.Delete();
-            CacheItems.Remove(id);
+            CacheItems.Remove(key);
         }
 
         #endregion

@@ -19,8 +19,6 @@ namespace HomeHook.Common.Models
         public string? StatusMessage { get; set; }
         public RepeatMode RepeatMode { get; set; } = RepeatMode.Off;
 
-        public double? CurrentCacheRatio { get; set; } = null;
-
         [JsonIgnore]
         public MediaItem? CurrentMedia { get { return CurrentMediaIndex == null ? null : MediaQueue.ElementAtOrDefault((int)CurrentMediaIndex); } }
     }

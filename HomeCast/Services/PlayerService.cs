@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
+using static HomeCast.Services.CachingService;
 
 namespace HomeCast.Services
 {
@@ -25,30 +26,26 @@ namespace HomeCast.Services
         #region Private Properties
 
         private Device Device { get; }
+        private SemaphoreQueue DeviceLock { get; } = new(1);
+        private bool VideoCapable { get; }
 
-        private static readonly SemaphoreSlim DeviceLock = new(1, 1);
-
-        private string MPVSocketLocation { get; }
-        private int ProcessTimeoutSeconds { get; }
-
-        private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
+        private bool IsMediaLoaded { get { return new DeviceStatus[] { DeviceStatus.Finished, DeviceStatus.Stopping, DeviceStatus.Stopped }.Contains(Device.DeviceStatus) == false; } }
 
         private Process? Player { get; set; }
         private Process? Socket { get; set; }
 
-        private bool IsMediaLoaded { get { return new DeviceStatus[] { DeviceStatus.Finished, DeviceStatus.Stopping, DeviceStatus.Stopped }.Contains(Device.DeviceStatus) == false; } }
-
-        private bool DisposedValue { get; set; }
-
-        private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromSeconds(1));
-        private CancellationTokenSource PeriodicTimerCancellationTokenSource { get; } = new();
-        
-        private CacheItem? CacheItem { get; set; }
+        private string MPVSocketLocation { get; }
+        private int ProcessTimeoutSeconds { get; }
 
         private ConcurrentDictionary<long, WaitingCommand> WaitingCommands { get; } = new();
         private long LatestRequestId = 0;
-
+        private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromSeconds(1));
+        private CancellationTokenSource PeriodicTimerCancellationTokenSource { get; } = new();
         private HashSet<string> IgnoredOutputs { get; } = new();
+
+        private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
+
+        private bool DisposedValue { get; set; }
 
         #endregion
 
@@ -73,10 +70,9 @@ namespace HomeCast.Services
             if (string.IsNullOrWhiteSpace(address))
                 throw new InvalidOperationException("Please define a proper device address in the app settings!");
 
-            if (!Enum.TryParse(Configuration["Device:OS"], out OSType oSType))
-                throw new InvalidOperationException("Please define a proper device OS in the app settings!");
+            VideoCapable = Configuration.GetValue<bool>("Services:Player:VideoCapable");
 
-            foreach(string ignoredOutput in Configuration.GetSection("Services:Player:IgnoredOutputs").Get<string[]>() ?? Array.Empty<string>())
+            foreach (string ignoredOutput in Configuration.GetSection("Services:Player:IgnoredOutputs").Get<string[]>() ?? Array.Empty<string>())
                 IgnoredOutputs.Add(ignoredOutput);
 
             Device = new()
@@ -89,6 +85,8 @@ namespace HomeCast.Services
             ScriptsProcessor.DeviceUpdate += 
                 (object? sender, DeviceUpdateEventArgs deviceUpdateEventArgs) => 
                 UpdateDeviceProperty(deviceUpdateEventArgs.Property, deviceUpdateEventArgs.Value);
+
+            CachingService.CachingFinished += CachingFinished;
 
             StartProcesses();
 
@@ -249,13 +247,21 @@ namespace HomeCast.Services
             try
             {
                 if (Device.MediaQueue.Any())
-                {
-                    foreach (MediaItem mediaItem in Device.MediaQueue.ToArray().Where(mediaItem => mediaItem.IsSelected))
+                {          
+                    foreach (MediaItem mediaItem in Device.MediaQueue.ToArray()
+                            .SkipWhile(mediaItem => mediaItem.IsSelected)
+                            .Where(mediaItem => mediaItem.IsSelected))
                     {
                         int index = Device.MediaQueue.IndexOf(mediaItem);
                         if (index > 0 && index < Device.MediaQueue.Count)
                         {
+                            if (index == Device.CurrentMediaIndex)
+                                Device.CurrentMediaIndex--;
+
                             index--;
+
+                            if (index == Device.CurrentMediaIndex)
+                                Device.CurrentMediaIndex++;
 
                             Device.MediaQueue.Remove(mediaItem);
                             Device.MediaQueue.Insert(index, mediaItem);
@@ -279,12 +285,21 @@ namespace HomeCast.Services
             {
                 if (Device.MediaQueue.Any())
                 {
-                    foreach (MediaItem mediaItem in Device.MediaQueue.ToArray().Where(mediaItem => mediaItem.IsSelected).Reverse())
+                    foreach (MediaItem mediaItem in Device.MediaQueue.ToArray()
+                        .Reverse()
+                        .SkipWhile(mediaItem => mediaItem.IsSelected)
+                        .Where(mediaItem => mediaItem.IsSelected))
                     {
                         int index = Device.MediaQueue.IndexOf(mediaItem);
                         if (index >= 0 && index < Device.MediaQueue.Count - 1)
                         {
+                            if (index == Device.CurrentMediaIndex)
+                                Device.CurrentMediaIndex++;
+
                             index++;
+
+                            if (index == Device.CurrentMediaIndex)
+                                Device.CurrentMediaIndex--;
 
                             Device.MediaQueue.Remove(mediaItem);
                             Device.MediaQueue.Insert(index, mediaItem);
@@ -516,8 +531,6 @@ namespace HomeCast.Services
             {
                 Player?.Dispose();
 
-                bool videoCapable = Configuration.GetValue<bool>("Services:Player:VideoCapable");
-
                 // TODO: change device lock semaphore to FIFO
                 // TODO: Persist device settings on restarts.
                 // TODO: Add HDMI-CEC support.
@@ -562,7 +575,7 @@ namespace HomeCast.Services
                     $"--input-ipc-server={MPVSocketLocation}"
                 };
 
-                if (!videoCapable)
+                if (!VideoCapable)
                     playerArguments.Add("--no-video");
 
                 Player = new Process
@@ -884,21 +897,17 @@ namespace HomeCast.Services
             if (Device.CurrentMedia == null)
                 return;
 
-            string playLocation = string.Empty;
+            // TODO: Add getting cache for a configurable amount of subsequent playlist items.
+
+            string? playLocation = string.Empty;
             if (Device.CurrentMedia.Cache)
             {
+                Device.CurrentMedia.CacheFormat = VideoCapable ? CacheFormat.Video : CacheFormat.Audio;
                 CacheItem? cacheItem = await CachingService.GetCacheItem(Device.CurrentMedia);
                 if (cacheItem != null)
-                {
-                    CacheItem = cacheItem;
-                    cacheItem.PropertyChanged += CacheItem_PropertyChanged;
-                    Device.CurrentCacheRatio = CacheItem.CachedRatio;
-
-                    if (CacheItem.IsReady)
-                        playLocation = cacheItem.CacheFileInfo.FullName;
-                    else
-                        SendStatusMessage("Caching media...");
-                }
+                    playLocation = cacheItem.CacheFileInfo.FullName;
+                else
+                    await SendStatusMessage("Caching media...");
             }
 
             if (string.IsNullOrWhiteSpace(playLocation))
@@ -907,7 +916,7 @@ namespace HomeCast.Services
                 if (Uri.TryCreate(Device.CurrentMedia.Location, in options, out Uri? parsedUri) && parsedUri != null)
                     playLocation = parsedUri.ToString();
                 else
-                    SendStatusMessage("Invalid URI!");
+                    await SendStatusMessage("Invalid URI!");
             }
 
             if (!string.IsNullOrWhiteSpace(playLocation))
@@ -919,51 +928,45 @@ namespace HomeCast.Services
             }
             else
                 await LoggingService.LogError("Player Service", $"Could not get a valid location from cache or URI: \"{Device.CurrentMedia.Location}\".");
-            
         }
 
         private async Task StopMedia()
         {
-            if (CacheItem != null)
+            if (Device.CurrentMedia != null)
             {
-                CacheItem.PropertyChanged -= CacheItem_PropertyChanged;
-                CacheItem.CacheCancellationTokenSource.Cancel();
-                CacheItem = null;
-            }
+                CachingService.CancelCaching(Device.CurrentMedia);
 
-            if (Device.CurrentMedia != null && Device.DeviceStatus == DeviceStatus.Finished)
-            {
-                await SetDeviceStatus(DeviceStatus.Stopping);
-
-                Device.CurrentTime = 0;
-                Device.CurrentMedia.StartTime = 0;                
-            }
-            else if (Device.CurrentMedia != null && IsMediaLoaded)
-            {
-                await SetDeviceStatus(DeviceStatus.Stopping);
-
-                object? currentTime = await SendCommandAsync(new string[] { "get_property", "time-pos" }, true);
-
-                if (currentTime != null)
+                if (Device.DeviceStatus == DeviceStatus.Finished)
                 {
-                    Device.CurrentTime = 0;
-                    Device.CurrentMedia.StartTime = Math.Max(Convert.ToDouble(currentTime) - 5, 0);
-                }
+                    await SetDeviceStatus(DeviceStatus.Stopping);
 
-                await SendCommandAsync(new string[] { "stop" }, true);
+                    Device.CurrentTime = 0;
+                    Device.CurrentMedia.StartTime = 0;
+                }
+                else if (IsMediaLoaded)
+                {
+                    await SetDeviceStatus(DeviceStatus.Stopping);
+
+                    object? currentTime = await SendCommandAsync(new string[] { "get_property", "time-pos" }, true);
+
+                    if (currentTime != null)
+                    {
+                        Device.CurrentTime = 0;
+                        Device.CurrentMedia.StartTime = Math.Max(Convert.ToDouble(currentTime) - 5, 0);
+                    }
+
+                    await SendCommandAsync(new string[] { "stop" }, true);
+                }
             }
         }
 
-        private async void CacheItem_PropertyChanged(object? sender, PropertyChangedEventArgs propertyChangedEventArgs)
+        private async void CachingFinished(object? _, CachingFinishedEventArgs cachingFinishedEventArgs)
         {
-            if (sender != null)
-            {
-                CacheItem = (CacheItem)sender;
-                Device.CurrentCacheRatio = CacheItem.CachedRatio;
-
-                if (CacheItem.IsReady && Device.CurrentMedia != null && IsMediaLoaded)
-                    await SendCommandAsync(new string[] { "loadfile", CacheItem.CacheFileInfo.FullName, "replace", $"start={Device.CurrentTime}{(Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused ? ",pause" : String.Empty)},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\"" }, true);
-            }
+            if (Device.CurrentMedia != null &&
+                cachingFinishedEventArgs.MediaItem == Device.CurrentMedia && 
+                IsMediaLoaded)
+                await SendCommandAsync(new string[] { "loadfile", cachingFinishedEventArgs.CacheItem.CacheFileInfo.FullName, "replace", $"start={Device.CurrentTime}{(Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused ? ",pause" : string.Empty)},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\"" }, true);
+            
         }
 
         private async Task SetDeviceStatus(DeviceStatus deviceStatus)
@@ -974,10 +977,11 @@ namespace HomeCast.Services
             await UpdateClients();
         }
 
-        private async void SendStatusMessage(string statusMessage)
+        private async Task SendStatusMessage(string statusMessage)
         {
             UpdateDeviceProperty(nameof(Device.StatusMessage), statusMessage);
             await UpdateClients();
+
             _ = Task.Run(async () => {
                 await Task.Delay(3000);
                 UpdateDeviceProperty(nameof(Device.StatusMessage), null);

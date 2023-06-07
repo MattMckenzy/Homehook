@@ -30,10 +30,10 @@ else
                             <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(Device.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                                 <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
                                     <div class="progress-bar position-absolute h-100" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Media.Runtime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
-                                    @if (Device.CurrentCacheRatio != null)
+                                    @if (Media.CachedRatio != null)
                                     {
                                         // TODO: Disable controls depending on Device Status.
-                                        <div class="progress-bar position-absolute h-100 bg-success opacity-25" role="progressbar" aria-valuenow="@Device.CurrentCacheRatio" aria-valuemin="0" aria-valuemax="1" style="width:@(Math.Round((double)Device.CurrentCacheRatio * 100d))%;"></div>
+                                        <div class="progress-bar position-absolute h-100 bg-success opacity-25" role="progressbar" aria-valuenow="@Media.CachedRatio" aria-valuemin="0" aria-valuemax="1" style="width:@(Math.Round((double)Media.CachedRatio * 100d))%;"></div>
                                     }
                                 </div>
                             <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
@@ -135,15 +135,14 @@ else
                         <button id="@(Device.Name)QueueDownButton" class="btn btn-secondary" @onclick=MoveSelectedMediaItemsDown disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
                             <i class="mdi mdi-chevron-down icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(Device.Name)SelectAllButton" class="btn btn-secondary" @onclick=@() disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
+                        <button id="@(Device.Name)SelectAllButton" class="btn btn-secondary" @onclick=ToggleMediaSelection disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
                             <i class="mdi mdi-select-all icon-responsive d-flex align-items-center"></i>
                         </button>
                     </div>
                     <div class="list-group list-group-flush bg-transparent">
                         @foreach ((MediaItem MediaItem, int Index) item in Device.MediaQueue.Select((mediaItem, index) => (mediaItem, index)))
                         {
-                            // TODO: Fix up and down on list edges.
-                            // TODO: Fix select all/none button.
+                            // TODO: Add indicators for cached and caching media items.
                             // TODO: Add controls for audio and subtitles, chapter skip, ab-loop.
                             <label class="media-item list-group-item list-group-item-action @(Device.CurrentMediaIndex == item.Index ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(item.Index)Check" aria-current="@(Device.CurrentMediaIndex == item.Index)">
                                 @if (Device.CurrentMediaIndex == item.Index)

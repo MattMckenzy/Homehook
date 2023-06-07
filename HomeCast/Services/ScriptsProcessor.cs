@@ -12,6 +12,8 @@ namespace HomeCast
         private IConfiguration Configuration { get; }
         private LoggingService<ScriptsProcessor> LoggingService { get; }
 
+        // TODO: set volume.sh script to autostart.
+
         private static Dictionary<string, Script> Scripts { get; } = new()
         {
         };
@@ -20,7 +22,6 @@ namespace HomeCast
 
         private static ConcurrentDictionary<string, Process> ScriptProcesses { get; } = new();
 
-        private OSType OSType { get; set; }
         private DeviceModel DeviceModel { get; set; }
 
         public ScriptsProcessor(IConfiguration configuration, LoggingService<ScriptsProcessor> loggingService)
@@ -33,11 +34,6 @@ namespace HomeCast
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            if (!Enum.TryParse(Configuration["Device:OS"], out OSType parsedOSType))
-                throw new InvalidOperationException($"Please set a valid OS type in the \"Device:OS\" variable! Possible selections are: {string.Join(", ", Enum.GetNames<OSType>())}");
-            else
-                OSType = parsedOSType;
-
             if (!Enum.TryParse(Configuration["Device:Model"], out DeviceModel parsedModelType))
                 throw new InvalidOperationException($"Please set a valid Device model in the \"Device:OS\" variable! Possible selections are: {string.Join(", ", Enum.GetNames<OSType>())}");
             else
@@ -60,11 +56,11 @@ namespace HomeCast
 
         public bool StartScript(ScriptType scriptType, string additionalArguments = "")
         {
-            Script? script = Scripts.FirstOrDefault(item => item.Key == $"{OSType}-{DeviceModel}-{scriptType}").Value;
+            Script? script = Scripts.FirstOrDefault(item => item.Key == $"{DeviceModel}-{scriptType}").Value;
             if (script == null)
                 return false;
 
-            FileInfo scriptFileInfo = new(Path.Combine("Scripts", $"{script.DeviceModel}-{script.ScriptType}.{(script.OSType == OSType.Linux ? "sh" : string.Empty)}"));
+            FileInfo scriptFileInfo = new(Path.Combine("Scripts", $"{script.DeviceModel}-{script.ScriptType}.sh"));
 
             if (!scriptFileInfo.Exists)
                 return false;

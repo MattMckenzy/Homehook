@@ -112,7 +112,7 @@ namespace HomeHook.Shared
             };
         }
 
-        private async void UpdateMediaItemsSelection(IEnumerable<MediaItem> mediaItems, bool IsSelected)
+        private async Task UpdateMediaItemsSelection(IEnumerable<MediaItem> mediaItems, bool IsSelected)
         {
             List<int> mediaItemIndices = new();
             foreach (MediaItem mediaItem in mediaItems)
@@ -175,6 +175,14 @@ namespace HomeHook.Shared
 
         private async Task MoveSelectedMediaItemsDown() =>
             await DeviceService.MoveSelectedMediaItemsDown();
+
+        private async Task ToggleMediaSelection()
+        {
+            if (Device.MediaQueue.All(mediaItem => mediaItem.IsSelected))
+                await UpdateMediaItemsSelection(Device.MediaQueue, false);
+            else
+                await UpdateMediaItemsSelection(Device.MediaQueue, true);
+        }
 
         private async Task SeekClick(MouseEventArgs mouseEventArgs)
         {

@@ -70,14 +70,15 @@ namespace HomeHook.Services
 
                 yield return new MediaItem
                 {
-                    Id = searchResult.Id,
+                    Id = Guid.NewGuid().ToString(),
+                    MediaId = searchResult.Id,
                     Location = searchResult.LocationUrl,
                     MediaSource = phrase.MediaSource,
                     Container = searchResult.Container,
                     Runtime = (double)searchResult.Runtime,
                     MediaItemKind = MediaItemKind.Video,
                     Size = searchResult.FileSize ?? 0,
-                    Cache = phrase.PlaybackMethod == PlaybackMethod.Cached,
+                    CacheStatus = phrase.PlaybackMethod == PlaybackMethod.Cached ? CacheStatus.Uncached : CacheStatus.Off,
                     User = phrase.User,
                     StartTime = 0,
                     Metadata = new MediaMetadata

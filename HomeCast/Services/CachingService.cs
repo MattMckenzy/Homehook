@@ -2,6 +2,7 @@
 using HomeCast.Models;
 using HomeHook.Common.Models;
 using HomeHook.Common.Services;
+using System.Collections.Concurrent;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
 
@@ -31,16 +32,18 @@ namespace HomeCast.Services
             {
                 IEnumerable<string> fileNameSplit = Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name).Split("-", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-                if (fileNameSplit.Count() == 2 && Enum.TryParse(fileNameSplit.Last(), out CacheFormat cacheFormat))
+                if (fileNameSplit.Count() == 2 && Enum.TryParse(fileNameSplit.Last(), out CacheFormat _))
                 {
-                    CacheItems.Add(Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name),
-                        new() { CacheFileInfo = cacheItemFileInfo, CacheFormat = cacheFormat });
+                    string cacheKey = Path.GetFileNameWithoutExtension(cacheItemFileInfo.Name);
+                    CacheFileInfos.Add(cacheKey, cacheItemFileInfo);
                 }
             }
 
             CacheSizeBytes = Configuration.GetValue<long?>("Services:Caching:CacheSizeBytes") ?? 10737418240;
 
             CacheAlgorithmRatio = Configuration.GetValue<double?>("Services:Caching:CacheAlgorithmRatio") ?? 0.5d;
+
+            CacheFormat = Configuration.GetValue<bool>("Services:Player:VideoCapable") ? CacheFormat.Video : CacheFormat.Audio;
 
             YoutubeDL = new YoutubeDL
             {
@@ -67,8 +70,12 @@ namespace HomeCast.Services
 
         private long CacheSizeBytes { get; }
         private double CacheAlgorithmRatio { get; }
+        private CacheFormat CacheFormat { get; }
 
-        private Dictionary<string, CacheItem> CacheItems { get; } = new();
+        private Dictionary<string, FileInfo> CacheFileInfos { get; } = new();
+        private ConcurrentQueue<(FileInfo CacheFileInfo, MediaItem MediaItem)> CachingQueue { get; } = new();
+        private bool IsProcessingCacheQueue = false;
+        private CancellationTokenSource CachingCancellationTokenSource = new();
 
         private YoutubeDL YoutubeDL { get; } = new();
         private OptionSet OptionSet { get; } = new();
@@ -79,26 +86,62 @@ namespace HomeCast.Services
 
         #region CacheService Implementation
 
-        public event EventHandler<CachingFinishedEventArgs>? CachingFinished;
+        public event EventHandler<CachingUpdateEventArgs>? CachingUpdate;
 
-        public async Task<CacheItem?> GetCacheItem(MediaItem mediaItem)
+        public async Task<(bool, FileInfo?)> TryGetOrQueueCacheItem(MediaItem mediaItem)
         {
-            if (CacheItems.TryGetValue($"{mediaItem.Id}-{mediaItem.CacheFormat}", out CacheItem? cacheItem) && cacheItem != null)
-                return cacheItem;
-            else if (await TryRunCacheDeletionAlgorithm(mediaItem.Size))
-            {
-                await DownloadCacheItem(mediaItem);
-                return null;
-            }
+            if (CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) && cacheFileInfo != null)
+                return (false, cacheFileInfo);
+            else if (CachingQueue.Any(queueItem => $"{queueItem.MediaItem.MediaId}-{CacheFormat}" == $"{mediaItem.MediaId}-{CacheFormat}"))
+                return (true, null);
             else
-            {
-                await LoggingService.LogWarning("Caching Service", $"Could not get enough available space to cache \"{mediaItem.Metadata.Title}\".");
-                return null;
-            }
+                return (await QueueCacheItem(mediaItem), null);  
         }
+
+        public void CancelCaching()
+        {
+            CachingCancellationTokenSource.Cancel();
+            CachingCancellationTokenSource = new();
+        }
+
+        public void ClearCachingQueue()
+        {
+            foreach (MediaItem mediaItem in CachingQueue.Select(queueItem => queueItem.MediaItem))
+            {
+                CachingUpdate?.Invoke(this,
+                    new CachingUpdateEventArgs
+                    {
+                        CacheFileInfo = null,
+                        MediaItemId = mediaItem.Id,
+                        CacheStatus = CacheStatus.Uncached,
+                        CacheRatio = 0
+                    });
+            }
+            CachingQueue.Clear();
+        }
+
+        public void UpdateMediaQueueCacheStatus(IEnumerable<MediaItem> mediaItems)
+        {
+            foreach (MediaItem mediaItem in mediaItems)
+                if (mediaItem.CacheStatus != CacheStatus.Off && CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) && cacheFileInfo != null)
+                    CachingUpdate?.Invoke(this,
+                        new CachingUpdateEventArgs
+                        {
+                            CacheFileInfo = null,
+                            MediaItemId = mediaItem.Id,
+                            CacheStatus = CacheStatus.Cached,
+                            CacheRatio = 1
+                        });
+        }
+
+        #endregion
+
+        #region Private Methods
 
         private async Task<bool> TryRunCacheDeletionAlgorithm(long neededBytes)
         {
+            neededBytes += CachingQueue.Sum(queueItem => queueItem.MediaItem.Size);
+
             DriveInfo driveInfo = new(CacheDirectoryInfo.Root.FullName);
             if (driveInfo.AvailableFreeSpace > neededBytes)
                 return true;
@@ -109,130 +152,184 @@ namespace HomeCast.Services
             }
             else
             {
-                DateTime minimumLastAccessed = CacheItems.Min(cacheItem => cacheItem.Value.CacheFileInfo.LastAccessTime);
-                DateTime maximumLastAccessed = CacheItems.Max(cacheItem => cacheItem.Value.CacheFileInfo.LastAccessTime);
+                DateTime minimumLastAccessed = CacheFileInfos.Values.Min(cacheFileInfo => cacheFileInfo.LastAccessTime);
+                DateTime maximumLastAccessed = CacheFileInfos.Values.Max(cacheFileInfo => cacheFileInfo.LastAccessTime);
                 long lastAccessedDifference = (maximumLastAccessed - minimumLastAccessed).Ticks;
 
-                long smallestSize = CacheItems.Min(cacheItem => cacheItem.Value.CacheFileInfo.Length);
-                long largestSize = CacheItems.Max(cacheItem => cacheItem.Value.CacheFileInfo.Length);
+                long smallestSize = CacheFileInfos.Values.Min(cacheFileInfo => cacheFileInfo.Length);
+                long largestSize = CacheFileInfos.Values.Max(cacheFileInfo => cacheFileInfo.Length);
                 long sizeDifference = largestSize - smallestSize;
 
-                Dictionary<CacheItem, int> scoredCacheItems = new();
-                foreach (CacheItem cacheItem in CacheItems.Values)
-                    scoredCacheItems.Add(cacheItem, Convert.ToInt32(Math.Round(Math.Exp(
+                Dictionary<FileInfo, int> scoredCacheFileInfos = new();
+                foreach (FileInfo cacheFileInfo in CacheFileInfos.Values)
+                    scoredCacheFileInfos.Add(cacheFileInfo, Convert.ToInt32(Math.Round(Math.Exp(
                         (((maximumLastAccessed - minimumLastAccessed).Ticks / lastAccessedDifference) * 100 * (1 - CacheAlgorithmRatio)) +
                         (((maximumLastAccessed - minimumLastAccessed).Ticks / lastAccessedDifference) * 100 * CacheAlgorithmRatio)))));
 
-                IEnumerable<CacheItem> orderedCacheItems = scoredCacheItems.OrderByDescending(scoredCacheItem => scoredCacheItem.Value).Select(scoredCacheItem => scoredCacheItem.Key);
-                while (driveInfo.AvailableFreeSpace > neededBytes)
+                IEnumerable<FileInfo> orderedCacheFileInfos = scoredCacheFileInfos.OrderByDescending(scoredCacheItem => scoredCacheItem.Value).Select(scoredCacheItem => scoredCacheItem.Key);
+                while (driveInfo.AvailableFreeSpace < neededBytes)
                 {
-                    CacheItem? deletingCacheItem = orderedCacheItems.FirstOrDefault();
+                    FileInfo? deletingCacheFileInfo = orderedCacheFileInfos.FirstOrDefault();
 
-                    if (deletingCacheItem == null)
+                    if (deletingCacheFileInfo == null)
                     {
                         await LoggingService.LogWarning("Caching Service", $"Remaining disk space not enough to cache item. Missing {(neededBytes - driveInfo.AvailableFreeSpace).GetBytesReadable()}.");
                         return false;
                     }
                     else
-                        await DeleteCacheItem(deletingCacheItem);
+                    {
+                        string cacheKey = Path.GetFileNameWithoutExtension(deletingCacheFileInfo.Name);
+                        await LoggingService.LogDebug("Caching Service", $"Deleting cache item \"{cacheKey}\".");
+
+                        CacheFileInfos.Remove(cacheKey);
+                        deletingCacheFileInfo.Delete();
+                    }
                 }
 
                 return true;
             }
         }
 
-        internal void CancelCaching(MediaItem mediaItem)
+        private async Task<bool> QueueCacheItem(MediaItem mediaItem)
         {
-            if (CacheItems.TryGetValue($"{mediaItem.Id}-{mediaItem.CacheFormat}", out CacheItem? cacheItem) && cacheItem != null)
-                cacheItem.CacheCancellationTokenSource.Cancel();
+            if (!await TryRunCacheDeletionAlgorithm(mediaItem.Size))
+            {
+                await LoggingService.LogWarning("Caching Service", $"Could not get enough available space to cache \"{mediaItem.Metadata.Title}\".");
+                return false;
+            }
+
+            string cacheKey = $"{mediaItem.MediaId}-{CacheFormat}";
+            FileInfo cacheFileInfo = new(Path.Combine(CacheDirectoryInfo.FullName, $"{cacheKey}{(mediaItem.Container.StartsWith(".") ? string.Empty : ".")}{mediaItem.Container}"));
+
+            CachingUpdate?.Invoke(this,
+                new CachingUpdateEventArgs
+                {
+                    CacheFileInfo = null,
+                    MediaItemId = mediaItem.Id,
+                    CacheStatus = CacheStatus.Queued,
+                    CacheRatio = 0
+                });
+
+            CachingQueue.Enqueue((cacheFileInfo, mediaItem));
+
+            _ = Task.Run(ProcessDownloadQueue);            
+
+            return true;
         }
 
-        private async Task DownloadCacheItem(MediaItem mediaItem)
+        private async Task ProcessDownloadQueue()
         {
-            if (mediaItem.CacheFormat == null)
+            if (IsProcessingCacheQueue)
                 return;
 
-            CacheItem newCacheItem = new()
-            {
-                CacheFileInfo = new FileInfo(Path.Combine(CacheDirectoryInfo.FullName, $"{mediaItem.Id}-{mediaItem.CacheFormat}{(mediaItem.Container.StartsWith(".") ? string.Empty : ".")}{mediaItem.Container}")),
-                CacheFormat = (CacheFormat)mediaItem.CacheFormat
-            };
+            IsProcessingCacheQueue = true;
 
-            Progress<DownloadProgress> downloadProgress = new(downloadProgress =>
+            while (CachingQueue.TryPeek(out (FileInfo CacheFileInfo, MediaItem MediaItem) queueItem))
             {
-                mediaItem.CachedRatio = downloadProgress.Progress;
-            });
+                MediaItem mediaItem = queueItem.MediaItem;
+                FileInfo cacheFileInfo = queueItem.CacheFileInfo;
+                string cacheKey = $"{mediaItem.MediaId}-{CacheFormat}";
 
-            await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
-
-            _ = Task.Run(async () =>
-            {
                 try
                 {
-                    RunResult<string>? runResult = null;
+                    await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
+
+                    Progress<DownloadProgress> downloadProgress = new(downloadProgress =>
+                    {
+                        CachingUpdate?.Invoke(this,
+                            new CachingUpdateEventArgs
+                            {
+                                CacheFileInfo = null,
+                                MediaItemId = mediaItem.Id,
+                                CacheStatus = CacheStatus.Caching,
+                                CacheRatio = downloadProgress.Progress
+                            });
+                    });
 
                     OptionSet optionSet = (OptionSet)OptionSet.Clone();
-                    optionSet.Output = Path.Combine("yt-dlp", newCacheItem.CacheFileInfo.Name);
+                    optionSet.Output = Path.Combine("yt-dlp", cacheFileInfo.Name);
 
-                    if (mediaItem.CacheFormat == CacheFormat.Audio)
+                    RunResult<string>? runResult = null;
+                    if (CacheFormat == CacheFormat.Audio)
                         runResult = await YoutubeDL.RunAudioDownload(
                             mediaItem.Location,
                             progress: downloadProgress,
-                            ct: newCacheItem.CacheCancellationTokenSource.Token,
+                            ct: CachingCancellationTokenSource.Token,
                             overrideOptions: optionSet);
-                    else if (mediaItem.CacheFormat == CacheFormat.Video)
+                    else if (CacheFormat == CacheFormat.Video)
+                    {
+                        optionSet.SubLangs = "all";
                         runResult = await YoutubeDL.RunVideoDownload(
                             mediaItem.Location,
                             progress: downloadProgress,
-                            ct: newCacheItem.CacheCancellationTokenSource.Token,
+                            ct: CachingCancellationTokenSource.Token,
                             overrideOptions: optionSet);
+                    }
 
                     if (runResult != null && runResult.Success && !string.IsNullOrWhiteSpace(runResult.Data))
                     {
-                        File.Move(runResult.Data, newCacheItem.CacheFileInfo.FullName);
+                        File.Move(runResult.Data, cacheFileInfo.FullName);
 
                         await LoggingService.LogDebug("Caching Service", $"Succesfully cached \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
 
-                        mediaItem.CachedRatio = 1;
+                        CacheFileInfos.Add(cacheKey, cacheFileInfo);
 
-                        CachingFinished?.Invoke(this,
-                            new CachingFinishedEventArgs
+                        CachingUpdate?.Invoke(this,
+                            new CachingUpdateEventArgs
                             {
-                                CacheItem = newCacheItem,
-                                MediaItem = mediaItem
+                                CacheFileInfo = cacheFileInfo,
+                                MediaItemId = mediaItem.Id,
+                                CacheStatus = CacheStatus.Cached,
+                                CacheRatio = 1
                             });
                     }
                     else
                     {
-                        mediaItem.CachedRatio = null;
+                        CachingUpdate?.Invoke(this,
+                            new CachingUpdateEventArgs
+                            {
+                                CacheFileInfo = null,
+                                MediaItemId = mediaItem.Id,
+                                CacheStatus = CacheStatus.Uncached,
+                                CacheRatio = 0
+                            });
 
                         await LoggingService.LogError("Caching Service", $"Failed to cache \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {(runResult != null ? string.Join("; ", runResult.ErrorOutput) : "N/A")}.");
                     }
                 }
                 catch (TaskCanceledException)
                 {
-                    mediaItem.CachedRatio = null;
+                    CachingUpdate?.Invoke(this,
+                            new CachingUpdateEventArgs
+                            {
+                                CacheFileInfo = null,
+                                MediaItemId = mediaItem.Id,
+                                CacheStatus = CacheStatus.Uncached,
+                                CacheRatio = 0
+                            });
 
                     await LoggingService.LogDebug("Caching Service", $"Canceled caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
                 }
                 catch (Exception exception)
                 {
-                    mediaItem.CachedRatio = null;
+                    CachingUpdate?.Invoke(this,
+                            new CachingUpdateEventArgs
+                            {
+                                CacheFileInfo = null,
+                                MediaItemId = mediaItem.Id,
+                                CacheStatus = CacheStatus.Uncached,
+                                CacheRatio = 0
+                            });
 
                     await LoggingService.LogError("Caching Service", $"Error during caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {exception.Message}");
                 }
-            });
+                finally
+                {
+                    CachingQueue.TryDequeue(out (FileInfo CacheFileInfo, MediaItem MediaItem) _);
+                }
+            }        
 
-            CacheItems.Add($"{mediaItem.Id}-{mediaItem.CacheFormat}", newCacheItem);
-        }
-
-        private async Task DeleteCacheItem(CacheItem cacheItem)
-        {
-            string key = Path.GetFileNameWithoutExtension(cacheItem.CacheFileInfo.Name);
-            await LoggingService.LogDebug("Caching Service", $"Deleting cache item \"{key}\".");
-
-            cacheItem.CacheFileInfo.Delete();
-            CacheItems.Remove(key);
+            IsProcessingCacheQueue = false;
         }
 
         #endregion
@@ -245,10 +342,9 @@ namespace HomeCast.Services
             {
                 if (disposing)
                 {
-                    foreach (CacheItem cacheItem in CacheItems.Values)
-                        cacheItem.CacheCancellationTokenSource?.Cancel();
-
-                    CacheItems.Clear();
+                    CachingQueue.Clear();
+                    CachingCancellationTokenSource.Cancel();
+                    CacheFileInfos.Clear();
                 }
 
                 DisposedValue = true;

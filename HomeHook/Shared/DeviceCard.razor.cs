@@ -35,9 +35,6 @@ namespace HomeHook.Shared
 
         #region Private Variables
 
-        private Device Device { get; set; } = null!;
-        private MediaItem? Media { get; set; } = null;
-
         private ElementReference CardReference { get; set; }
         private ElementReference ProgressBar { get; set; }
 
@@ -50,6 +47,10 @@ namespace HomeHook.Shared
         private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
         private List<string> BarStyles { get; } = new();
 
+        private List<string> SelectedMediaItemIds { get; set; } = new();
+
+        private Dictionary<string, ProgressCircle> ProgressCircles { get; } = new();
+
         #endregion
 
         #region Lifecycle Overrides
@@ -58,17 +59,19 @@ namespace HomeHook.Shared
         {
             await base.OnInitializedAsync();
 
-            Device = DeviceService.Device;
-            Media = Device.CurrentMedia;
-
             for(int barNumber = 0 ; barNumber < 122; barNumber++)
             {
                 BarStyles.Add($"left: {barNumber * 4}px; animation-duration: {Math.Round(400 + (Random.NextDouble() * 100))}ms");
             }
 
             DeviceService.DeviceUpdated += async (object sender, Device device) =>
+                await UpdateStatus();
+
+            DeviceService.MediaItemCacheUpdated += async (object sender, MediaItem mediaItem, CacheStatus cacheStatus, double cacheRatio) =>
             {
-                Device = device;
+                if (ProgressCircles.TryGetValue(mediaItem.Id, out ProgressCircle? progressCircle) && progressCircle != null)
+                    await progressCircle.UpdateCacheStatus(cacheStatus, cacheRatio);
+
                 await UpdateStatus();
             };
         }
@@ -88,12 +91,29 @@ namespace HomeHook.Shared
         #region Private Methods
 
         private async Task UpdateStatus()
-        {
-            Device = DeviceService.Device;
-            Media = Device.CurrentMedia;
-             
-            if (Device.DeviceStatus == DeviceStatus.Stopped)
+        {             
+            if (DeviceService.Device.DeviceStatus == DeviceStatus.Stopped)
                 IsEditingQueue = false;
+
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task ToggleMediaSelection()
+        {
+            if (DeviceService.Device.MediaQueue.All(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id)))
+                SelectedMediaItemIds.Clear();
+            else
+                SelectedMediaItemIds = DeviceService.Device.MediaQueue.Select(mediaItem => mediaItem.Id).ToList();
+
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task ToggleMediaItemSelection(MediaItem mediaItem)
+        {
+            if (SelectedMediaItemIds.Contains(mediaItem.Id))
+                SelectedMediaItemIds.Remove(mediaItem.Id);
+            else
+                SelectedMediaItemIds.Add(mediaItem.Id);
 
             await InvokeAsync(StateHasChanged);
         }
@@ -112,37 +132,18 @@ namespace HomeHook.Shared
             };
         }
 
-        private async Task UpdateMediaItemsSelection(IEnumerable<MediaItem> mediaItems, bool IsSelected)
+        private async Task SearchAddMediaItems(bool launch = false, bool insertBeforeMediaItem = false)
         {
-            List<int> mediaItemIndices = new();
-            foreach (MediaItem mediaItem in mediaItems)
-            {
-                if (IsSelected)
-                    mediaItem.IsSelected = true;
-                else
-                    mediaItem.IsSelected = false;
-
-                mediaItemIndices.Add(Device.MediaQueue.IndexOf(mediaItem));
-            }
-            
-            if (mediaItemIndices.Any())
-            {
-                await DeviceService.UpdateMediaItemsSelection(mediaItemIndices, IsSelected);
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-
-        private async Task SearchAddMediaItems(bool launch = false, bool insertBeforeSelectedMediaItem = false)
-        {
-            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter search term to add items for {Device.Name}'s queue.", "");
+            string searchTerm = await JSRuntime.InvokeAsync<string>("prompt", $"Please enter search term to add items for {DeviceService.Device.Name}'s queue.", "");
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 try
                 {
+                    string? insertBeforeMediaItemId = insertBeforeMediaItem ? DeviceService.Device.MediaQueue.FirstOrDefault(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id))?.Id : null;
                     bool addedItem = false;
                     await foreach (MediaItem mediaItem in DeviceService.GetItems(await LanguageService.ParseSimplePhrase(searchTerm)))
                     {     
-                        await DeviceService.AddMediaItems(new List<MediaItem> { mediaItem }, !addedItem && launch, insertBeforeSelectedMediaItem);
+                        await DeviceService.AddMediaItems(new List<MediaItem> { mediaItem }, !addedItem && launch, insertBeforeMediaItemId);
                         addedItem = true;
                     }
 
@@ -164,33 +165,41 @@ namespace HomeHook.Shared
 
         #region Commands
 
-        private async Task PlaySelectedMediaItem() =>
-            await DeviceService.PlaySelectedMediaItem();
-
-        private async Task RemoveSelectedMediaItems() =>
-            await DeviceService.RemoveSelectedMediaItems();
-
-        private async Task MoveSelectedMediaItemsUp() =>
-            await DeviceService.MoveSelectedMediaItemsUp();
-
-        private async Task MoveSelectedMediaItemsDown() =>
-            await DeviceService.MoveSelectedMediaItemsDown();
-
-        private async Task ToggleMediaSelection()
+        private async Task PlayMediaItem()
         {
-            if (Device.MediaQueue.All(mediaItem => mediaItem.IsSelected))
-                await UpdateMediaItemsSelection(Device.MediaQueue, false);
-            else
-                await UpdateMediaItemsSelection(Device.MediaQueue, true);
+            string? mediaItemId = DeviceService.Device.MediaQueue.FirstOrDefault(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id))?.Id;
+            if (mediaItemId != null)
+                await DeviceService.PlayMediaItem(mediaItemId);
+        }
+
+        private async Task RemoveMediaItems()
+        {
+            IEnumerable<string> mediaItemIds = DeviceService.Device.MediaQueue.Where(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id)).Select(mediaItem => mediaItem.Id);
+            if (mediaItemIds.Any())
+                await DeviceService.RemoveMediaItems(mediaItemIds);
+        }
+
+        private async Task MoveMediaItemsUp()
+        {
+            IEnumerable<string> mediaItemIds = DeviceService.Device.MediaQueue.Where(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id)).Select(mediaItem => mediaItem.Id);
+            if (mediaItemIds.Any())
+                await DeviceService.MoveMediaItemsUp(mediaItemIds);
+        }
+
+        private async Task MoveMediaItemsDown()
+        {
+            IEnumerable<string> mediaItemIds = DeviceService.Device.MediaQueue.Where(mediaItem => SelectedMediaItemIds.Contains(mediaItem.Id)).Select(mediaItem => mediaItem.Id);
+            if (mediaItemIds.Any())
+                await DeviceService.MoveMediaItemsDown(mediaItemIds);
         }
 
         private async Task SeekClick(MouseEventArgs mouseEventArgs)
         {
-            if (Media == null) 
+            if (DeviceService.Device.CurrentMedia == null) 
                 return;
 
             double width = await JSRuntime.InvokeAsync<double>("GetElementWidth", ProgressBar);
-            double seekSeconds = mouseEventArgs.OffsetX / width * Media.Runtime;
+            double seekSeconds = mouseEventArgs.OffsetX / width * DeviceService.Device.CurrentMedia.Runtime;
 
             await DeviceService.Seek(seekSeconds);
         }

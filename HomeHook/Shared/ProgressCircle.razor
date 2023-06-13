@@ -1,0 +1,117 @@
+﻿@using System.Diagnostics;
+<div @ref=ProgressCircleRef @onmouseenter=OnMouseEnter @onmouseleave=OnMouseLeave class="progress-circle m-1" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html=true data-bs-title="<small id=@(tooltipInnerId)>@(CacheStatusText)</small>">
+    <svg class="position-absolute" width="18" height="18" viewBox="0 0 120 120" transform="rotate(-90)">
+        <circle cx="60" cy="60" r="54" fill="none" stroke="@BgOffWhite" stroke-width="12" />
+        <circle cx="60" cy="60" r="54" fill="none" stroke="@Color" stroke-width="12" stroke-dasharray="100" 
+            stroke-dashoffset="@Offset" pathLength="100" />
+    </svg>
+    <svg class="position-absolute" style="left:4; top:4;" width="10" height="10" viewBox="0 0 24 24">
+        <path fill="@Color" d="@Path" />
+    </svg>
+</div>
+
+@code {
+    private const string CheckPath = "M21,5L9,17L3.5,11.5L4.91,10.09L9,14.17L19.59,3.59L21,5M3,21V19H21V21H3Z";
+    private const string DownloadPath = "M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z";
+    private const string DownloadOffPath = "M20.84 22.73L18.11 20H5V18H16.11L13.06 14.95L12 16L5 9H7.11L1.11 3L2.39 1.73L22.11 21.46L20.84 22.73M19 9H15V3H9V5.8L15.6 12.4L19 9Z";
+
+    private const string BgOffWhite = "#e6e6e6";
+    private const string BgSuccess = "#28a745";
+    private const string BgWarning= "#ffc107";
+    private const string BgDanger = "#dc3545";
+
+    private ElementReference ProgressCircleRef { get; set; }
+
+    private string tooltipInnerId = $"pc-{Guid.NewGuid()}";
+
+    private double Offset
+    {
+        get
+        {
+            switch (CacheStatus)
+            {
+                default:
+                case CacheStatus.Off:    
+                case CacheStatus.Uncached:
+                case CacheStatus.Queued:
+                case CacheStatus.Cached:
+                    return 0;               
+                case CacheStatus.Caching:
+                    return 100 - (CacheRatio * 100);
+            }
+        }    
+    }
+
+    private string Color  
+    {
+        get
+        {            
+            switch (CacheStatus)
+            { 
+                default:  
+                case CacheStatus.Off: 
+                    return BgDanger;
+                case CacheStatus.Uncached:                
+                    return BgOffWhite;
+                case CacheStatus.Queued:
+                    return BgWarning;
+                case CacheStatus.Caching:
+                case CacheStatus.Cached:
+                    return BgSuccess;
+            }
+        }    
+    }
+
+    private string Path
+    {
+        get
+        {
+            switch (CacheStatus)
+            {  
+                default:
+                case CacheStatus.Off:  
+                    return DownloadOffPath;
+                case CacheStatus.Uncached:   
+                case CacheStatus.Queued:
+                case CacheStatus.Caching:                 
+                    return DownloadPath;
+                case CacheStatus.Cached:   
+                    return CheckPath;
+            }
+        }    
+    }
+
+    private string CacheStatusText
+    {
+        get
+        {
+            return $"Caching status: {CacheStatus}.{(CacheStatus == CacheStatus.Caching ? $" {CacheRatio:P2}" : string.Empty)}";
+        }
+    }
+
+    [Parameter]
+    public required CacheStatus CacheStatus { get; set; }
+
+    [Parameter]
+    public required double CacheRatio { get; set; }
+
+    [Inject]
+    public required IJSRuntime JSRuntime { get; set; }
+
+    public async Task UpdateCacheStatus(CacheStatus cacheStatus, double cacheRatio)
+    {
+        CacheStatus = cacheStatus;
+        CacheRatio = cacheRatio;
+        await JSRuntime.InvokeVoidAsync("UpdateTooltip", tooltipInnerId, CacheStatusText);
+    }
+
+    private async Task OnMouseEnter()
+    {
+        await JSRuntime.InvokeVoidAsync("ShowTooltip", ProgressCircleRef);
+    }
+
+    private async Task OnMouseLeave()
+    {
+        await JSRuntime.InvokeVoidAsync("HideTooltip");
+    }
+}

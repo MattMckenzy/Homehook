@@ -97,8 +97,14 @@ namespace HomeHook
                                 newDevicesAdded.Add(deviceConfiguration.Name);
                             }
 
-                            hubConnection.On<Device>("UpdateDevice", async (device) =>
+                            hubConnection.On("UpdateDevice", async (Device device) =>
                                 await deviceService.UpdateDevice(device));
+
+                            hubConnection.On("UpdateCurrentTime", async (double currentTime) =>
+                                await deviceService.UpdateCurrentTime(currentTime));
+
+                            hubConnection.On("UpdateMediaItemCache", async (string mediaItemId, CacheStatus cacheStatus, double cacheRatio) =>
+                                await deviceService.UpdateMediaItemCache(mediaItemId, cacheStatus, cacheRatio));
                         }
 
                         if (newDevicesAdded.Any())

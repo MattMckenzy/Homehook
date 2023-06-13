@@ -1,8 +1,6 @@
 ﻿using HomeHook.Common.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using System.Collections.Generic;
-using System.Reflection.Metadata.Ecma335;
 
 namespace HomeCast.Services
 {
@@ -19,23 +17,20 @@ namespace HomeCast.Services
         public async Task<Device> GetDevice() =>
             await PlayerService.GetDevice(); 
 
-        public async Task UpdateMediaItemsSelection(IEnumerable<int> mediaItemIndices, bool IsSelected) =>
-            await PlayerService.UpdateMediaItemsSelection(mediaItemIndices, IsSelected);
+        public async Task PlayMediaItem(string mediaItemId) =>
+            await PlayerService.PlayMediaItem(mediaItemId);
 
-        public async Task PlaySelectedMediaItem() =>
-            await PlayerService.PlaySelectedMediaItem();
+        public async Task AddMediaItems(List<MediaItem> mediaItems, bool launch = false, string? insertBeforeMediaItemId = null) =>
+            await PlayerService.AddMediaItems(mediaItems, launch, insertBeforeMediaItemId);
 
-        public async Task AddMediaItems(List<MediaItem> mediaItems, bool launch = false, bool insertBeforeSelectedMediaItem = false) =>
-            await PlayerService.AddMediaItems(mediaItems, launch, insertBeforeSelectedMediaItem);
+        public async Task RemoveMediaItems(IEnumerable<string> mediaItemIds) =>
+            await PlayerService.RemoveMediaItems(mediaItemIds);
 
-        public async Task RemoveSelectedMediaItems() =>
-            await PlayerService.RemoveSelectedMediaItems();
+        public async Task MoveMediaItemsUp(IEnumerable<string> mediaItemIds) =>
+            await PlayerService.MoveMediaItemsUp(mediaItemIds);
 
-        public async Task MoveSelectedMediaItemsUp() =>
-            await PlayerService.MoveSelectedMediaItemsUp();
-
-        public async Task MoveSelectedMediaItemsDown() =>
-            await PlayerService.MoveSelectedMediaItemsDown();
+        public async Task MoveMediaItemsDown(IEnumerable<string> mediaItemIds) =>
+            await PlayerService.MoveMediaItemsDown(mediaItemIds);
 
         public async Task Play() =>
             await PlayerService.Play();

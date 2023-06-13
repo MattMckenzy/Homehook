@@ -4,74 +4,74 @@
 }
 else
 {
-    <div class="card bg-dark text-white card-receiver m-2" @ref="CardReference" style="@(Media == null ? "height: 250px;" : string.Empty)">
-        @if (Media != null)
+    <div class="card bg-dark text-white card-receiver m-2" @ref="CardReference" style="@(DeviceService.Device.CurrentMedia == null ? "height: 250px;" : string.Empty)">
+        @if (DeviceService.Device.CurrentMedia != null)
         {
-            <img src="@Media?.Metadata.ThumbnailUri" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
+            <img src="@DeviceService.Device.CurrentMedia?.Metadata.ThumbnailUri" class="card-img" onerror="if (this.src != 'error.jpg') this.src = 'https://semantic-ui.com/images/wireframe/image.png';">
         }
         <div class="card-img-overlay">
 
             <div class="row m-0 receiver-title position-absolute fixed-top w-100">
-                <h4 class="col text-truncate text-stroke m-2 p-0">@Device.Name</h4>
-                <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@(Device.StatusMessage ?? Device.DeviceStatus.ToString())</h6>
-                <i class="col d-flex align-items-center button-bright hover-connect justify-content-end m-2 p-0 mdi mdi-@(GetIcon(Media?.MediaItemKind))" @onclick=@(async () => await SearchAddMediaItems(launch: true))></i>
+                <h4 class="col text-truncate text-stroke m-2 p-0">@DeviceService.Device.Name</h4>
+                <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@(DeviceService.Device.StatusMessage ?? DeviceService.Device.DeviceStatus.ToString())</h6>
+                <i class="col d-flex align-items-center button-bright hover-connect justify-content-end m-2 p-0 mdi mdi-@(GetIcon(DeviceService.Device.CurrentMedia?.MediaItemKind))" @onclick=@(async () => await SearchAddMediaItems(launch: true))></i>
             </div>
 
             <div class="media-information p-2">
-                <h5 class="text-truncate text-stroke m-1">@(Media?.Metadata.Title)</h5>
-                <p class="text-truncate text-stroke fst-italic m-1">@(Media?.Metadata.Subtitle)</p>
+                <h5 class="text-truncate text-stroke m-1">@(DeviceService.Device.CurrentMedia?.Metadata.Title)</h5>
+                <p class="text-truncate text-stroke fst-italic m-1">@(DeviceService.Device.CurrentMedia?.Metadata.Subtitle)</p>
             </div>
 
             <div class="bottom-container container-fluid position-absolute fixed-bottom p-0 w-100">
                 <div class="media-controls d-flex flex-column justify-content-around p-0 w-100">
-                    @if (Media != null)
+                    @if (DeviceService.Device.CurrentMedia != null)
                     {
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
-                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(Device.CurrentTime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
+                            <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceService.Device.CurrentTime).ToString(DeviceService.Device.CurrentMedia.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                                 <div class="progress col px-0 button-bright progress-container" @ref=ProgressBar @onclick="SeekClick">
-                                    <div class="progress-bar position-absolute h-100" role="progressbar" aria-valuenow="@Device.CurrentTime" aria-valuemin="0" aria-valuemax="@Media.Runtime" style="width:@(Math.Round(@Device.CurrentTime * 100 / Media.Runtime))%;"></div>
-                                    @if (Media.CachedRatio != null)
+                                    <div class="progress-bar position-absolute h-100" role="progressbar" aria-valuenow="@DeviceService.Device.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceService.Device.CurrentMedia.Runtime" style="width:@(Math.Round(DeviceService.Device.CurrentTime * 100 / DeviceService.Device.CurrentMedia.Runtime))%;"></div>
+                                    @if (DeviceService.Device.CurrentMedia.CacheStatus != CacheStatus.Off)
                                     {
                                         // TODO: Disable controls depending on Device Status.
-                                        <div class="progress-bar position-absolute h-100 bg-success opacity-25" role="progressbar" aria-valuenow="@Media.CachedRatio" aria-valuemin="0" aria-valuemax="1" style="width:@(Math.Round((double)Media.CachedRatio * 100d))%;"></div>
+                                        <div class="progress-bar position-absolute h-100 bg-success opacity-25" role="progressbar" aria-valuenow="@DeviceService.Device.CurrentMedia.CachedRatio" aria-valuemin="0" aria-valuemax="1" style="width:@(Math.Round((double)DeviceService.Device.CurrentMedia.CachedRatio * 100d))%;"></div>
                                     }
                                 </div>
-                            <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(Media.Runtime).ToString(Media.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
+                            <div class="col-auto text-white ps-2 pe-3">@TimeSpan.FromSeconds(DeviceService.Device.CurrentMedia.Runtime).ToString(DeviceService.Device.CurrentMedia.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
                         </div>
                         <div class="row flex-nowrap align-items-center mx-0 pt-2 pb-3">
                             <i class="col-auto position-relative ps-3 pe-2 button-bright mdi mdi-skip-previous icon-responsive" @onclick="PreviousClick" />
                             <i class="col-auto position-relative px-2 button-bright mdi mdi-rewind-10 icon-responsive" @onclick="RewindClick" />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-@(Device.DeviceStatus == DeviceStatus.Playing ? "pause" : "play") icon-responsive" @onclick="PlayPauseClick" />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-@(DeviceService.Device.DeviceStatus == DeviceStatus.Playing ? "pause" : "play") icon-responsive" @onclick="PlayPauseClick" />
                             <i class="col-auto position-relative px-2 button-bright mdi mdi-stop icon-responsive" @onclick="StopClick" />
                             <i class="col-auto position-relative px-2 button-bright mdi mdi-fast-forward-10 icon-responsive" @onclick="FastForwardClick" />
                             <i class="col-auto position-relative px-2 button-bright mdi mdi-skip-next icon-responsive" @onclick="NextClick" />
                             <div class="col px-0" />
                             <div class="col-auto position-relative d-flex align-items-center px-2">
-                                <input class="invisible-toggle radial-toggle" type="checkbox" id="speedToggle@(Device.Name)" />
-                                <label class="radial-menu m-0" for="speedToggle@(Device.Name)">
+                                <input class="invisible-toggle radial-toggle" type="checkbox" id="speedToggle@(DeviceService.Device.Name)" />
+                                <label class="radial-menu m-0" for="speedToggle@(DeviceService.Device.Name)">
                                     <div class="radial-button position-relative">
                                         <i class="button-bright menu-button mdi mdi-play-speed icon-responsive"></i>
                                         <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                     </div>
-                                    <div class="radial-button@(Device.PlaybackRate == 0.5 ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(0.5)">
+                                    <div class="radial-button@(DeviceService.Device.PlaybackRate == 0.5 ? " button-disabled" : string.Empty)" @onclick="async () => await SetPlaybackRate(0.5)">
                                         <span class="button-bright d-flex align-content-center icon-responsive">½</span>
                                     </div>
-                                    <div class="radial-button@(Device.PlaybackRate == 1 ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1)">
+                                    <div class="radial-button@(DeviceService.Device.PlaybackRate == 1 ? " button-disabled" : string.Empty)" @onclick="async () => await SetPlaybackRate(1)">
                                         <span class="button-bright d-flex align-content-center icon-responsive">1</span>
                                     </div>
-                                    <div class="radial-button@(Device.PlaybackRate == 1.5 ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(1.5)">
+                                    <div class="radial-button@(DeviceService.Device.PlaybackRate == 1.5 ? " button-disabled" : string.Empty)" @onclick="async () => await SetPlaybackRate(1.5)">
                                         <span class="button-bright d-flex align-content-center icon-responsive">3⁄2</span>
                                     </div>
-                                    <div class="radial-button@(Device.PlaybackRate == 2 ? " button-disabled" : string.Empty )" @onclick="async () => await SetPlaybackRate(2)">
+                                    <div class="radial-button@(DeviceService.Device.PlaybackRate == 2 ? " button-disabled" : string.Empty)" @onclick="async () => await SetPlaybackRate(2)">
                                         <span class="button-bright d-flex align-content-center icon-responsive">2</span>
                                     </div>
                                 </label>
                             </div>
-                            @if (Device.MediaQueue.Any())
+                            @if (DeviceService.Device.MediaQueue.Any())
                             {
                                 <div class="col-auto position-relative px-2 d-flex align-items-center">
-                                    <input class="invisible-toggle radial-toggle" type="checkbox" id="playlistToggle@(Device.Name)" />
-                                    <label class="radial-menu m-0" for="playlistToggle@(Device.Name)">
+                                    <input class="invisible-toggle radial-toggle" type="checkbox" id="playlistToggle@(DeviceService.Device.Name)" />
+                                    <label class="radial-menu m-0" for="playlistToggle@(DeviceService.Device.Name)">
                                         <div class="radial-button position-relative">
                                             <i class="button-bright menu-button mdi mdi-playlist-edit icon-responsive" @onclick="ToggleEditingQueue"></i>
                                             <i class="button-bright close-button mdi mdi-close icon-responsive" @onclick="ToggleEditingQueue"></i>
@@ -79,22 +79,22 @@ else
                                     </label>
                                 </div>
                                 <div class="col-auto position-relative px-2 d-flex align-items-center">
-                                    <input class="invisible-toggle radial-toggle" type="checkbox" id="repeatToggle@(Device.Name)" />
-                                    <label class="radial-menu m-0" for="repeatToggle@(Device.Name)">
+                                    <input class="invisible-toggle radial-toggle" type="checkbox" id="repeatToggle@(DeviceService.Device.Name)" />
+                                    <label class="radial-menu m-0" for="repeatToggle@(DeviceService.Device.Name)">
                                         <div class="radial-button position-relative">
-                                            <i class="button-bright menu-button mdi mdi-@(Device.RepeatMode == RepeatMode.All ? "repeat" : Device.RepeatMode == RepeatMode.One ? "repeat-once" : Device.RepeatMode == RepeatMode.Shuffle ? "shuffle-variant" : "repeat-off") icon-responsive"></i>
+                                            <i class="button-bright menu-button mdi mdi-@(DeviceService.Device.RepeatMode == RepeatMode.All ? "repeat" : DeviceService.Device.RepeatMode == RepeatMode.One ? "repeat-once" : DeviceService.Device.RepeatMode == RepeatMode.Shuffle ? "shuffle-variant" : "repeat-off") icon-responsive"></i>
                                             <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                         </div>
-                                        <div class="radial-button@(Device.RepeatMode == RepeatMode.All ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.All)">
+                                        <div class="radial-button@(DeviceService.Device.RepeatMode == RepeatMode.All ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.All)">
                                             <i class="button-bright d-flex align-content-center mdi mdi-repeat icon-responsive"></i>
                                         </div>
-                                        <div class="radial-button@(Device.RepeatMode == RepeatMode.One ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.One)">
+                                        <div class="radial-button@(DeviceService.Device.RepeatMode == RepeatMode.One ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.One)">
                                             <i class="button-bright d-flex align-content-center mdi mdi-repeat-once icon-responsive"></i>
                                         </div>
-                                        <div class="radial-button@(Device.RepeatMode == RepeatMode.Shuffle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.Shuffle)">
+                                        <div class="radial-button@(DeviceService.Device.RepeatMode == RepeatMode.Shuffle ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.Shuffle)">
                                             <i class="button-bright d-flex align-content-center mdi mdi-shuffle-variant icon-responsive"></i>
                                         </div>
-                                        <div class="radial-button@(Device.RepeatMode == RepeatMode.Off ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.Off)">
+                                        <div class="radial-button@(DeviceService.Device.RepeatMode == RepeatMode.Off ? " button-disabled" : string.Empty )" @onclick="async () => await SetRepeatMode(RepeatMode.Off)">
                                             <i class="button-bright d-flex align-content-center mdi mdi-repeat-off icon-responsive"></i>
                                         </div>
                                     </label>
@@ -102,16 +102,16 @@ else
                             }
 
                             <div class="col-auto position-relative ps-2 pe-3 d-flex align-items-center">
-                                <input class="invisible-toggle radial-toggle" type="checkbox" id="volumeToggle@(Device.Name)" />
-                                <label class="radial-menu m-0" for="volumeToggle@(Device.Name)">
+                                <input class="invisible-toggle radial-toggle" type="checkbox" id="volumeToggle@(DeviceService.Device.Name)" />
+                                <label class="radial-menu m-0" for="volumeToggle@(DeviceService.Device.Name)">
                                     <div class="radial-button position-relative">
-                                        <i class="volume-icon menu-button button-bright mdi mdi-@(Device.IsMuted ? "volume-variant-off" : Device.Volume > 0.5 ? "volume-high" : Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive"></i>
+                                        <i class="volume-icon menu-button button-bright mdi mdi-@(DeviceService.Device.IsMuted ? "volume-variant-off" : DeviceService.Device.Volume > 0.5 ? "volume-high" : DeviceService.Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive"></i>
                                         <i class="button-bright close-button mdi mdi-close icon-responsive"></i>
                                     </div>
                                 </label>
                                 <div class="volume-container d-flex justify-content-center">
-                                    <i class="volume-button button-bright mdi mdi-@(Device.IsMuted ? "volume-variant-off" : Device.Volume > 0.5 ? "volume-high" : Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" @onclick="ToggleMute" />
-                                    <input class="volume-slider button-bright" type="range" orient="vertical" min="0" max="1" step="0.01" value="@Device.Volume" @onchange="SetVolume" />
+                                    <i class="volume-button button-bright mdi mdi-@(DeviceService.Device.IsMuted ? "volume-variant-off" : DeviceService.Device.Volume > 0.5 ? "volume-high" : DeviceService.Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive" @onclick="ToggleMute" />
+                                    <input class="volume-slider button-bright" type="range" orient="vertical" min="0" max="1" step="0.01" value="@DeviceService.Device.Volume" @onchange="SetVolume" />
                                 </div>
                             </div>
                         </div>
@@ -120,32 +120,31 @@ else
 
                 <div class="queue-edit-container bg-dark p-3 w-100 d-flex flex-column overflow-y-auto">
                     <div class="queue-buttons btn-group btn-group-sm mb-3 mx-auto position-sticky" role="group" aria-label="Queue item buttons.">
-                        <button id="@(Device.Name)QueuePlayButton" class="btn btn-secondary" @onclick=PlaySelectedMediaItem disabled=@(!Device.MediaQueue.Any(mediaItem => mediaItem.IsSelected))>
+                        <button id="@(DeviceService.Device.Name)QueuePlayButton" class="btn btn-secondary" @onclick=PlayMediaItem disabled=@(!SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-playlist-play icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(Device.Name)QueuePlusButton" class="btn btn-secondary" @onclick=@(async () => await SearchAddMediaItems(insertBeforeSelectedMediaItem: true))>
+                        <button id="@(DeviceService.Device.Name)QueuePlusButton" class="btn btn-secondary" @onclick=@(async () => await SearchAddMediaItems(insertBeforeMediaItem: true))>
                             <i class="mdi mdi-playlist-plus icon-responsive d-flex align-items-center"></i>
                             </button>
-                        <button id="@(Device.Name)QueueMinusButton" class="btn btn-secondary" @onclick=RemoveSelectedMediaItems disabled=@(!Device.MediaQueue.Any(mediaItem => mediaItem.IsSelected))>
+                        <button id="@(DeviceService.Device.Name)QueueMinusButton" class="btn btn-secondary" @onclick=RemoveMediaItems disabled=@(!SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-playlist-minus icon-responsive d-flex align-items-center"></i>
                             </button>
-                        <button id="@(Device.Name)QueueUpButton" class="btn btn-secondary" @onclick=MoveSelectedMediaItemsUp disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
+                        <button id="@(DeviceService.Device.Name)QueueUpButton" class="btn btn-secondary" @onclick=MoveMediaItemsUp disabled=@(!SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-chevron-up icon-responsive d-flex align-items-center"></i>
                             </button>
-                        <button id="@(Device.Name)QueueDownButton" class="btn btn-secondary" @onclick=MoveSelectedMediaItemsDown disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
+                        <button id="@(DeviceService.Device.Name)QueueDownButton" class="btn btn-secondary" @onclick=MoveMediaItemsDown disabled=@(!SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-chevron-down icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(Device.Name)SelectAllButton" class="btn btn-secondary" @onclick=ToggleMediaSelection disabled=@(Device.MediaQueue.Count(mediaItem => mediaItem.IsSelected) < 1)>
+                        <button id="@(DeviceService.Device.Name)SelectAllButton" class="btn btn-secondary" @onclick=ToggleMediaSelection disabled=@(!SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-select-all icon-responsive d-flex align-items-center"></i>
                         </button>
                     </div>
                     <div class="list-group list-group-flush bg-transparent">
-                        @foreach ((MediaItem MediaItem, int Index) item in Device.MediaQueue.Select((mediaItem, index) => (mediaItem, index)))
+                        @foreach (MediaItem mediaItem in DeviceService.Device.MediaQueue)
                         {
-                            // TODO: Add indicators for cached and caching media items.
                             // TODO: Add controls for audio and subtitles, chapter skip, ab-loop.
-                            <label class="media-item list-group-item list-group-item-action @(Device.CurrentMediaIndex == item.Index ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(item.Index)Check" aria-current="@(Device.CurrentMediaIndex == item.Index)">
-                                @if (Device.CurrentMediaIndex == item.Index)
+                            <label class="media-item list-group-item list-group-item-action @(DeviceService.Device.CurrentMedia == mediaItem ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(mediaItem.Id)Check" aria-current="@(DeviceService.Device.CurrentMedia == mediaItem)">
+                                @if (DeviceService.Device.CurrentMedia == mediaItem)
                                 {
                                     <div id="bars">
                                     @foreach(string barStyle in BarStyles)
@@ -155,25 +154,30 @@ else
                                     </div>
                                 }
                                 <div class="d-flex justify-content-between align-items-center text-white text-start mw-100">
-                                    <button class="btn btn-collapse text-white p-0 collapsed" data-bs-toggle="collapse" data-bs-target="#collapse@(item.Index)" aria-expanded="false">
+                                    <button class="btn btn-collapse text-white p-0 collapsed" data-bs-toggle="collapse" data-bs-target="#collapse@(mediaItem.Id)" aria-expanded="false">
                                         <i class="mdi mdi-chevron-right d-flex align-items-center icon-responsive"></i>
                                     </button>
-                                    <span class="text-truncate mx-2">@($"{item.MediaItem.Metadata.Title}")</span>
-                                    <input id="@(item.Index)Check" class="form-check-input mx-2 mt-0 p-2" type="checkbox" checked=@item.MediaItem.IsSelected @onchange=@((changeEventArgs) => UpdateMediaItemsSelection(new MediaItem[] { item.MediaItem }, (bool)(changeEventArgs.Value ?? false)))>
+                                    <span class="text-truncate mw-100 mx-2">
+                                        @($"{mediaItem.Metadata.Title}") 
+                                    </span>
+                                    <div class="d-flex justify-content-center align-items-center">
+                                        <ProgressCircle @ref="ProgressCircles[mediaItem.Id]" CacheStatus=mediaItem.CacheStatus CacheRatio=mediaItem.CachedRatio />
+                                        <input id="@(mediaItem.Id)Check" class="form-check-input mx-2 mt-0 p-2" type="checkbox" checked=@(SelectedMediaItemIds.Contains(mediaItem.Id)) @onchange=@(async (changeEventArgs) => await ToggleMediaItemSelection(mediaItem))>
+                                    </div>
                                 </div>
-                                <div class="collapse text-white text-start text-truncate" id="collapse@(item.Index)">
-                                    @if (item.MediaItem.Metadata.Subtitle != null)
+                                <div class="collapse mt-1 text-white text-start text-truncate" id="collapse@(mediaItem.Id)">
+                                    @if (mediaItem.Metadata.Subtitle != null)
                                     {
-                                        <small class="mw-100 fst-italic">@($"{item.MediaItem.Metadata.Subtitle}")</small>
+                                        <small class="mw-100 fst-italic">@($"{mediaItem.Metadata.Subtitle}")</small>
                                     }
                                     <div class="d-flex justify-content-between align-items-center text-white text-start text-truncate">
-                                        <small><i class="mdi mdi-@(GetIcon(item.MediaItem.MediaItemKind)) m-1"></i>@TimeSpan.FromSeconds(item.MediaItem.Runtime).ToString(Media?.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</small>
-                                        @if (item.MediaItem.Metadata.CreationDate != null)
+                                        <small class="d-flex justify-content-between align-items-center"><i class="mdi mdi-@(GetIcon(mediaItem.MediaItemKind)) m-1 mr-2"></i>@TimeSpan.FromSeconds(mediaItem.Runtime).ToString(DeviceService.Device.CurrentMedia?.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</small>
+
+                                        @if (mediaItem.Metadata.CreationDate != null)
                                         {
-                                            <small>@($"{item.MediaItem.Metadata.CreationDate}")</small>
+                                            <small>@($"{mediaItem.Metadata.CreationDate}")</small>
                                         }
                                     </div>
-
                                 </div>
                             </label>
                         }

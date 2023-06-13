@@ -12,13 +12,15 @@ namespace HomeCast
         private IConfiguration Configuration { get; }
         private LoggingService<ScriptsProcessor> LoggingService { get; }
 
-        // TODO: set volume.sh script to autostart.
-
         private static Dictionary<string, Script> Scripts { get; } = new()
         {
+            { "AUX-InitializeVolume", new Script {  DeviceModel = DeviceModel.Aux, ScriptType = ScriptType.InitializeVolume } }
         };
 
-        private static IEnumerable<ScriptType> AutoStartScripts { get;} = Array.Empty<ScriptType>();
+        private static IEnumerable<ScriptType> AutoStartScripts { get; } = new List<ScriptType>()
+        {
+            ScriptType.InitializeVolume
+        };
 
         private static ConcurrentDictionary<string, Process> ScriptProcesses { get; } = new();
 
@@ -35,7 +37,7 @@ namespace HomeCast
         public Task StartAsync(CancellationToken cancellationToken)
         {
             if (!Enum.TryParse(Configuration["Device:Model"], out DeviceModel parsedModelType))
-                throw new InvalidOperationException($"Please set a valid Device model in the \"Device:OS\" variable! Possible selections are: {string.Join(", ", Enum.GetNames<OSType>())}");
+                throw new InvalidOperationException($"Please set a valid Device model in the \"Device:Model\" variable! Possible selections are: {string.Join(", ", Enum.GetNames<DeviceModel>())}");
             else
                 DeviceModel = parsedModelType;
 

@@ -1,0 +1,14 @@
+﻿.progress-circle {
+    display: block;
+    position: relative;
+    height: 18px;
+    width: 18px;
+}
+
+circle {
+    transition: 0.5s linear;
+}
+
+path {
+    transition: 0.5s linear;
+}

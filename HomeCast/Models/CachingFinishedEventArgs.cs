@@ -2,9 +2,11 @@
 
 namespace HomeCast.Models
 {
-    public class CachingFinishedEventArgs
+    public class CachingUpdateEventArgs
     {
-        public required CacheItem CacheItem { get; set; } 
-        public required MediaItem MediaItem { get; set; }
+        public required FileInfo? CacheFileInfo { get; set; } 
+        public required string MediaItemId { get; set; }
+        public required CacheStatus CacheStatus { get; set; }
+        public required double CacheRatio { get; set; }
     }
 }

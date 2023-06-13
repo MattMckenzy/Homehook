@@ -211,7 +211,8 @@ namespace HomeHook.Services
                 else
                     return new MediaItem
                     {
-                        Id = item.Id,
+                        Id = Guid.NewGuid().ToString(),
+                        MediaId = item.Id,
                         Location = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?static=true&api_key={userId}",
                         MediaSource = phrase.MediaSource,
                         Container = Path.GetExtension(item.Path ?? ".unknown"),
@@ -221,7 +222,7 @@ namespace HomeHook.Services
                         StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
                         Runtime = (float)(item.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(item.RunTimeTicks.Value).TotalSeconds),
                         User = phrase.User,
-                        Cache = phrase.PlaybackMethod == PlaybackMethod.Cached
+                        CacheStatus = phrase.PlaybackMethod == PlaybackMethod.Cached ? CacheStatus.Uncached : CacheStatus.Off
                     };
             }
             ).Where(media => media != null).Cast<MediaItem>().ToList();

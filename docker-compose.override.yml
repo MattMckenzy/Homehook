@@ -12,6 +12,7 @@ services:
       - 8121:8121
     volumes:
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/HomeCast/Data:/home/homecast/data
       - ${APPDATA}/HomeCast/Cache:/home/homecast/cache
 
   homehook:

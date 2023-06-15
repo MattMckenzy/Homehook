@@ -63,6 +63,6 @@ namespace HomeCast.Services
             await PlayerService.SetVolume(volume);
 
         public async Task ToggleMute() =>
-            await PlayerService.ToggleMuted();
+            await PlayerService.ToggleMute();
     }
 }

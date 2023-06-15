@@ -8,7 +8,7 @@ using YoutubeDLSharp.Options;
 
 namespace HomeCast.Services
 {
-    public partial class CachingService : IDisposable
+    public class CachingService : IDisposable
     {
         #region Injections
 
@@ -73,9 +73,12 @@ namespace HomeCast.Services
         private CacheFormat CacheFormat { get; }
 
         private Dictionary<string, FileInfo> CacheFileInfos { get; } = new();
+
         private ConcurrentQueue<(FileInfo CacheFileInfo, MediaItem MediaItem)> CachingQueue { get; } = new();
-        private bool IsProcessingCacheQueue = false;
+        private MediaItem? CurrentCachingMediaItem = null;
+        private CachingInformation? CurrentCachingInformation = null;
         private CancellationTokenSource CachingCancellationTokenSource = new();
+        private SemaphoreQueue CachingLock { get; } = new(1);
 
         private YoutubeDL YoutubeDL { get; } = new();
         private OptionSet OptionSet { get; } = new();
@@ -86,52 +89,68 @@ namespace HomeCast.Services
 
         #region CacheService Implementation
 
-        public event EventHandler<CachingUpdateEventArgs>? CachingUpdate;
+        public static Func<CachingInformation, Task>? CachingUpdateCallback { get; set; }
 
-        public async Task<(bool, FileInfo?)> TryGetOrQueueCacheItem(MediaItem mediaItem)
+        public async Task<(bool, CachingInformation)> TryGetOrQueueCacheItem(MediaItem mediaItem)
         {
             if (CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) && cacheFileInfo != null)
-                return (false, cacheFileInfo);
+                return (false, new CachingInformation { CacheFileInfo = cacheFileInfo, MediaId = mediaItem.MediaId, CacheRatio = 1, CacheStatus = CacheStatus.Cached });
+            else if (CurrentCachingInformation != null && CurrentCachingInformation.MediaId == mediaItem.MediaId)
+                return (true, CurrentCachingInformation);
             else if (CachingQueue.Any(queueItem => $"{queueItem.MediaItem.MediaId}-{CacheFormat}" == $"{mediaItem.MediaId}-{CacheFormat}"))
-                return (true, null);
+                return (true, new CachingInformation { CacheFileInfo = null, MediaId = mediaItem.MediaId, CacheRatio = 0, CacheStatus = CacheStatus.Queued });
             else
-                return (await QueueCacheItem(mediaItem), null);  
+                return await QueueCacheItem(mediaItem);  
         }
 
-        public void CancelCaching()
+        public CachingInformation? UpdateMediaItemsCacheStatus(MediaItem mediaItem)
         {
-            CachingCancellationTokenSource.Cancel();
-            CachingCancellationTokenSource = new();
+            if (mediaItem.CacheStatus != CacheStatus.Off && CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) &&
+                cacheFileInfo != null &&
+                CachingUpdateCallback != null)
+                return new CachingInformation
+                {
+                    CacheFileInfo = null,
+                    MediaId = mediaItem.MediaId,
+                    CacheStatus = CacheStatus.Cached,
+                    CacheRatio = 1
+                };
+            else return null;
         }
 
-        public void ClearCachingQueue()
+        public async Task<IEnumerable<CachingInformation>> UpdateCachingQueue(IEnumerable<MediaItem> mediaItems)
         {
-            foreach (MediaItem mediaItem in CachingQueue.Select(queueItem => queueItem.MediaItem))
+            if (mediaItems.Any() &&
+                CurrentCachingInformation != null &&
+                mediaItems.FirstOrDefault(mediaItem => mediaItem.CacheStatus != CacheStatus.Cached)?.MediaId != CurrentCachingInformation.MediaId)
             {
-                CachingUpdate?.Invoke(this,
-                    new CachingUpdateEventArgs
-                    {
-                        CacheFileInfo = null,
-                        MediaItemId = mediaItem.Id,
-                        CacheStatus = CacheStatus.Uncached,
-                        CacheRatio = 0
-                    });
+                CancellationTokenSource currentCancellationTokenSource = CachingCancellationTokenSource;
+                CachingCancellationTokenSource = new();
+                currentCancellationTokenSource.Cancel();
             }
-            CachingQueue.Clear();
-        }
 
-        public void UpdateMediaQueueCacheStatus(IEnumerable<MediaItem> mediaItems)
-        {
-            foreach (MediaItem mediaItem in mediaItems)
-                if (mediaItem.CacheStatus != CacheStatus.Off && CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) && cacheFileInfo != null)
-                    CachingUpdate?.Invoke(this,
-                        new CachingUpdateEventArgs
+            List<CachingInformation> returningStatuses = new();
+            foreach(MediaItem mediaItem in CachingQueue.Where(cachingQueueItem => !mediaItems.Contains(cachingQueueItem.MediaItem)).Select(cachingQueueItem => cachingQueueItem.MediaItem))
+                if ((!CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) || cacheFileInfo == null) && CachingUpdateCallback != null)
+                    returningStatuses.Add(
+                        new CachingInformation
                         {
                             CacheFileInfo = null,
-                            MediaItemId = mediaItem.Id,
-                            CacheStatus = CacheStatus.Cached,
-                            CacheRatio = 1
-                        });
+                            MediaId = mediaItem.MediaId,
+                            CacheStatus = CacheStatus.Uncached,
+                            CacheRatio = 0
+                        });            
+
+            CachingQueue.Clear();
+
+            foreach (MediaItem mediaItem in mediaItems)
+            {
+                (bool ItemQueued, CachingInformation CachingInformation) = await TryGetOrQueueCacheItem(mediaItem);
+                if (ItemQueued)
+                    returningStatuses.Add(CachingInformation);
+            }
+
+            return returningStatuses;
         }
 
         #endregion
@@ -140,7 +159,7 @@ namespace HomeCast.Services
 
         private async Task<bool> TryRunCacheDeletionAlgorithm(long neededBytes)
         {
-            neededBytes += CachingQueue.Sum(queueItem => queueItem.MediaItem.Size);
+            neededBytes += CachingQueue.Sum(queueItem => queueItem.MediaItem.Size) + CurrentCachingMediaItem?.Size ?? 0;
 
             DriveInfo driveInfo = new(CacheDirectoryInfo.Root.FullName);
             if (driveInfo.AvailableFreeSpace > neededBytes)
@@ -190,146 +209,141 @@ namespace HomeCast.Services
             }
         }
 
-        private async Task<bool> QueueCacheItem(MediaItem mediaItem)
+        private async Task<(bool ItemQueued, CachingInformation CacheInformation)> QueueCacheItem(MediaItem mediaItem)
         {
             if (!await TryRunCacheDeletionAlgorithm(mediaItem.Size))
             {
                 await LoggingService.LogWarning("Caching Service", $"Could not get enough available space to cache \"{mediaItem.Metadata.Title}\".");
-                return false;
+                return (false, new CachingInformation
+                {
+                    CacheFileInfo = null,
+                    MediaId = mediaItem.MediaId,
+                    CacheStatus = CacheStatus.Uncached,
+                    CacheRatio = 0
+                });
             }
 
             string cacheKey = $"{mediaItem.MediaId}-{CacheFormat}";
             FileInfo cacheFileInfo = new(Path.Combine(CacheDirectoryInfo.FullName, $"{cacheKey}{(mediaItem.Container.StartsWith(".") ? string.Empty : ".")}{mediaItem.Container}"));
 
-            CachingUpdate?.Invoke(this,
-                new CachingUpdateEventArgs
-                {
-                    CacheFileInfo = null,
-                    MediaItemId = mediaItem.Id,
-                    CacheStatus = CacheStatus.Queued,
-                    CacheRatio = 0
-                });
-
             CachingQueue.Enqueue((cacheFileInfo, mediaItem));
 
             _ = Task.Run(ProcessDownloadQueue);            
 
-            return true;
+            return (true, new CachingInformation
+            {
+                CacheFileInfo = null,
+                MediaId = mediaItem.MediaId,
+                CacheStatus = CacheStatus.Queued,
+                CacheRatio = 0
+            });
         }
 
         private async Task ProcessDownloadQueue()
         {
-            if (IsProcessingCacheQueue)
-                return;
+            await CachingLock.WaitAsync();
 
-            IsProcessingCacheQueue = true;
-
-            while (CachingQueue.TryPeek(out (FileInfo CacheFileInfo, MediaItem MediaItem) queueItem))
+            try
             {
-                MediaItem mediaItem = queueItem.MediaItem;
-                FileInfo cacheFileInfo = queueItem.CacheFileInfo;
-                string cacheKey = $"{mediaItem.MediaId}-{CacheFormat}";
-
-                try
+                if (CachingQueue.TryDequeue(out (FileInfo CacheFileInfo, MediaItem MediaItem) queueItem))
                 {
-                    await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
-
-                    Progress<DownloadProgress> downloadProgress = new(downloadProgress =>
+                    CurrentCachingMediaItem = queueItem.MediaItem;
+                    CurrentCachingInformation = new CachingInformation
                     {
-                        CachingUpdate?.Invoke(this,
-                            new CachingUpdateEventArgs
-                            {
-                                CacheFileInfo = null,
-                                MediaItemId = mediaItem.Id,
-                                CacheStatus = CacheStatus.Caching,
-                                CacheRatio = downloadProgress.Progress
-                            });
-                    });
+                        CacheFileInfo = null,
+                        MediaId = queueItem.MediaItem.MediaId,
+                        CacheStatus = CacheStatus.Caching,
+                        CacheRatio = 0
+                    };
 
-                    OptionSet optionSet = (OptionSet)OptionSet.Clone();
-                    optionSet.Output = Path.Combine("yt-dlp", cacheFileInfo.Name);
+                    MediaItem mediaItem = queueItem.MediaItem;
+                    FileInfo cacheFileInfo = queueItem.CacheFileInfo;
+                    string cacheKey = $"{mediaItem.MediaId}-{CacheFormat}";
 
-                    RunResult<string>? runResult = null;
-                    if (CacheFormat == CacheFormat.Audio)
-                        runResult = await YoutubeDL.RunAudioDownload(
-                            mediaItem.Location,
-                            progress: downloadProgress,
-                            ct: CachingCancellationTokenSource.Token,
-                            overrideOptions: optionSet);
-                    else if (CacheFormat == CacheFormat.Video)
+                    try
                     {
-                        optionSet.SubLangs = "all";
-                        runResult = await YoutubeDL.RunVideoDownload(
-                            mediaItem.Location,
-                            progress: downloadProgress,
-                            ct: CachingCancellationTokenSource.Token,
-                            overrideOptions: optionSet);
+                        await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
+
+                        Progress<DownloadProgress> downloadProgress = new(async downloadProgress =>
+                        {
+                            CurrentCachingInformation.CacheRatio = downloadProgress.Progress;
+                            if (CachingUpdateCallback != null)
+                                await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
+                        });
+
+                        OptionSet optionSet = (OptionSet)OptionSet.Clone();
+                        optionSet.Output = Path.Combine("yt-dlp", cacheFileInfo.Name);
+
+                        RunResult<string>? runResult = null;
+                        if (CacheFormat == CacheFormat.Audio)
+                            runResult = await YoutubeDL.RunAudioDownload(
+                                mediaItem.Location,
+                                progress: downloadProgress,
+                                ct: CachingCancellationTokenSource.Token,
+                                overrideOptions: optionSet);
+                        else if (CacheFormat == CacheFormat.Video)
+                        {
+                            optionSet.SubLangs = "all";
+                            runResult = await YoutubeDL.RunVideoDownload(
+                                mediaItem.Location,
+                                progress: downloadProgress,
+                                ct: CachingCancellationTokenSource.Token,
+                                overrideOptions: optionSet);
+                        }
+
+                        if (runResult != null && runResult.Success && !string.IsNullOrWhiteSpace(runResult.Data))
+                        {
+                            File.Move(runResult.Data, cacheFileInfo.FullName);
+
+                            await LoggingService.LogDebug("Caching Service", $"Succesfully cached \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
+
+                            CacheFileInfos.Add(cacheKey, cacheFileInfo);
+
+                            CurrentCachingInformation.CacheFileInfo = cacheFileInfo;
+                            CurrentCachingInformation.CacheStatus = CacheStatus.Cached;
+                            CurrentCachingInformation.CacheRatio = 1;
+                            if (CachingUpdateCallback != null)
+                                await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
+                        }
+                        else
+                        {
+                            CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
+                            CurrentCachingInformation.CacheRatio = 0;
+                            if (CachingUpdateCallback != null)
+                                await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
+
+                            await LoggingService.LogError("Caching Service", $"Failed to cache \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {(runResult != null ? string.Join("; ", runResult.ErrorOutput) : "N/A")}.");
+                        }
                     }
-
-                    if (runResult != null && runResult.Success && !string.IsNullOrWhiteSpace(runResult.Data))
+                    catch (TaskCanceledException)
                     {
-                        File.Move(runResult.Data, cacheFileInfo.FullName);
+                        CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
+                        CurrentCachingInformation.CacheRatio = 0;
+                        if (CachingUpdateCallback != null)
+                            await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
 
-                        await LoggingService.LogDebug("Caching Service", $"Succesfully cached \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
-
-                        CacheFileInfos.Add(cacheKey, cacheFileInfo);
-
-                        CachingUpdate?.Invoke(this,
-                            new CachingUpdateEventArgs
-                            {
-                                CacheFileInfo = cacheFileInfo,
-                                MediaItemId = mediaItem.Id,
-                                CacheStatus = CacheStatus.Cached,
-                                CacheRatio = 1
-                            });
+                        await LoggingService.LogDebug("Caching Service", $"Canceled caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
                     }
-                    else
+                    catch (Exception exception)
                     {
-                        CachingUpdate?.Invoke(this,
-                            new CachingUpdateEventArgs
-                            {
-                                CacheFileInfo = null,
-                                MediaItemId = mediaItem.Id,
-                                CacheStatus = CacheStatus.Uncached,
-                                CacheRatio = 0
-                            });
+                        CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
+                        CurrentCachingInformation.CacheRatio = 0;
+                        if (CachingUpdateCallback != null)
+                            await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
 
-                        await LoggingService.LogError("Caching Service", $"Failed to cache \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {(runResult != null ? string.Join("; ", runResult.ErrorOutput) : "N/A")}.");
+                        await LoggingService.LogError("Caching Service", $"Error during caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {exception.Message}");
+                    }
+                    finally
+                    {
+                        CurrentCachingMediaItem = null;
+                        CurrentCachingInformation = null;
                     }
                 }
-                catch (TaskCanceledException)
-                {
-                    CachingUpdate?.Invoke(this,
-                            new CachingUpdateEventArgs
-                            {
-                                CacheFileInfo = null,
-                                MediaItemId = mediaItem.Id,
-                                CacheStatus = CacheStatus.Uncached,
-                                CacheRatio = 0
-                            });
-
-                    await LoggingService.LogDebug("Caching Service", $"Canceled caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
-                }
-                catch (Exception exception)
-                {
-                    CachingUpdate?.Invoke(this,
-                            new CachingUpdateEventArgs
-                            {
-                                CacheFileInfo = null,
-                                MediaItemId = mediaItem.Id,
-                                CacheStatus = CacheStatus.Uncached,
-                                CacheRatio = 0
-                            });
-
-                    await LoggingService.LogError("Caching Service", $"Error during caching of \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\": {exception.Message}");
-                }
-                finally
-                {
-                    CachingQueue.TryDequeue(out (FileInfo CacheFileInfo, MediaItem MediaItem) _);
-                }
-            }        
-
-            IsProcessingCacheQueue = false;
+            }
+            finally
+            {
+                CachingLock.Release();
+            }
         }
 
         #endregion

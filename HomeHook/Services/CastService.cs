@@ -7,7 +7,6 @@ using System.Collections.Concurrent;
 
 namespace HomeHook
 {
-    // TODO: Properly handle disconnected device.
     public class CastService : IHostedService
     {
         #region Injections
@@ -84,6 +83,10 @@ namespace HomeHook
                             .WithAutomaticReconnect(new DeviceRetryPolicy<CastService>(deviceConfiguration, LoggingService))
                             .Build();
 
+                            hubConnection.Reconnecting += async (Exception? exception) => await DeviceConnectionReconnecting(deviceConfiguration.Name, exception);
+                            hubConnection.Reconnected += async (string? message) => await DeviceConnectionReconnected(deviceConfiguration.Name, message);
+                            hubConnection.Closed += async (Exception? exception) => await DeviceConnectionClosed(deviceConfiguration.Name, exception);
+
                             await hubConnection.StartAsync(cancellationToken);
                             Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
 
@@ -120,13 +123,29 @@ namespace HomeHook
                     finally
                     {
                         RefreshDevicesCancellationTokenSource = new();
-                        RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromMinutes(1));
+                        RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));
                     }
 
                 }
             }, cancellationToken);
 
             return Task.CompletedTask;
+        }
+
+        private async Task DeviceConnectionReconnecting(string deviceName, Exception? exception)
+        {
+            await LoggingService.LogDebug($"{deviceName} reconnecting.", exception?.Message ?? "Connection reconnecting...");
+        }
+
+        private async Task DeviceConnectionReconnected(string deviceName, string? message)
+        {
+            await LoggingService.LogDebug($"{deviceName} reconnected.", message ?? "Succesfully reconnected.");
+        }
+
+        private async Task DeviceConnectionClosed(string deviceName, Exception? exception)
+        {
+            await LoggingService.LogDebug($"{deviceName} onnection closed.", exception?.Message ?? "Connection closed.");
+            DeviceServices.TryRemove(deviceName, out _);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

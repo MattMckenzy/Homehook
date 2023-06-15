@@ -6,9 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Net;
 using System.Reflection;
-using System.Xml.Linq;
 
 namespace HomeCast.Services
 {
@@ -41,9 +39,7 @@ namespace HomeCast.Services
         private FileInfo DeviceFileInfo { get; }
         private bool VideoCapable { get; }
         private int CacheAheadCount { get; }
-
-        private bool IsMediaLoaded { get { return new DeviceStatus[] { DeviceStatus.Finished, DeviceStatus.Ended, DeviceStatus.Stopping, DeviceStatus.Stopped }.Contains(Device.DeviceStatus) == false; } }
-
+                
         private Process? Player { get; set; }
         private Process? Socket { get; set; }
 
@@ -93,7 +89,9 @@ namespace HomeCast.Services
                 IgnoredOutputs.Add(ignoredOutput);
 
             CacheAheadCount = Configuration.GetValue<int>("Services:Caching:CacheAheadCount");
-                        
+
+            CachingService.CachingUpdateCallback = CachingUpdate;
+
             DeviceFileInfo = new FileInfo(Path.Combine(DataDirectoryInfo.FullName, "device.json"));
             if (DeviceFileInfo.Exists && File.ReadAllText(DeviceFileInfo.FullName).TryParseJson<Device>(out Device? parsedDevice) && parsedDevice != null)
             {
@@ -105,8 +103,10 @@ namespace HomeCast.Services
 
                 if (Device.CurrentMedia != null)
                     Device.CurrentMedia.StartTime = Device.CurrentTime;
-                
-                ProcessCacheQueue().GetAwaiter().GetResult();
+
+                UpdateMediaItemsCacheStatus(Device.MediaQueue);
+
+                UpdateCachingQueue().GetAwaiter().GetResult();
             }
             else
                 Device = new()
@@ -131,8 +131,6 @@ namespace HomeCast.Services
                         DeviceLock.Release();
                     }
                 };
-
-            CachingService.CachingUpdate += CachingUpdate;
 
             StartProcesses();
 
@@ -160,7 +158,7 @@ namespace HomeCast.Services
 
         #endregion
 
-        #region Public Methods
+        #region Device Commands
 
         public async Task<Device> GetDevice()
         {
@@ -179,67 +177,74 @@ namespace HomeCast.Services
 
         public async Task PlayMediaItem(string mediaItemId)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.PlayMediaItem) &&
+                Device.MediaQueue.Any(mediaItem => mediaItem.Id == mediaItemId))
             {
-                if (Device.MediaQueue.Any(mediaItem => mediaItem.Id == mediaItemId))
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     await StopMedia();
                     Device.CurrentMediaItemId = mediaItemId;
                     await PlayMedia();
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task AddMediaItems(List<MediaItem> mediaItems, bool launch = false, string? insertBeforeMediaItemId = null)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.AddMediaItems))
             {
-                if (launch)
+                await DeviceLock.WaitAsync();
+
+                try
                 {
-                    await StopMedia();
-                    Device.CurrentMediaItemId = null;
-                    Device.MediaQueue.Clear();
+                    if (launch)
+                    {
+                        await StopMedia();
+                        Device.CurrentMediaItemId = null;
+                        Device.MediaQueue.Clear();
+                    }
+
+                    int insertBeforeIndex = insertBeforeMediaItemId != null && Device.MediaQueue.Any(mediaItem => mediaItem.Id == insertBeforeMediaItemId) ?
+                        Device.MediaQueue.IndexOf(Device.MediaQueue.First(mediaItem => mediaItem.Id == insertBeforeMediaItemId)) :
+                        Device.MediaQueue.Count;
+
+                    Device.MediaQueue.InsertRange(insertBeforeIndex, mediaItems);
+
+                    UpdateMediaItemsCacheStatus(mediaItems);
+
+                    if (launch)
+                    {
+                        Device.CurrentMediaItemId = Device.MediaQueue.FirstOrDefault()?.Id;
+                        await PlayMedia();
+                    }
+                    else
+                        await UpdateCachingQueue();
+
+                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                 }
-
-                int insertBeforeIndex = insertBeforeMediaItemId != null && Device.MediaQueue.Any(mediaItem => mediaItem.Id == insertBeforeMediaItemId) ?
-                    Device.MediaQueue.IndexOf(Device.MediaQueue.First(mediaItem => mediaItem.Id == insertBeforeMediaItemId)) :
-                    Device.MediaQueue.Count;
-
-                Device.MediaQueue.InsertRange(insertBeforeIndex, mediaItems);
-
-                if (launch)
+                finally
                 {
-                    Device.CurrentMediaItemId = Device.MediaQueue.FirstOrDefault()?.Id;
-                    await PlayMedia();
+                    SaveDeviceFile();
+                    DeviceLock.Release();
                 }
-                else
-                    await ProcessCacheQueue();
-
-                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
             }
         }
 
         public async Task RemoveMediaItems(IEnumerable<string> mediaItemIds)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.RemoveMediaItems) &&
+                mediaItemIds.Any())
             {
-                if (Device.MediaQueue.Any() && mediaItemIds.Any())
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     foreach (MediaItem mediaItem in Device.MediaQueue.ToArray().Where(mediaItem => mediaItemIds.Contains(mediaItem.Id)).Reverse())
                     {
@@ -254,25 +259,25 @@ namespace HomeCast.Services
                             Device.MediaQueue.Remove(mediaItem);
                     }
 
-                    await ProcessCacheQueue();
+                    await UpdateCachingQueue();
                     await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task MoveMediaItemsUp(IEnumerable<string> mediaItemIds)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsUp))
             {
-                if (Device.MediaQueue.Any())
-                {          
+                await DeviceLock.WaitAsync();
+
+                try
+                {
                     foreach (MediaItem mediaItem in Device.MediaQueue.ToArray()
                             .SkipWhile(mediaItem => mediaItemIds.Contains(mediaItem.Id))
                             .Where(mediaItem => mediaItemIds.Contains(mediaItem.Id)))
@@ -287,24 +292,24 @@ namespace HomeCast.Services
                         }
                     }
 
-                    await ProcessCacheQueue();
+                    await UpdateCachingQueue();
                     await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task MoveMediaItemsDown(IEnumerable<string> mediaItemIds)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsDown))
             {
-                if (Device.MediaQueue.Any())
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     foreach (MediaItem mediaItem in Device.MediaQueue.ToArray()
                         .Reverse()
@@ -321,167 +326,173 @@ namespace HomeCast.Services
                         }
                     }
 
-                    await ProcessCacheQueue();
+                    await UpdateCachingQueue();
                     await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task Play()
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.Play))
             {
-                if (Device.DeviceStatus == DeviceStatus.Paused)
-                {
-                    Device.DeviceStatus = DeviceStatus.Unpausing;
-                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                await DeviceLock.WaitAsync();
 
-                    await SendCommandAsync(new string[] { "set", "pause", "no" }, true);
-                }
-                else if (Device.DeviceStatus == DeviceStatus.Ended && Device.MediaQueue.Any())
+                try
                 {
-                    Device.CurrentMediaItemId = Device.MediaQueue.First().Id;
-                    await PlayMedia();
+                    if (Device.DeviceStatus == DeviceStatus.Paused)
+                    {
+                        Device.DeviceStatus = DeviceStatus.Unpausing;
+                        await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+
+                        await SendCommandAsync(new string[] { "set", "pause", "no" }, true);
+                    }
+                    else
+                    {
+                        await PlayMedia();
+                    }
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task Stop()
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.Stop))
             {
-                await StopMedia();
+                await DeviceLock.WaitAsync();
 
-                Device.CurrentMediaItemId = null;
-                Device.MediaQueue.Clear();
-                Device.DeviceStatus = DeviceStatus.Stopped;
-                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                try
+                {
+                    await StopMedia();
+
+                    Device.CurrentMediaItemId = null;
+                    Device.MediaQueue.Clear();
+                    Device.DeviceStatus = DeviceStatus.Stopped;
+                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task Pause()
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.Pause))
             {
-                if (Device.DeviceStatus == DeviceStatus.Playing)
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     Device.DeviceStatus = DeviceStatus.Pausing;
                     await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
 
                     await SendCommandAsync(new string[] { "set", "pause", "yes" }, true);
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task Next()
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.Next))
             {
-                if (Device.MediaQueue.Any() && Device.CurrentMedia != null)
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     await StopMedia();
-                    Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Min(Device.MediaQueue.IndexOf(Device.CurrentMedia) + 1, Device.MediaQueue.Count - 1)).Id;
-                    await PlayMedia();
+                    Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Min(Device.MediaQueue.IndexOf(Device.CurrentMedia!) + 1, Device.MediaQueue.Count - 1)).Id;
+                    await PlayMedia();                    
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task Previous()
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.Previous))
             {
-                if (Device.MediaQueue.Any() && Device.CurrentMedia != null)
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     await StopMedia();
-                    Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Max(Device.MediaQueue.IndexOf(Device.CurrentMedia) - 1, 0)).Id;
+                    Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Max(Device.MediaQueue.IndexOf(Device.CurrentMedia!) - 1, 0)).Id;
                     await PlayMedia();
+
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
                 }
             }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
-            }    
         }
 
         public async Task Seek(float timeToSeek)
         {
-            await DeviceLock.WaitAsync();
+            if (Device.IsCommandAvailable(DeviceCommand.Seek))
+            {
+                await DeviceLock.WaitAsync();
 
-            try
-            {
-                if (IsMediaLoaded && Device.CurrentMedia != null)
+                try
                 {
-                    await SendCommandAsync(new string[] { "seek", Math.Min(Math.Max(timeToSeek, 0), Device.CurrentMedia.Runtime).ToString(), "absolute" }, true);
+                    await SendCommandAsync(new string[] { "seek", Math.Min(Math.Max(timeToSeek, 0), Device.CurrentMedia!.Runtime).ToString(), "absolute" }, true);                    
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task SeekRelative(float timeDifference)
         {
-            await DeviceLock.WaitAsync();
+            if (Device.IsCommandAvailable(DeviceCommand.SeekRelative))
+            {
+                await DeviceLock.WaitAsync();
 
-            try
-            {
-                if (IsMediaLoaded && Device.CurrentMedia != null)
+                try
                 {
-                    await SendCommandAsync(new string[] { "seek", timeDifference.ToString() }, true);
+                    await SendCommandAsync(new string[] { "seek", timeDifference.ToString() }, true);                    
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task ChangeRepeatMode(RepeatMode repeatMode)
         {
-            await DeviceLock.WaitAsync();
-
-            try
+            if (Device.IsCommandAvailable(DeviceCommand.ChangeRepeatMode))
             {
-                if (Device.MediaQueue.Any())
+                await DeviceLock.WaitAsync();
+
+                try
                 {
                     if (Device.RepeatMode != RepeatMode.Shuffle && repeatMode == RepeatMode.Shuffle)
                     {
@@ -496,57 +507,66 @@ namespace HomeCast.Services
                     Device.RepeatMode = repeatMode;
                     await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                 }
-            }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
         }
 
         public async Task SetPlaybackRate(float playbackRate)
         {
-            await DeviceLock.WaitAsync();
+            if (Device.IsCommandAvailable(DeviceCommand.SetPlaybackRate))
+            {
+                await DeviceLock.WaitAsync();
 
-            try
-            {
-                await SendCommandAsync(new string[] { "set", "speed", playbackRate.ToString() }, true);
+                try
+                {
+                    await SendCommandAsync(new string[] { "set", "speed", playbackRate.ToString() }, true);
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
-            }    
         }
 
         public async Task SetVolume(float volume)
         {
-            await DeviceLock.WaitAsync();
+            if (Device.IsCommandAvailable(DeviceCommand.SetVolume))
+            {
+                await DeviceLock.WaitAsync();
 
-            try
-            {
-                await SendCommandAsync(new string[] { "set", "volume", (Math.Min(Math.Max(volume, 0), 1) * 100).ToString() }, true);
+                try
+                {
+                    await SendCommandAsync(new string[] { "set", "volume", (Math.Min(Math.Max(volume, 0), 1) * 100).ToString() }, true);
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
-            }          
         }
 
-        public async Task ToggleMuted()
+        public async Task ToggleMute()
         {
-            await DeviceLock.WaitAsync();
+            if (Device.IsCommandAvailable(DeviceCommand.ToggleMute))
+            {
+                await DeviceLock.WaitAsync();
 
-            try
-            {
-                await SendCommandAsync(new string[] { "set", "mute", !Device.IsMuted ? "yes" : "no" }, true);
+                try
+                {
+                    await SendCommandAsync(new string[] { "set", "mute", !Device.IsMuted ? "yes" : "no" }, true);
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
+                }
             }
-            finally
-            {
-                SaveDeviceFile();
-                DeviceLock.Release();
-            }      
         }
 
         #endregion
@@ -596,7 +616,7 @@ namespace HomeCast.Services
                     "--script-opts=ytdl_hook-ytdl_path=yt-dlp",
                     "--af=superequalizer=1b=2.0:2b=3.6:3b=3.8:4b=5.5:5b=6.0:6b=6.4:7b=6.6:8b=6.4:9b=6.0:10b=5.2:11b=4.0:12b=3.2:13b=3.0:14b=3.2:15b=3.8:16b=4.4:17b=5.2:18b=6.5",
                     "--cache=yes",
-                    $"--cache-secs=30",
+                    "--cache-secs=30",
                     $"--cache-dir={Path.Combine("/", "tmp", "mpv-cache")}",
                     $"--volume={Device.Volume * 100}",
                     $"--input-ipc-server={MPVSocketLocation}"
@@ -683,6 +703,7 @@ namespace HomeCast.Services
 
         private async void Player_OutputDataReceived(object sender, DataReceivedEventArgs dataReceivedEventArgs)
         {
+            Debug.WriteLine($"Player Output - {dataReceivedEventArgs.Data}");
             if (!IgnoredOutputs.Contains(dataReceivedEventArgs.Data ?? string.Empty))
                 await LoggingService.LogWarning("Player Warning", dataReceivedEventArgs.Data ?? "N/A");
         }
@@ -702,6 +723,7 @@ namespace HomeCast.Services
 
         private async void Socket_OutputDataReceived(object sender, DataReceivedEventArgs dataReceivedEventArgs)
         {
+            Debug.WriteLine($"Socket Output - {dataReceivedEventArgs.Data}");
             string? socketOutput = dataReceivedEventArgs.Data;
             if (socketOutput != null)
             {
@@ -930,13 +952,13 @@ namespace HomeCast.Services
             // Check and use cache location.
             if (Device.CurrentMedia.CacheStatus != CacheStatus.Off)
             {
-                (bool cacheDownloadQueued, FileInfo? cacheFileInfo)  = await CachingService.TryGetOrQueueCacheItem(Device.CurrentMedia);
-                if (cacheFileInfo != null)
+                (bool CacheDownloadQueued, CachingInformation CachingInFormation)  = await CachingService.TryGetOrQueueCacheItem(Device.CurrentMedia);
+                if (CachingInFormation.CacheFileInfo != null)
                 {
                     Device.CurrentMedia.CachedRatio = 1;
-                    playLocation = cacheFileInfo.FullName;
+                    playLocation = CachingInFormation.CacheFileInfo.FullName;
                 }
-                else if (cacheDownloadQueued)
+                else if (CacheDownloadQueued)
                     await SendStatusMessage("Caching media...");
                 else
                     await SendStatusMessage("Couldn't cache media!");
@@ -955,7 +977,6 @@ namespace HomeCast.Services
             // Play media if valid location was found.
             if (!string.IsNullOrWhiteSpace(playLocation))
             {
-                Device.CurrentTime = 0;
                 Device.DeviceStatus = DeviceStatus.Starting;
                 await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
 
@@ -964,69 +985,84 @@ namespace HomeCast.Services
             else
                 await LoggingService.LogError("Player Service", $"Could not get a valid location from cache or URI: \"{Device.CurrentMedia.Location}\".");
 
-            await ProcessCacheQueue();
+            await UpdateCachingQueue();
         }
 
         private async Task StopMedia()
         {
             await LoggingService.LogDebug("Stopping Media", $"Stopped Media.");
 
-            if (Device.CurrentMedia != null)
+            if (Device.IsMediaLoaded)
             {
-                CachingService.CancelCaching();
+                Device.DeviceStatus = DeviceStatus.Stopping;
+                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
 
-                if (IsMediaLoaded)
+                object? currentTime = await SendCommandAsync(new string[] { "get_property", "time-pos" }, true);
+
+                if (currentTime != null)
                 {
-                    Device.DeviceStatus = DeviceStatus.Stopping;
-                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                    Device.CurrentTime = 0;
+                    Device.CurrentMedia!.StartTime = Math.Max(Convert.ToDouble(currentTime) - 5, 0);
+                }
 
-                    object? currentTime = await SendCommandAsync(new string[] { "get_property", "time-pos" }, true);
+                await SendCommandAsync(new string[] { "stop" }, true);
+            }
+        }
 
-                    if (currentTime != null)
-                    {
-                        Device.CurrentTime = 0;
-                        Device.CurrentMedia.StartTime = Math.Max(Convert.ToDouble(currentTime) - 5, 0);
-                    }
-
-                    await SendCommandAsync(new string[] { "stop" }, true);
+        private void UpdateMediaItemsCacheStatus(IEnumerable<MediaItem> mediaItems)
+        {
+            foreach (MediaItem mediaItem in mediaItems)
+            {
+                CachingInformation? cachingInformation = CachingService.UpdateMediaItemsCacheStatus(mediaItem);
+                if (cachingInformation != null)
+                {
+                    mediaItem.CacheStatus = cachingInformation.CacheStatus;
+                    mediaItem.CachedRatio = cachingInformation.CacheRatio;
                 }
             }
         }
 
-        private async Task ProcessCacheQueue()
+        private async Task UpdateCachingQueue()
         {
-            // TODO: optimize caching queue update based on media queue changing.
-            CachingService.ClearCachingQueue();
-
             if (Device.RepeatMode != RepeatMode.One && Device.CurrentMedia != null)
             {
-                int currentIndex = Device.MediaQueue.IndexOf(Device.CurrentMedia) + 1;
-                for (int count = 1; count <= CacheAheadCount; count++)
+                List<int> indicesToCache = new();
+                int currentIndex = Device.MediaQueue.IndexOf(Device.CurrentMedia);
+                for (int count = 0; count <= CacheAheadCount; count++)
                 {
                     if (currentIndex >= Device.MediaQueue.Count && (Device.RepeatMode == RepeatMode.All || Device.RepeatMode == RepeatMode.Shuffle))
                         currentIndex = 0;
 
-                    MediaItem? mediaItem = Device.MediaQueue.ElementAtOrDefault(currentIndex);
-                    if (mediaItem != null && mediaItem.CacheStatus == CacheStatus.Uncached)
-                        _ = await CachingService.TryGetOrQueueCacheItem(mediaItem);
+                    if (!indicesToCache.Contains(currentIndex))
+                        indicesToCache.Add(currentIndex);
 
                     currentIndex++;
                 }
-            }
 
-            CachingService.UpdateMediaQueueCacheStatus(Device.MediaQueue);
+                foreach (CachingInformation cachingInformation in await CachingService.UpdateCachingQueue(Device.MediaQueue
+                    .Select((mediaItem, index) => (mediaItem, index))
+                    .Where(queueItem => indicesToCache.Contains(queueItem.index))
+                    .Select(queueItem => queueItem.mediaItem)))
+                {
+                    foreach(MediaItem mediaItem in Device.MediaQueue.Where(mediaItem => mediaItem.MediaId == cachingInformation.MediaId))
+                    {
+                        mediaItem.CacheStatus = cachingInformation.CacheStatus;
+                        mediaItem.CachedRatio = cachingInformation.CacheRatio;
+                    }
+                }
+            }
         }
 
-        private async void CachingUpdate(object? _, CachingUpdateEventArgs cachingUpdateEventArgs)
+        private async Task CachingUpdate(CachingInformation cachingUpdateEventArgs)
         {
-            await LoggingService.LogDebug("Caching Update", $"Received caching update for media: {cachingUpdateEventArgs.MediaItemId}; Status: {cachingUpdateEventArgs.CacheStatus}; {cachingUpdateEventArgs.CacheRatio}");
+            await LoggingService.LogDebug("Caching Update", $"Received caching update for media: {cachingUpdateEventArgs.MediaId}; Status: {cachingUpdateEventArgs.CacheStatus}; {cachingUpdateEventArgs.CacheRatio}");
 
             await DeviceLock.WaitAsync();
             
             try
             {
                 if (cachingUpdateEventArgs.CacheStatus == CacheStatus.Cached &&
-                cachingUpdateEventArgs.MediaItemId == Device.CurrentMediaItemId &&
+                cachingUpdateEventArgs.MediaId == Device.CurrentMedia?.MediaId &&
                 cachingUpdateEventArgs.CacheFileInfo != null &&
                 Device.CurrentMedia != null)
                 await SendCommandAsync(new string[]
@@ -1037,12 +1073,11 @@ namespace HomeCast.Services
                     $"start={Device.CurrentTime}{(Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused ? ",pause" : string.Empty)},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\""
                 }, true);
 
-                MediaItem? mediaItem = Device.MediaQueue.FirstOrDefault(mediaItem => mediaItem.Id == cachingUpdateEventArgs.MediaItemId);
-                if (mediaItem != null)
+                foreach(MediaItem mediaItem in Device.MediaQueue.Where(mediaItem => mediaItem.MediaId == cachingUpdateEventArgs.MediaId))
                 {
                     mediaItem.CacheStatus = cachingUpdateEventArgs.CacheStatus;
                     mediaItem.CachedRatio = cachingUpdateEventArgs.CacheRatio;
-                    await DeviceHubContext.Clients.All.SendAsync(MediaItemCacheUpdateMethod, cachingUpdateEventArgs.MediaItemId, cachingUpdateEventArgs.CacheStatus, cachingUpdateEventArgs.CacheRatio);
+                    await DeviceHubContext.Clients.All.SendAsync(MediaItemCacheUpdateMethod, mediaItem.Id, cachingUpdateEventArgs.CacheStatus, cachingUpdateEventArgs.CacheRatio);
                 }
             }
             finally

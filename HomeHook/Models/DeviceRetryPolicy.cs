@@ -11,11 +11,8 @@ namespace HomeHook.Models
         private static TimeSpan?[] DefaultBackoffTimes { get;  } = new TimeSpan?[]
         {
             TimeSpan.Zero,
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromSeconds(2),
             TimeSpan.FromSeconds(3),
-            TimeSpan.FromSeconds(5),
-            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(5)
         };
 
         public DeviceRetryPolicy(DeviceConfiguration deviceConfiguration, LoggingService<T> logger)
@@ -27,12 +24,12 @@ namespace HomeHook.Models
         public TimeSpan? NextRetryDelay(RetryContext retryContext)
         {
             if (retryContext.PreviousRetryCount == DefaultBackoffTimes.Length)
-                _ = Logger.LogError("Device could not connect.", $"Device \"{DeviceConfiguration.Name}\" failed to connect after many attempts. Please verify if the host address ({DeviceConfiguration.Address}) and access tokens are correct. Connections will continue retrying...");
+            {
+                _ = Logger.LogError("Device could not connect.", $"Device \"{DeviceConfiguration.Name}\" failed to connect after 3 attempts. Please verify if the host address ({DeviceConfiguration.Address}) and access tokens are correct.");
+                return null;
+            }
 
-            if (retryContext.PreviousRetryCount > DefaultBackoffTimes.Length)
-                return DefaultBackoffTimes[^1];
-            else
-                return DefaultBackoffTimes[retryContext.PreviousRetryCount];
+            return DefaultBackoffTimes[retryContext.PreviousRetryCount];
         }
     }
 }

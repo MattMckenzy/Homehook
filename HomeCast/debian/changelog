@@ -1,0 +1,10 @@
+homecast (1.0.4) UNRELEASED; urgency=medium
+
+  * Initial release.
+  * Updated command processing logic for local commands.
+  * Added user creation and fixed mpv-socket location.
+  * Added configurable environment variables to appsettings for the MPV
+    process.
+  * Fixed some mpv options and cache location.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Wed, 12 Jul 2023 19:09:08 +0000

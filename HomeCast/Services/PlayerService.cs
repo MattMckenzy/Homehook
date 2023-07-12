@@ -24,7 +24,6 @@ namespace HomeCast.Services
 
         private IHubContext<DeviceHub> DeviceHubContext { get; }
         private CachingService CachingService { get; }
-        private ScriptsProcessor ScriptsProcessor { get; }
         private LoggingService<PlayerService> LoggingService { get; }
         private IConfiguration Configuration { get; }
 
@@ -51,6 +50,7 @@ namespace HomeCast.Services
         private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromMilliseconds(500));
         private CancellationTokenSource PeriodicTimerCancellationTokenSource { get; } = new();
         private HashSet<string> IgnoredOutputs { get; } = new();
+        private Dictionary<string, string?> EnvironmentVariables { get; } = new();
 
         private Random Random { get; } = new(DateTime.Now.Ticks.GetHashCode());
 
@@ -60,15 +60,14 @@ namespace HomeCast.Services
 
         #region Contructor
 
-        public PlayerService(IHubContext<DeviceHub> deviceHubContext, CachingService cachingService, ScriptsProcessor scriptsProcessor, LoggingService<PlayerService> loggingService, IConfiguration configuration)
+        public PlayerService(IHubContext<DeviceHub> deviceHubContext, CachingService cachingService, LoggingService<PlayerService> loggingService, IConfiguration configuration)
         {
             DeviceHubContext = deviceHubContext;
             CachingService = cachingService;
-            ScriptsProcessor = scriptsProcessor;
             LoggingService = loggingService;
             Configuration = configuration;
 
-            MPVSocketLocation = Path.Combine("/", "tmp", "mpv-socket");
+            MPVSocketLocation = Configuration["Services:Player:SocketLocation"] ?? Path.Combine("/", "home", "homecast", "mpv-socket");
             ProcessTimeoutSeconds = 10;
 
             string? name = Configuration["Device:Name"];
@@ -79,11 +78,17 @@ namespace HomeCast.Services
             if (string.IsNullOrWhiteSpace(address))
                 throw new InvalidOperationException("Please define a proper device address in the app settings!");
 
-            DataDirectoryInfo = new(Configuration["Services:Player:DataLocation"] ?? Path.Combine("home", "homecast", "data"));
+            DataDirectoryInfo = new(Configuration["Services:Player:DataLocation"] ?? Path.Combine("/", "home", "homecast", "data"));
             if (!DataDirectoryInfo.Exists)
                 DataDirectoryInfo.Create();
-
+                        
             VideoCapable = Configuration.GetValue<bool>("Services:Player:VideoCapable");
+
+            EnvironmentVariables =
+                Configuration.GetSection("Services:Player:EnvironmentVariables")
+                    .GetChildren()
+                    .Where(section => !string.IsNullOrWhiteSpace(section.Key))
+                    .ToDictionary(section => section.Key, section => section.Value);
 
             foreach (string ignoredOutput in Configuration.GetSection("Services:Player:IgnoredOutputs").Get<string[]>() ?? Array.Empty<string>())
                 IgnoredOutputs.Add(ignoredOutput);
@@ -115,23 +120,7 @@ namespace HomeCast.Services
                     Address = address,
                     Version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.0.0",
                 };
-
-            ScriptsProcessor.DeviceUpdate +=
-                async (object? sender, DeviceUpdateEventArgs deviceUpdateEventArgs) =>
-                {
-                    await DeviceLock.WaitAsync();
-
-                    try
-                    {
-                        typeof(Device).GetProperty(nameof(deviceUpdateEventArgs.Property))?.SetValue(Device, deviceUpdateEventArgs.Value);
-                    }
-                    finally
-                    {
-                        SaveDeviceFile();
-                        DeviceLock.Release();
-                    }
-                };
-
+            
             StartProcesses();
 
             _ = Task.Run(async () =>
@@ -610,14 +599,15 @@ namespace HomeCast.Services
                 List<string> playerArguments = new()
                 {
                     "--idle",
+                    "--fs",
+                    "--no-osc",
+                    "--no-input-default-bindings",
                     "--force-seekable=yes",
                     "--really-quiet",
                     "--msg-level=all=warn",
                     "--script-opts=ytdl_hook-ytdl_path=yt-dlp",
                     "--af=superequalizer=1b=2.0:2b=3.6:3b=3.8:4b=5.5:5b=6.0:6b=6.4:7b=6.6:8b=6.4:9b=6.0:10b=5.2:11b=4.0:12b=3.2:13b=3.0:14b=3.2:15b=3.8:16b=4.4:17b=5.2:18b=6.5",
-                    "--cache=yes",
-                    "--cache-secs=30",
-                    $"--cache-dir={Path.Combine("/", "tmp", "mpv-cache")}",
+                    "--no-cache",
                     $"--volume={Device.Volume * 100}",
                     $"--input-ipc-server={MPVSocketLocation}"
                 };
@@ -639,6 +629,9 @@ namespace HomeCast.Services
                     },
                     EnableRaisingEvents = true
                 };
+
+                foreach (KeyValuePair<string, string?> environmentVariable in EnvironmentVariables)
+                    Player.StartInfo.EnvironmentVariables.Add(environmentVariable.Key, environmentVariable.Value);
 
                 Player.OutputDataReceived += Player_OutputDataReceived;
                 Player.ErrorDataReceived += Player_ErrorDataReceived;
@@ -725,122 +718,117 @@ namespace HomeCast.Services
         {
             Debug.WriteLine($"Socket Output - {dataReceivedEventArgs.Data}");
             string? socketOutput = dataReceivedEventArgs.Data;
-            if (socketOutput != null)
+            if (socketOutput != null && socketOutput.TryParseJson(out CommandResponse? commandResponse) && commandResponse != null &&
+                WaitingCommands.TryGetValue(commandResponse.RequestId, out WaitingCommand? waitingCommand) && waitingCommand != null)
             {
-                if (socketOutput.TryParseJson(out CommandResponse? commandResponse) && commandResponse != null &&
-                    WaitingCommands.TryGetValue(commandResponse.RequestId, out WaitingCommand? waitingCommand) && waitingCommand != null)
-                {
-                    waitingCommand.Data = commandResponse.Data;
-                    waitingCommand.Success = commandResponse.Error.Equals("success", StringComparison.InvariantCultureIgnoreCase);
-                    waitingCommand.Error = commandResponse.Error;
+                waitingCommand.Data = commandResponse.Data;
+                waitingCommand.Success = commandResponse.Error.Equals("success", StringComparison.InvariantCultureIgnoreCase);
+                waitingCommand.Error = commandResponse.Error;
 
-                    WaitingCommands.TryRemove(waitingCommand.RequestId, out _);
-                    waitingCommand.Callback.SetResult(waitingCommand);
-                }
-                else if (socketOutput.TryParseJson(out EventResponse? eventResponse) && eventResponse != null)
-                {
-                    await DeviceLock.WaitAsync();
+                WaitingCommands.TryRemove(waitingCommand.RequestId, out _);
+                waitingCommand.Callback.SetResult(waitingCommand);
+            }
+            else if (socketOutput != null && socketOutput.TryParseJson(out EventResponse? eventResponse) && eventResponse != null)
+            {
+                await DeviceLock.WaitAsync();
 
-                    try
+                try
+                {
+                    switch (eventResponse.Event)
                     {
-                        switch (eventResponse.Event)
-                        {
-                            case "property-change" when eventResponse.Name.Equals("volume"):
-                                if (float.TryParse(eventResponse.Data.ToString(), out float volume))
-                                    Device.Volume = volume / 100;
-                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                break;
+                        case "property-change" when eventResponse.Name.Equals("volume"):
+                            if (float.TryParse(eventResponse.Data.ToString(), out float volume))
+                                Device.Volume = volume / 100;
+                            await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            break;
 
-                            case "property-change" when eventResponse.Name.Equals("mute"):
-                                if (bool.TryParse(eventResponse.Data.ToString(), out bool mute))
-                                    Device.IsMuted = mute;
-                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                break;
+                        case "property-change" when eventResponse.Name.Equals("mute"):
+                            if (bool.TryParse(eventResponse.Data.ToString(), out bool mute))
+                                Device.IsMuted = mute;
+                            await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            break;
 
-                            case "property-change" when eventResponse.Name.Equals("speed"):
-                                if (float.TryParse(eventResponse.Data.ToString(), out float playbackRate))
-                                    Device.PlaybackRate = playbackRate;
-                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                break;
+                        case "property-change" when eventResponse.Name.Equals("speed"):
+                            if (float.TryParse(eventResponse.Data.ToString(), out float playbackRate))
+                                Device.PlaybackRate = playbackRate;
+                            await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            break;
 
-                            case "property-change" when eventResponse.Name.Equals("pause"):
-                                if (bool.TryParse(eventResponse.Data.ToString(), out bool isPaused))
+                        case "property-change" when eventResponse.Name.Equals("pause"):
+                            if (bool.TryParse(eventResponse.Data.ToString(), out bool isPaused))
+                            {
+                                if (Device.DeviceStatus == DeviceStatus.Pausing && isPaused)
+                                    Device.DeviceStatus = DeviceStatus.Paused;
+                                else if (Device.DeviceStatus == DeviceStatus.Unpausing && !isPaused)
+                                    Device.DeviceStatus = DeviceStatus.Playing;
+
+                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            }
+                            break;
+
+                        case "end-file":
+                            await LoggingService.LogDebug("Playback stopping.", string.Empty);
+
+                            if (eventResponse.Reason == "eof")
+                            {
+                                Device.DeviceStatus = DeviceStatus.Finished;
+                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+
+                                Device.CurrentTime = 0;
+                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+
+                                switch (Device.RepeatMode)
                                 {
-                                    if (Device.DeviceStatus == DeviceStatus.Pausing && isPaused)
-                                        Device.DeviceStatus = DeviceStatus.Paused;
-                                    else if (Device.DeviceStatus == DeviceStatus.Unpausing && !isPaused)
-                                        Device.DeviceStatus = DeviceStatus.Playing;
-
-                                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                }
-                                break;
-
-                            case "end-file":
-                                await LoggingService.LogDebug("Playback stopping.", string.Empty);
-
-                                if (eventResponse.Reason == "eof")
-                                {
-                                    Device.DeviceStatus = DeviceStatus.Finished;
-                                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-
-                                    Device.CurrentTime = 0;
-                                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-
-                                    switch (Device.RepeatMode)
-                                    {
-                                        case RepeatMode.One:
-                                            await PlayMedia();
-                                            break;
-                                        case RepeatMode.All:
-                                        case RepeatMode.Shuffle:
-                                        case RepeatMode.Off:
-                                            if (Device.CurrentMediaItemId == Device.MediaQueue.LastOrDefault()?.Id)
+                                    case RepeatMode.One:
+                                        await PlayMedia();
+                                        break;
+                                    case RepeatMode.All:
+                                    case RepeatMode.Shuffle:
+                                    case RepeatMode.Off:
+                                        if (Device.CurrentMediaItemId == Device.MediaQueue.LastOrDefault()?.Id)
+                                        {
+                                            Device.CurrentMediaItemId = Device.MediaQueue.FirstOrDefault()?.Id;
+                                            if (Device.RepeatMode == RepeatMode.Off)
                                             {
-                                                Device.CurrentMediaItemId = Device.MediaQueue.FirstOrDefault()?.Id;
-                                                if (Device.RepeatMode == RepeatMode.Off)
-                                                {
-                                                    Device.DeviceStatus = DeviceStatus.Ended;
-                                                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                                }
-                                                else
-                                                    await PlayMedia();
+                                                Device.DeviceStatus = DeviceStatus.Ended;
+                                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
                                             }
-                                            else if (Device.CurrentMedia != null)
-                                            {
-                                                Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Min(Device.MediaQueue.IndexOf(Device.CurrentMedia) + 1, Device.MediaQueue.Count - 1)).Id;
+                                            else
                                                 await PlayMedia();
-                                            }
-                                            break;
-                                    }            
-                                }
-                                else
-                                {
-                                    Device.DeviceStatus = DeviceStatus.Ended;
-                                    await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                }
-                                break;
-
-                            case "seek":
-                                Device.DeviceStatus = DeviceStatus.Buffering;
+                                        }
+                                        else if (Device.CurrentMedia != null)
+                                        {
+                                            Device.CurrentMediaItemId = Device.MediaQueue.ElementAt(Math.Min(Device.MediaQueue.IndexOf(Device.CurrentMedia) + 1, Device.MediaQueue.Count - 1)).Id;
+                                            await PlayMedia();
+                                        }
+                                        break;
+                                }            
+                            }
+                            else
+                            {
+                                Device.DeviceStatus = DeviceStatus.Ended;
                                 await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                break;
+                            }
+                            break;
 
-                            case "playback-restart":
-                                Device.DeviceStatus = DeviceStatus.Playing;
-                                await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
-                                await UpdateCurrentTime();
-                                break;
-                        }
+                        case "seek":
+                            Device.DeviceStatus = DeviceStatus.Buffering;
+                            await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            break;
+
+                        case "playback-restart":
+                            Device.DeviceStatus = DeviceStatus.Playing;
+                            await DeviceHubContext.Clients.All.SendAsync(DeviceUpdateMethod, Device);
+                            await UpdateCurrentTime();
+                            break;
                     }
-                    finally
-                    {
-                        SaveDeviceFile();
-                        DeviceLock.Release();
-                    }
+                }
+                finally
+                {
+                    SaveDeviceFile();
+                    DeviceLock.Release();
                 }
             }
-
-            await Task.CompletedTask;
         }
 
         private async void Socket_ErrorDataReceived(object sender, DataReceivedEventArgs dataReceivedEventArgs)
@@ -1061,17 +1049,20 @@ namespace HomeCast.Services
             
             try
             {
+                // TODO: make sure pause=true works when cached is done on paused media.
+
                 if (cachingUpdateEventArgs.CacheStatus == CacheStatus.Cached &&
-                cachingUpdateEventArgs.MediaId == Device.CurrentMedia?.MediaId &&
-                cachingUpdateEventArgs.CacheFileInfo != null &&
-                Device.CurrentMedia != null)
-                await SendCommandAsync(new string[]
-                {
-                    "loadfile",
-                    cachingUpdateEventArgs.CacheFileInfo.FullName,
-                    "replace",
-                    $"start={Device.CurrentTime}{(Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused ? ",pause" : string.Empty)},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\""
-                }, true);
+                    cachingUpdateEventArgs.MediaId == Device.CurrentMedia?.MediaId &&
+                    cachingUpdateEventArgs.CacheFileInfo != null &&
+                    Device.CurrentMedia != null &&
+                    Device.IsMediaLoaded)
+                    await SendCommandAsync(new string[]
+                    {
+                        "loadfile",
+                        cachingUpdateEventArgs.CacheFileInfo.FullName,
+                        "replace",
+                        $"start={Device.CurrentTime}{(Device.DeviceStatus == DeviceStatus.Pausing || Device.DeviceStatus == DeviceStatus.Paused ? ",pause=true" : string.Empty)},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\""
+                    }, true);
 
                 foreach(MediaItem mediaItem in Device.MediaQueue.Where(mediaItem => mediaItem.MediaId == cachingUpdateEventArgs.MediaId))
                 {

@@ -1,19 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>f79e86a2-2751-4e78-a08e-501caaef224f</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <DockerfileFile>HomeCast.dockerfile</DockerfileFile>
+    <DockerfileFile>HomeDash.dockerfile</DockerfileFile>
     <DockerfileContext>.</DockerfileContext>
     <Configurations>Debug;Release;P-Debug;P-Release</Configurations>
     <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
-    <AssemblyVersion>1.0.4</AssemblyVersion>
-    <PackageReleaseNotes>Fixed some mpv options and cache location.</PackageReleaseNotes>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
   </PropertyGroup>
-
+  
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Release|AnyCPU'">
     <Optimize>True</Optimize>
     <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
@@ -22,21 +19,15 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Debug|AnyCPU'">
     <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
   </PropertyGroup>
-
+  
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="7.0.7" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="7.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="7.0.4" />
+    <PackageReference Include="ElectronNET.API" Version="23.6.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.18.1" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\HomeHook.Common\HomeHook.Common.csproj" />
-    <ProjectReference Include="..\YoutubeDLSharp\YoutubeDLSharp\YoutubeDLSharp.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Properties\PublishProfiles\" />
+    <Content Update="electron.manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Debug' ">
@@ -44,5 +35,5 @@
   </Target>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Release' ">
     <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints LOLBY-SBC" />
-  </Target> 
+  </Target>
 </Project>

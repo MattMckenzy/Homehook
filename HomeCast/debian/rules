@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+
+override_dh_auto_build:
+	dotnet publish "HomeCast/HomeCast.csproj" -a @@arch -c RELEASE --self-contained -o publish
+	# auto-build disabled
+
+override_dh_auto_install:
+	# install application
+	mkdir -p debian/homecast/opt/homecast 
+	install -D -m 755 publish/* debian/homecast/opt/homecast
+	
+	# remove pdb
+	rm debian/homecast/opt/homecast/*.pdb
+	
+	# move app settings to config directory
+	mkdir -p debian/homecast/etc/homecast 
+	mv debian/homecast/opt/homecast/appsettings.json debian/homecast/etc/homecast/appsettings.json
+		
+	# auto-install disabled
+	
+override_dh_installsystemd:
+	dh_installsystemd --name=homecast homecast.service
+	
+override_dh_link:
+	dh_link etc/homecast/appsettings.json opt/homecast/appsettings.json
+	
+override_dh_shlibdeps:
+	# shilbdeps disabled
+
+override_dh_strip:
+	# strip disabled

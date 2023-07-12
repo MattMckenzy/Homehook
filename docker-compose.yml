@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: HomeCast/HomeCast.dockerfile
-      
+            
   homehook:
     image: ${DOCKER_REGISTRY-}homehook
     build:

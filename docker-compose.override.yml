@@ -14,7 +14,7 @@ services:
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
       - ${APPDATA}/HomeCast/Data:/home/homecast/data
       - ${APPDATA}/HomeCast/Cache:/home/homecast/cache
-
+      
   homehook:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

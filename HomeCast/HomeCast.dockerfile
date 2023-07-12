@@ -1,5 +1,3 @@
-#See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
 FROM mcr.microsoft.com/dotnet/aspnet:latest AS base
 RUN echo "deb http://ftp.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
 RUN apt update && apt install -t bullseye-backports -y curl alsa-utils pulseaudio evtest socat python3 ffmpeg
@@ -17,7 +15,7 @@ RUN dotnet publish "HomeCast/HomeCast.csproj" -a $TARGETARCH -c $CONFIG -o /app/
 FROM mattmckenzy/mpv:latest as mpv
 
 FROM base AS final
-COPY --from=mpv / /
+COPY --from=mpv /mpv /mpv
 WORKDIR /app
 RUN groupadd --gid 1000 homecast
 RUN useradd --system --create-home --gid homecast --uid 1000 homecast

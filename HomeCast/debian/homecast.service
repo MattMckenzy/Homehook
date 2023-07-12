@@ -1,0 +1,19 @@
+[Unit]
+Description=HomeCast Service
+After=network.target
+
+[Service]
+Type=simple
+Environment="ASPNETCORE_URLS=http://+:8121"
+User=homecast
+WorkingDirectory=/opt/homecast/
+ExecStart=/opt/homecast/HomeCast
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+Restart=always
+TimeoutStartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

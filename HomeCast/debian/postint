@@ -1,0 +1,3 @@
+#!/bin/bash
+# This `debian/postinst` script is run post-installation
+adduser --system homecast

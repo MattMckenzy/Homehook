@@ -9,8 +9,6 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<PlayerService>();
 builder.Services.AddSingleton<CachingService>();
-builder.Services.AddSingleton<ScriptsProcessor>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<ScriptsProcessor>());
 
 builder.Services.AddHttpClient<StaticTokenCaller<GotifyServiceAppProvider>>();
 builder.Services.AddSingleton<GotifyServiceAppProvider>();

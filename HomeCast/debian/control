@@ -1,0 +1,25 @@
+Source: homecast
+Section: net
+Priority: optional
+Maintainer: MattMckenzy <mattmckenzy@outlook.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/MattMckenzy/Homehook
+
+Package: homecast
+Architecture: @@arch
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends}, 
+ mpv (>= 0.35.1),
+ socat,
+ python3,
+ yt-dlp,
+ ffmpeg,
+ adduser
+Description: MPV wrapper for media devices.
+ HomeCast provides an easy to use and consume interface, through a SignalR Hub, 
+ to start and control MPV sessions on the media device.
+ HomeCast will be deployed as an always running systemd service.

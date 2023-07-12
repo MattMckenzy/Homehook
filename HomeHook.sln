@@ -13,6 +13,8 @@ Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-co
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "YoutubeDLSharp", "YoutubeDLSharp\YoutubeDLSharp\YoutubeDLSharp.csproj", "{B70315C0-4F51-4D28-89A4-0DB24682A21E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeDash", "HomeDash\HomeDash.csproj", "{903DB440-3569-4390-AC15-1C5BAF5FA96B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +63,14 @@ Global
 		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.P-Release|Any CPU.Build.0 = Release|Any CPU
 		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B70315C0-4F51-4D28-89A4-0DB24682A21E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.P-Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.P-Debug|Any CPU.Build.0 = Debug|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.P-Release|Any CPU.ActiveCfg = Release|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.P-Release|Any CPU.Build.0 = Release|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{903DB440-3569-4390-AC15-1C5BAF5FA96B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

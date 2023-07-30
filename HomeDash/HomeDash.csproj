@@ -6,18 +6,9 @@
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileFile>HomeDash.dockerfile</DockerfileFile>
     <DockerfileContext>.</DockerfileContext>
-    <Configurations>Debug;Release;P-Debug;P-Release</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-  </PropertyGroup>
-  
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Release|AnyCPU'">
-    <Optimize>True</Optimize>
-    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
   </PropertyGroup>
   
   <ItemGroup>
@@ -29,11 +20,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Debug' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Docker\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints LOLBY-SBC" />
-  </Target>
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Release' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints LOLBY-SBC" />
-  </Target>
 </Project>

@@ -1,0 +1,5 @@
+%homecast ALL= NOPASSWD: /bin/systemctl start homecast
+%homecast ALL= NOPASSWD: /bin/systemctl stop homecast
+%homecast ALL= NOPASSWD: /bin/systemctl restart homecast
+%homecast ALL= NOPASSWD: /bin/systemctl status homecast
+%homecast ALL= NOPASSWD: /bin/systemctl reboot -i

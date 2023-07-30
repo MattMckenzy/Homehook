@@ -46,16 +46,17 @@ namespace HomeHook
 
         #region Service Control Methods
 
+        // TODO: handle offline devices better, add OFFLINE status and update card as necessary
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _ = Task.Run(async () =>
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    try
+                    List<string> newDevicesAdded = new();
+                    foreach (DeviceConfiguration deviceConfiguration in Configuration.GetSection("Services:HomeHook:Devices").Get<DeviceConfiguration[]>() ?? Array.Empty<DeviceConfiguration>())
                     {
-                        List<string> newDevicesAdded = new();
-                        foreach (DeviceConfiguration deviceConfiguration in Configuration.GetSection("Services:HomeHook:Devices").Get<DeviceConfiguration[]>() ?? Array.Empty<DeviceConfiguration>())
+                        try
                         {
                             if (string.IsNullOrWhiteSpace(deviceConfiguration.Name) ||
                                 deviceConfiguration.Name.Any(character => !char.IsLetter(character)))
@@ -109,21 +110,19 @@ namespace HomeHook
                             hubConnection.On("UpdateMediaItemCache", async (string mediaItemId, CacheStatus cacheStatus, double cacheRatio) =>
                                 await deviceService.UpdateMediaItemCache(mediaItemId, cacheStatus, cacheRatio));
                         }
-
-                        if (newDevicesAdded.Any())
+                        catch (Exception exception)
                         {
-                            await LoggingService.LogDebug("Refreshed receivers.", $"Refreshed devices and found {newDevicesAdded.Count} new devices ({string.Join(", ", newDevicesAdded)}).");
-                            DeviceServicesUpdated?.Invoke(this, EventArgs.Empty);
+                            await LoggingService.LogDebug("Cast Service Error.", $"Error while connecting to device \"{deviceConfiguration.Name}\": {string.Join("; ", exception.Message, exception.InnerException?.Message)}");
                         }
                     }
-                    catch(Exception exception)
+
+                    RefreshDevicesCancellationTokenSource = new();
+                    RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));
+
+                    if (newDevicesAdded.Any())
                     {
-                        await LoggingService.LogDebug("Cast Service Error.", $"Error while connecting to devices: {string.Join("; ", exception.Message, exception.InnerException?.Message)}");
-                    }
-                    finally
-                    {
-                        RefreshDevicesCancellationTokenSource = new();
-                        RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));
+                        await LoggingService.LogDebug("Refreshed receivers.", $"Refreshed devices and found {newDevicesAdded.Count} new devices ({string.Join(", ", newDevicesAdded)}).");
+                        DeviceServicesUpdated?.Invoke(this, EventArgs.Empty);
                     }
 
                 }

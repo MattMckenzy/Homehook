@@ -112,7 +112,7 @@ namespace HomeHook.Services
         
         public async Task PlayPause()
         {
-            if (Device.DeviceStatus == DeviceStatus.Playing)
+            if (Device.DeviceStatus == PlayerStatus.Playing)
                 await HubConnection.InvokeAsync("Pause");
             else
                 await HubConnection.InvokeAsync("Play");
@@ -152,30 +152,30 @@ namespace HomeHook.Services
             {
                 switch (Device.DeviceStatus)
                 {
-                    case DeviceStatus.Playing:
+                    case PlayerStatus.Playing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Paused:
+                    case PlayerStatus.Paused:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Pausing:
+                    case PlayerStatus.Pausing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Pause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Unpausing:
+                    case PlayerStatus.Unpausing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Unpause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Starting:
+                    case PlayerStatus.Starting:
                         await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case DeviceStatus.Finished:
+                    case PlayerStatus.Finished:
                         await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.MediaId);
                         break;
-                    case DeviceStatus.Stopping:
+                    case PlayerStatus.Stopping:
                         await JellyfinService.UpdateProgress(GetProgress(finished: null), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
                         break;
-                    case DeviceStatus.Buffering:
-                    case DeviceStatus.Ended:
-                    case DeviceStatus.Stopped:
+                    case PlayerStatus.Buffering:
+                    case PlayerStatus.Ended:
+                    case PlayerStatus.Stopped:
                     default:
                         break;
                 }
@@ -191,7 +191,7 @@ namespace HomeHook.Services
             {
                 switch (Device.DeviceStatus)
                 {
-                    case DeviceStatus.Playing:
+                    case PlayerStatus.Playing:
                         if (Math.Round(Device.CurrentTime) % 5 == 0)
                             await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;                   
@@ -228,7 +228,7 @@ namespace HomeHook.Services
                 MediaSourceId = Device.CurrentMedia.MediaId,
                 VolumeLevel = Convert.ToInt32(Device.Volume * 100),
                 IsMuted = Device.IsMuted,
-                IsPaused = Device.DeviceStatus == DeviceStatus.Paused,
+                IsPaused = Device.DeviceStatus == PlayerStatus.Paused,
                 PlaybackRate = Device.PlaybackRate,
                 PlayMethod = PlayMethod.DirectPlay
             };

@@ -260,5 +260,4 @@ paket-files/
 __pycache__/
 *.pyc
 /Build
-appsettings.Development.json
-appsettings.Production.json
+**/launchSettings.json

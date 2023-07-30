@@ -24,9 +24,13 @@ namespace HomeCast.Services
             LoggingService = loggingService;
             Configuration = configuration;
 
-            CacheDirectoryInfo = new(Configuration["Services:Caching:CacheLocation"] ?? Path.Combine("home", "homecast", "cache"));
+            CacheDirectoryInfo = new(Configuration["Services:Caching:CacheLocation"] ?? Path.Combine("/", "home", "homecast", "cache"));
             if (!CacheDirectoryInfo.Exists)
                 CacheDirectoryInfo.Create();
+
+            TempDirectoryInfo = new(Path.Combine("/", "home", "homecast", "tmp"));
+            if (!TempDirectoryInfo.Exists)
+                TempDirectoryInfo.Create();
 
             foreach (FileInfo cacheItemFileInfo in CacheDirectoryInfo.GetFiles())
             {
@@ -49,11 +53,13 @@ namespace HomeCast.Services
             {
                 YoutubeDLPath = "yt-dlp",
                 FFmpegPath = "ffmpeg",
-                RestrictFilenames = true
+                RestrictFilenames = true,
+                OutputFolder = TempDirectoryInfo.FullName
             };
 
             OptionSet = new()
             {
+                Paths = TempDirectoryInfo.FullName,
                 NoCacheDir = true,
                 RemoveCacheDir = true,
                 EmbedSubs = true,
@@ -67,7 +73,8 @@ namespace HomeCast.Services
         #region Private Properties
 
         private DirectoryInfo CacheDirectoryInfo { get; }
-
+        private DirectoryInfo TempDirectoryInfo { get; }
+        
         private long CacheSizeBytes { get; }
         private double CacheAlgorithmRatio { get; }
         private CacheFormat CacheFormat { get; }
@@ -271,8 +278,8 @@ namespace HomeCast.Services
                                 await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
                         });
 
-                        OptionSet optionSet = (OptionSet)OptionSet.Clone();
-                        optionSet.Output = Path.Combine("yt-dlp", cacheFileInfo.Name);
+                        OptionSet optionSet = (OptionSet)OptionSet.Clone();                        
+                        optionSet.Output = Path.Combine(TempDirectoryInfo.FullName, cacheFileInfo.Name);
 
                         RunResult<string>? runResult = null;
                         if (CacheFormat == CacheFormat.Audio)

@@ -1,6 +1,7 @@
 ﻿using HomeHook.Common.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using System.ComponentModel.Design;
 
 namespace HomeCast.Services
 {
@@ -8,10 +9,12 @@ namespace HomeCast.Services
     public class DeviceHub : Hub
     {
         private PlayerService PlayerService { get; }
+        private CommandService CommandService { get; }
 
-        public DeviceHub(PlayerService playerService)
+        public DeviceHub(PlayerService playerService, CommandService commandService)
         {
             PlayerService = playerService;
+            CommandService = commandService;
         }
 
         public async Task<Device> GetDevice() =>
@@ -64,5 +67,11 @@ namespace HomeCast.Services
 
         public async Task ToggleMute() =>
             await PlayerService.ToggleMute();
+
+        public Task<IEnumerable<CommandDefinition>> GetCommands() =>
+            Task.FromResult(CommandService.CommandDefinitions);
+
+        public async Task CallCommand(string Name) =>
+            await CommandService.CallCommand(Name);
     }
 }

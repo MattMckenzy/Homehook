@@ -1,0 +1,37 @@
+﻿<button @onclick=@((_) => CallCommand(CommandDefinition.Name))
+        @ref=CommandButtonRef @onmouseenter=OnMouseEnter @onmouseleave=OnMouseLeave
+        class="dropdown-item text-white" type="button" data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html=true
+        data-bs-title="<small>@CommandDefinition.Description</small>">
+    @if (!string.IsNullOrWhiteSpace(CommandDefinition.MaterialDesignIcon))
+    {
+        <i class="mdi mdi-@(CommandDefinition.MaterialDesignIcon) me-2"></i>
+    }
+    @CommandDefinition.DisplayName
+</button>
+
+@code {
+
+    [Inject]
+    public required IJSRuntime JSRuntime { get; set; }
+
+    [Parameter]
+    public required DeviceService DeviceService { get; set; }
+
+    [Parameter]
+    public required CommandDefinition CommandDefinition { get; set; }
+
+    private ElementReference CommandButtonRef { get; set; }
+
+    private async Task CallCommand(string commandName) =>
+        await DeviceService.HubConnection.InvokeAsync<IEnumerable<CommandDefinition>>("CallCommand", commandName);
+
+    private async Task OnMouseEnter()
+    {
+        await JSRuntime.InvokeVoidAsync("ShowTooltip", CommandButtonRef);
+    }
+
+    private async Task OnMouseLeave()
+    {
+        await JSRuntime.InvokeVoidAsync("HideTooltip");
+    }
+}

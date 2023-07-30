@@ -8,7 +8,7 @@ namespace HomeHook.Common.Models
         public required string Address { get; set; }
         public required string Version { get; set; }
 
-        public DeviceStatus DeviceStatus { get; set; } = DeviceStatus.Stopped;
+        public PlayerStatus DeviceStatus { get; set; } = PlayerStatus.Stopped;
         public string? CurrentMediaItemId { get; set; } = null;
         public List<MediaItem> MediaQueue { get; set; } = new List<MediaItem>();
 
@@ -27,44 +27,44 @@ namespace HomeHook.Common.Models
         { 
             get 
             {
-                return DeviceStatus != DeviceStatus.Finished &&
-                    DeviceStatus != DeviceStatus.Ended &&
-                    DeviceStatus != DeviceStatus.Stopping &&
-                    DeviceStatus != DeviceStatus.Stopped &&
+                return DeviceStatus != PlayerStatus.Finished &&
+                    DeviceStatus != PlayerStatus.Ended &&
+                    DeviceStatus != PlayerStatus.Stopping &&
+                    DeviceStatus != PlayerStatus.Stopped &&
                     CurrentMedia != null;
             } 
         }
 
-        public bool IsCommandAvailable(DeviceCommand deviceCommand) 
+        public bool IsCommandAvailable(PlayerCommand deviceCommand) 
         {
             return deviceCommand switch
             {
-                DeviceCommand.PlayMediaItem or 
-                DeviceCommand.RemoveMediaItems or 
-                DeviceCommand.MoveMediaItemsUp or 
-                DeviceCommand.MoveMediaItemsDown or 
-                DeviceCommand.ChangeRepeatMode => 
+                PlayerCommand.PlayMediaItem or 
+                PlayerCommand.RemoveMediaItems or 
+                PlayerCommand.MoveMediaItemsUp or 
+                PlayerCommand.MoveMediaItemsDown or 
+                PlayerCommand.ChangeRepeatMode => 
                     MediaQueue.Any(),
                 
-                DeviceCommand.AddMediaItems or 
-                DeviceCommand.Stop or 
-                DeviceCommand.SetPlaybackRate or 
-                DeviceCommand.SetVolume or 
-                DeviceCommand.ToggleMute => 
+                PlayerCommand.AddMediaItems or 
+                PlayerCommand.Stop or 
+                PlayerCommand.SetPlaybackRate or 
+                PlayerCommand.SetVolume or 
+                PlayerCommand.ToggleMute => 
                     true,
                 
-                DeviceCommand.Play => 
-                    DeviceStatus == DeviceStatus.Paused || (DeviceStatus == DeviceStatus.Ended && CurrentMedia != null),
+                PlayerCommand.Play => 
+                    DeviceStatus == PlayerStatus.Paused || (DeviceStatus == PlayerStatus.Ended && CurrentMedia != null),
                 
-                DeviceCommand.Pause => 
-                    DeviceStatus == DeviceStatus.Playing,
+                PlayerCommand.Pause => 
+                    DeviceStatus == PlayerStatus.Playing,
                 
-                DeviceCommand.Next or 
-                DeviceCommand.Previous => 
+                PlayerCommand.Next or 
+                PlayerCommand.Previous => 
                     CurrentMedia != null,
                 
-                DeviceCommand.Seek or 
-                DeviceCommand.SeekRelative => 
+                PlayerCommand.Seek or 
+                PlayerCommand.SeekRelative => 
                     IsMediaLoaded,
 
                 _ => 

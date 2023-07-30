@@ -1,0 +1,70 @@
+﻿@using HomeHook.Common.Services;
+@using Microsoft.AspNetCore.SignalR;
+<i data-bs-toggle="dropdown" data-bs-display="static" class="text-white mdi mdi-dots-vertical"></i>
+<ul class="dropdown-menu bg-dark">
+    <li><h6 class="text-white dropdown-header">Playlist Menu</h6></li>        
+    <li>
+        <button @onclick=@(async () => await SearchAddMediaItemsClicked.InvokeAsync()) disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.AddMediaItems))
+                @ref=SearchAddMediaItemsButtonRef @onmouseenter=@(async (_) => await OnMouseEnter(SearchAddMediaItemsButtonRef)) @onmouseleave=OnMouseLeave
+                class="dropdown-item text-white@(DeviceService.Device.IsCommandAvailable(PlayerCommand.AddMediaItems) ? string.Empty : " button-disabled")" type="button" 
+                data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html=true
+                data-bs-title="<small>Launches a new playlist with given search term.</small>">
+            <i class="mdi mdi-cast me-2"></i>
+            Launch Playlist with Search
+        </button>
+    </li>
+    @if (CommandDefinitions.Any())
+    {
+        <li><hr class="dropdown-divider"></li>
+        <li><h6 class="text-white dropdown-header">Commands Menu</h6></li>
+        @foreach (CommandDefinition commandDefinition in CommandDefinitions)
+        {
+            <li>
+                <DeviceMenuCommand DeviceService=DeviceService CommandDefinition=commandDefinition />
+            </li>
+        }        
+    }
+</ul>
+
+@code {
+
+    [Inject]
+    public required IJSRuntime JSRuntime { get; set; }
+
+    [Inject]
+    public required LoggingService<DeviceMenu> LoggingService { get; set; }
+
+    [Parameter]
+    public required DeviceService DeviceService { get; set; }
+
+    [Parameter]
+    public required EventCallback SearchAddMediaItemsClicked { get; set; }
+
+    private ElementReference SearchAddMediaItemsButtonRef { get; set; }
+
+    private IEnumerable<CommandDefinition> CommandDefinitions { get; set; } = Array.Empty<CommandDefinition>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            CommandDefinitions = await DeviceService.HubConnection.InvokeAsync<IEnumerable<CommandDefinition>>("GetCommands") ?? Array.Empty<CommandDefinition>();            
+        }
+        catch (HubException _)
+        {
+            await LoggingService.LogDebug("Commands not supported.", $"Commands are not supported on device \"{DeviceService.Device.Name}\"");
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    private async Task OnMouseEnter(ElementReference elementReference)
+    {
+        await JSRuntime.InvokeVoidAsync("ShowTooltip", elementReference);
+    }
+
+    private async Task OnMouseLeave()
+    {
+        await JSRuntime.InvokeVoidAsync("HideTooltip");
+    }
+}

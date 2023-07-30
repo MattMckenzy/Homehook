@@ -1,7 +1,13 @@
-FROM mcr.microsoft.com/dotnet/aspnet:latest AS base
-RUN echo "deb http://ftp.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list.d/backports.list
-RUN apt update && apt install -t bullseye-backports -y curl alsa-utils pulseaudio evtest socat python3 ffmpeg
-RUN curl --create-dirs --output-dir /usr/local/bin -OLJ https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod 755 /usr/local/bin/yt-dlp
+FROM mcr.microsoft.com/dotnet/aspnet:7.0-bookworm-slim AS base
+RUN apt update
+RUN apt install -y curl 
+RUN apt install -y pulseaudio 
+RUN apt install -y evtest 
+RUN apt install -y socat 
+RUN apt install -y python3 
+RUN apt install -y ffmpeg
+RUN apt install -y yt-dlp
+RUN apt install -y mpv
 WORKDIR /app
 EXPOSE 8121
 
@@ -10,12 +16,9 @@ ARG TARGETARCH
 ARG CONFIG
 COPY . ./
 RUN dotnet restore "HomeCast/HomeCast.csproj" -a $TARGETARCH
-RUN dotnet publish "HomeCast/HomeCast.csproj" -a $TARGETARCH -c $CONFIG -o /app/publish
-
-FROM mattmckenzy/mpv:latest as mpv
+RUN dotnet publish "HomeCast/HomeCast.csproj" -a $TARGETARCH -c $CONFIG --self-contained -o /app/publish
 
 FROM base AS final
-COPY --from=mpv /mpv /mpv
 WORKDIR /app
 RUN groupadd --gid 1000 homecast
 RUN useradd --system --create-home --gid homecast --uid 1000 homecast

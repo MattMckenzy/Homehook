@@ -14,7 +14,6 @@
         object-fit: cover;
     }
 
-
 .receiver-title {
     background-image: linear-gradient(to top, rgba(52, 58, 64,0), rgba(52, 58, 64, 0.8));
 }
@@ -55,6 +54,7 @@
 }
 
 .radial-button {
+    z-index:auto;
     height: 24px;
     width: 24px;
     position: absolute;
@@ -79,7 +79,6 @@
         width: 36px;
         top: -14px;
         left: 2px;
-        z-index: 2020;
         background-color: #343a40 !important;
         border-radius: 18px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
@@ -176,6 +175,7 @@ input.radial-toggle:checked ~ .radial-menu .radial-button .close-button {
 }
 
 .volume-container {
+    z-index: auto;
     left: 2px;
     top: -0px;
     width: 36px;
@@ -183,7 +183,6 @@ input.radial-toggle:checked ~ .radial-menu .radial-button .close-button {
     position: absolute;
     opacity: 0;
     overflow: hidden;
-    z-index: 2020;
     background-color: #343a40 !important;
     border-radius: 18px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
@@ -775,6 +774,7 @@ input.radial-toggle:checked ~ .volume-container {
 }
 
 .bottom-container {
+    z-index: auto;
     top: 158px;
     left: 0px;
 }

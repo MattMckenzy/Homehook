@@ -18,7 +18,8 @@ $githubToken = Get-Secret -Name GitHubAptToken -AsPlainText
 $aptSecretKey = Get-Secret -Name AptSecretKey -AsPlainText
 $aptSecretKeyFingerprint = Get-Secret -Name AptSecretKeyFingerprint -AsPlainText
 
-docker buildx build --build-arg CONFIG="Release" --build-arg VERSION="${version}" --build-arg GITHUB_TOKEN="${githubToken}" --build-arg APT_SECRET_KEY="${aptSecretKey}" --build-arg APT_SECRET_KEY_FINGERPRINT="${aptSecretKeyFingerprint}" --build-arg DEBEMAIL="${email}" --build-arg DEBFULLNAME="${name}" --platform=linux/amd64,linux/arm64 --push -t "mattmckenzy/homecast-package:latest" -f "HomeCast/HomeCast.package.dockerfile" .
+docker buildx build --build-arg CONFIG="Release" --build-arg VERSION="${version}" --build-arg GITHUB_TOKEN="${githubToken}" --build-arg APT_SECRET_KEY="${aptSecretKey}" --build-arg APT_SECRET_KEY_FINGERPRINT="${aptSecretKeyFingerprint}" --build-arg DEBEMAIL="${email}" --build-arg DEBFULLNAME="${name}" --platform=linux/amd64 --push -t "mattmckenzy/homecast-package:latest" -f "HomeCast/HomeCast.package.dockerfile" .
+docker buildx build --build-arg CONFIG="Release" --build-arg VERSION="${version}" --build-arg GITHUB_TOKEN="${githubToken}" --build-arg APT_SECRET_KEY="${aptSecretKey}" --build-arg APT_SECRET_KEY_FINGERPRINT="${aptSecretKeyFingerprint}" --build-arg DEBEMAIL="${email}" --build-arg DEBFULLNAME="${name}" --platform=linux/arm64 --push -t "mattmckenzy/homecast-package:latest" -f "HomeCast/HomeCast.package.dockerfile" .
 
 if ($LASTEXITCODE -ne 0) 
 { 

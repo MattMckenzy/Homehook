@@ -92,7 +92,7 @@ namespace HomeHook.Shared
 
         private async Task UpdateStatus()
         {             
-            if (DeviceService.Device.DeviceStatus == DeviceStatus.Stopped)
+            if (DeviceService.Device.DeviceStatus == PlayerStatus.Stopped)
                 IsEditingQueue = false;
 
             await InvokeAsync(StateHasChanged);

@@ -14,8 +14,9 @@ else
             <div class="row m-0 receiver-title position-absolute fixed-top w-100">
                 <h4 class="col text-truncate text-stroke m-2 p-0">@DeviceService.Device.Name</h4>
                 <h6 class="col d-flex align-items-center justify-content-center card-title text-truncate text-stroke m-2 p-0">@(DeviceService.Device.StatusMessage ?? DeviceService.Device.DeviceStatus.ToString())</h6>
-                <i class="col d-flex align-items-center button-bright hover-connect justify-content-end mdi mdi-@(GetIcon(DeviceService.Device.CurrentMedia?.MediaItemKind)) m-2 p-0@(DeviceService.Device.IsCommandAvailable(DeviceCommand.AddMediaItems) ? string.Empty : " button-disabled")"
-                    @onclick=@(async () => await SearchAddMediaItems(launch: true)) disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.AddMediaItems))></i>
+                <div class="col d-flex align-items-center button-bright justify-content-end m-2 p-0">
+                    <DeviceMenu DeviceService=DeviceService SearchAddMediaItemsClicked=@(async () => await SearchAddMediaItems(launch: true))></DeviceMenu>
+                </div>
             </div>
 
             <div class="media-information p-2">
@@ -26,11 +27,11 @@ else
             <div class="bottom-container container-fluid position-absolute fixed-bottom p-0 w-100">
                 <div class="media-controls d-flex flex-column justify-content-around p-0 w-100">
                     @if (DeviceService.Device.CurrentMedia != null)
-                    {
+                    { 
                         <div class="row flex-nowrap align-items-center mx-0 pt-3 pb-2">
                             <div class="col-auto text-white ps-3 pe-2">@TimeSpan.FromSeconds(DeviceService.Device.CurrentTime).ToString(DeviceService.Device.CurrentMedia.Runtime >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")</div>
-                            <div class="progress col px-0 button-bright progress-container@(DeviceService.Device.IsCommandAvailable(DeviceCommand.Seek) ? string.Empty : " button-disabled")"
-                                @ref=ProgressBar @onclick="SeekClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.Seek))>
+                            <div class="progress col px-0 button-bright progress-container@(DeviceService.Device.IsCommandAvailable(PlayerCommand.Seek) ? string.Empty : " button-disabled")"
+                                @ref=ProgressBar @onclick="SeekClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.Seek))>
                                 <div class="progress-bar position-absolute h-100" role="progressbar" aria-valuenow="@DeviceService.Device.CurrentTime" aria-valuemin="0" aria-valuemax="@DeviceService.Device.CurrentMedia.Runtime" style="width:@(Math.Round(DeviceService.Device.CurrentTime * 100 / DeviceService.Device.CurrentMedia.Runtime))%;"></div>
                                 @if (DeviceService.Device.CurrentMedia.CacheStatus != CacheStatus.Off)
                                 {
@@ -42,24 +43,24 @@ else
 
                         <div class="row flex-nowrap align-items-center mx-0 pt-2 pb-3">
 
-                            <i class="col-auto position-relative ps-3 pe-2 button-bright mdi mdi-skip-previous icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.Previous) ? string.Empty : " button-disabled")"
-                                @onclick="PreviousClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.Previous)) />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-rewind-10 icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.SeekRelative) ? string.Empty : " button-disabled")"
-                                @onclick="RewindClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.SeekRelative)) />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-@(DeviceService.Device.DeviceStatus == DeviceStatus.Playing ? "pause" : "play") icon-responsive@(DeviceService.Device.DeviceStatus == DeviceStatus.Playing ? 
-                                (!DeviceService.Device.IsCommandAvailable(DeviceCommand.Pause) ? " button-disabled" : string.Empty ) :
-                                (!DeviceService.Device.IsCommandAvailable(DeviceCommand.Play ) ? " button-disabled" : string.Empty ))"
-                                @onclick="PlayPauseClick" disabled=@(DeviceService.Device.DeviceStatus == DeviceStatus.Playing ? !DeviceService.Device.IsCommandAvailable(DeviceCommand.Pause) : !DeviceService.Device.IsCommandAvailable(DeviceCommand.Play)) />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-stop icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.Stop) ? string.Empty : " button-disabled")"
-                                 @onclick="StopClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.Stop)) />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-fast-forward-10 icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.SeekRelative) ? string.Empty : " button-disabled")"
-                                @onclick="FastForwardClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.SeekRelative)) />
-                            <i class="col-auto position-relative px-2 button-bright mdi mdi-skip-next icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.Next) ? string.Empty : " button-disabled")"
-                                @onclick="NextClick" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.Next)) />
+                            <i class="col-auto position-relative ps-3 pe-2 button-bright mdi mdi-skip-previous icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.Previous) ? string.Empty : " button-disabled")"
+                                @onclick="PreviousClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.Previous)) />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-rewind-10 icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.SeekRelative) ? string.Empty : " button-disabled")"
+                                @onclick="RewindClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.SeekRelative)) />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-@(DeviceService.Device.DeviceStatus == PlayerStatus.Playing ? "pause" : "play") icon-responsive@(DeviceService.Device.DeviceStatus == PlayerStatus.Playing ? 
+                                (!DeviceService.Device.IsCommandAvailable(PlayerCommand.Pause) ? " button-disabled" : string.Empty ) :
+                                (!DeviceService.Device.IsCommandAvailable(PlayerCommand.Play ) ? " button-disabled" : string.Empty ))"
+                                @onclick="PlayPauseClick" disabled=@(DeviceService.Device.DeviceStatus == PlayerStatus.Playing ? !DeviceService.Device.IsCommandAvailable(PlayerCommand.Pause) : !DeviceService.Device.IsCommandAvailable(PlayerCommand.Play)) />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-stop icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.Stop) ? string.Empty : " button-disabled")"
+                                 @onclick="StopClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.Stop)) />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-fast-forward-10 icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.SeekRelative) ? string.Empty : " button-disabled")"
+                                @onclick="FastForwardClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.SeekRelative)) />
+                            <i class="col-auto position-relative px-2 button-bright mdi mdi-skip-next icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.Next) ? string.Empty : " button-disabled")"
+                                @onclick="NextClick" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.Next)) />
 
                             <div class="col px-0" />
-                            <div class="col-auto position-relative d-flex align-items-center px-2@(DeviceService.Device.IsCommandAvailable(DeviceCommand.SetPlaybackRate) ? string.Empty : " button-disabled")" 
-                                disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.SetPlaybackRate))>
+                            <div class="col-auto position-relative d-flex align-items-center px-2@(DeviceService.Device.IsCommandAvailable(PlayerCommand.SetPlaybackRate) ? string.Empty : " button-disabled")" 
+                                disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.SetPlaybackRate))>
                                 <input class="invisible-toggle radial-toggle" type="checkbox" id="speedToggle@(DeviceService.Device.Name)" />
                                 <label class="radial-menu m-0" for="speedToggle@(DeviceService.Device.Name)">
                                     <div class="radial-button position-relative">
@@ -89,8 +90,8 @@ else
                                     </div>
                                 </label>
                             </div>
-                            <div class="col-auto position-relative px-2 d-flex align-items-center@(DeviceService.Device.IsCommandAvailable(DeviceCommand.ChangeRepeatMode) ? string.Empty : " button-disabled")"
-                                 disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.ChangeRepeatMode))>
+                            <div class="col-auto position-relative px-2 d-flex align-items-center@(DeviceService.Device.IsCommandAvailable(PlayerCommand.ChangeRepeatMode) ? string.Empty : " button-disabled")"
+                                 disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.ChangeRepeatMode))>
                                 <input class="invisible-toggle radial-toggle" type="checkbox" id="repeatToggle@(DeviceService.Device.Name)" />
                                 <label class="radial-menu m-0" for="repeatToggle@(DeviceService.Device.Name)">
                                     <div class="radial-button position-relative">
@@ -111,8 +112,8 @@ else
                                     </div>
                                 </label>
                             </div>
-                            <div class="col-auto position-relative ps-2 pe-3 d-flex align-items-center@(DeviceService.Device.IsCommandAvailable(DeviceCommand.SetVolume) ? string.Empty : " button-disabled")"
-                                 disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.SetVolume))>
+                            <div class="col-auto position-relative ps-2 pe-3 d-flex align-items-center@(DeviceService.Device.IsCommandAvailable(PlayerCommand.SetVolume) ? string.Empty : " button-disabled")"
+                                 disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.SetVolume))>
                                 <input class="invisible-toggle radial-toggle" type="checkbox" id="volumeToggle@(DeviceService.Device.Name)" />
                                 <label class="radial-menu m-0" for="volumeToggle@(DeviceService.Device.Name)">
                                     <div class="radial-button position-relative">
@@ -121,10 +122,10 @@ else
                                     </div>
                                 </label>
                                 <div class="volume-container d-flex justify-content-center">
-                                    <i class="volume-button button-bright mdi mdi-@(DeviceService.Device.IsMuted ? "volume-variant-off" : DeviceService.Device.Volume > 0.5 ? "volume-high" : DeviceService.Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive@(DeviceService.Device.IsCommandAvailable(DeviceCommand.ToggleMute) ? string.Empty : " button-disabled")"
-                               @onclick="ToggleMute" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.ToggleMute)) />
-                                    <input class="volume-slider button-bright@(DeviceService.Device.IsCommandAvailable(DeviceCommand.SetVolume) ? string.Empty : " button-disabled")" 
-                                    type="range" orient="vertical" min="0" max="1" step="0.01" value="@DeviceService.Device.Volume" @onchange="SetVolume" disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.SetVolume)) />
+                                    <i class="volume-button button-bright mdi mdi-@(DeviceService.Device.IsMuted ? "volume-variant-off" : DeviceService.Device.Volume > 0.5 ? "volume-high" : DeviceService.Device.Volume > 0 ? "volume-medium" : "volume-low") icon-responsive@(DeviceService.Device.IsCommandAvailable(PlayerCommand.ToggleMute) ? string.Empty : " button-disabled")"
+                               @onclick="ToggleMute" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.ToggleMute)) />
+                                    <input class="volume-slider button-bright@(DeviceService.Device.IsCommandAvailable(PlayerCommand.SetVolume) ? string.Empty : " button-disabled")" 
+                                    type="range" orient="vertical" min="0" max="1" step="0.01" value="@DeviceService.Device.Volume" @onchange="SetVolume" disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.SetVolume)) />
                                 </div>
                             </div>
                         </div>
@@ -133,24 +134,24 @@ else
 
                 <div class="queue-edit-container bg-dark p-3 w-100 d-flex flex-column overflow-y-auto">
                     <div class="queue-buttons btn-group btn-group-sm mb-3 mx-auto position-sticky" role="group" aria-label="Queue item buttons.">
-                        <button id="@(DeviceService.Device.Name)QueuePlayButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(DeviceCommand.PlayMediaItem) && SelectedMediaItemIds.Any() ? string.Empty : " button-disabled")"
-                            @onclick=PlayMediaItem disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.PlayMediaItem) || !SelectedMediaItemIds.Any())>
+                        <button id="@(DeviceService.Device.Name)QueuePlayButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(PlayerCommand.PlayMediaItem) && SelectedMediaItemIds.Any() ? string.Empty : " button-disabled")"
+                            @onclick=PlayMediaItem disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.PlayMediaItem) || !SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-playlist-play icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(DeviceService.Device.Name)QueuePlusButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(DeviceCommand.AddMediaItems) ? string.Empty : " button-disabled")" 
-                            @onclick=@(async () => await SearchAddMediaItems(insertBeforeMediaItem: true)) disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.AddMediaItems) || !SelectedMediaItemIds.Any())>
+                        <button id="@(DeviceService.Device.Name)QueuePlusButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(PlayerCommand.AddMediaItems) ? string.Empty : " button-disabled")" 
+                            @onclick=@(async () => await SearchAddMediaItems(insertBeforeMediaItem: true)) disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.AddMediaItems) || !SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-playlist-plus icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(DeviceService.Device.Name)QueueMinusButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(DeviceCommand.RemoveMediaItems) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
-                            @onclick=RemoveMediaItems disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.RemoveMediaItems) || !SelectedMediaItemIds.Any())>
+                        <button id="@(DeviceService.Device.Name)QueueMinusButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(PlayerCommand.RemoveMediaItems) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
+                            @onclick=RemoveMediaItems disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.RemoveMediaItems) || !SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-playlist-minus icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(DeviceService.Device.Name)QueueUpButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsUp) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
-                            @onclick=MoveMediaItemsUp disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsUp) || !SelectedMediaItemIds.Any())>
+                        <button id="@(DeviceService.Device.Name)QueueUpButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(PlayerCommand.MoveMediaItemsUp) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
+                            @onclick=MoveMediaItemsUp disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.MoveMediaItemsUp) || !SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-chevron-up icon-responsive d-flex align-items-center"></i>
                         </button>
-                        <button id="@(DeviceService.Device.Name)QueueDownButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsDown) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
-                            @onclick=MoveMediaItemsDown disabled=@(!DeviceService.Device.IsCommandAvailable(DeviceCommand.MoveMediaItemsDown) || !SelectedMediaItemIds.Any())>
+                        <button id="@(DeviceService.Device.Name)QueueDownButton" class="btn btn-secondary@(DeviceService.Device.IsCommandAvailable(PlayerCommand.MoveMediaItemsDown) && SelectedMediaItemIds.Any()  ? string.Empty : " button-disabled")"
+                            @onclick=MoveMediaItemsDown disabled=@(!DeviceService.Device.IsCommandAvailable(PlayerCommand.MoveMediaItemsDown) || !SelectedMediaItemIds.Any())>
                             <i class="mdi mdi-chevron-down icon-responsive d-flex align-items-center"></i>
                         </button>
                         <button id="@(DeviceService.Device.Name)SelectAllButton" class="btn btn-secondary" @onclick=ToggleMediaSelection>

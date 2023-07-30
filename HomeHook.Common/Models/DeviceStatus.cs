@@ -1,6 +1,6 @@
 ﻿namespace HomeHook.Common.Models
 {
-    public enum DeviceStatus
+    public enum PlayerStatus
     {
         Stopped,
         Ended,

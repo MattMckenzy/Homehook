@@ -1,6 +1,6 @@
 ﻿namespace HomeHook.Common.Models
 {
-    public enum DeviceCommand
+    public enum PlayerCommand
     {
         PlayMediaItem,
         AddMediaItems,

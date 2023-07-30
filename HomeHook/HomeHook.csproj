@@ -2,29 +2,21 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <Configurations>Debug;Release</Configurations>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileFile>HomeHook.dockerfile</DockerfileFile>
-    <DockerfileBuildArguments>--build-arg CONFIG=Debug</DockerfileBuildArguments>
     <DockerfileContext>.</DockerfileContext>
-    <Nullable>enable</Nullable>
-    <Configurations>Debug;Release;P-Debug;P-Release</Configurations>
-    <AssemblyVersion>2.0.0.0</AssemblyVersion>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Release|AnyCPU'">
-    <Optimize>True</Optimize>
-    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='P-Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    <DockerfileBuildArguments>--build-arg CONFIG=Debug</DockerfileBuildArguments>
+    <DockerfileRunArguments>-e ASPNETCORE_URLS=http://+:8122 -p 8122:8122 -v $(AppData)/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro</DockerfileRunArguments>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="7.0.7" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="7.0.7" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="7.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="7.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="7.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="7.0.9" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="7.0.4" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.18.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
@@ -56,11 +48,5 @@
       </ItemGroup>
     </When>
   </Choose>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Debug' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -File ..\Docker\pipeline.ps1 -Project $(ProjectName) -Config Debug -Endpoints local -ImageSuffix 2" />
-  </Target>
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)'=='P-Release' ">
-    <Exec Command="cd .. &amp;&amp; powershell -NonInteractive -file ..\Docker\pipeline.ps1 -Project $(ProjectName) -Endpoints local -ImageSuffix 2" />
-  </Target>
+  
 </Project>

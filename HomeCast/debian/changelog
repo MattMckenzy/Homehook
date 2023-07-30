@@ -1,4 +1,4 @@
-homecast (1.0.4) UNRELEASED; urgency=medium
+homecast (1.0.8) UNRELEASED; urgency=medium
 
   * Initial release.
   * Updated command processing logic for local commands.
@@ -6,5 +6,10 @@ homecast (1.0.4) UNRELEASED; urgency=medium
   * Added configurable environment variables to appsettings for the MPV
     process.
   * Fixed some mpv options and cache location.
+  * Changing cache temporary location.
+  * Fixed relative path issue.
+  * Fixed yt-dlp paths option.
+  * Rolled-back YoutubeDLSharp changes that borked caching and added new
+    device card dropdown menu and custom commands.
 
- -- MattMckenzy <mattmckenzy@outlook.com>  Wed, 12 Jul 2023 19:09:08 +0000
+ -- MattMckenzy <mattmckenzy@outlook.com>  Mon, 17 Jul 2023 03:32:59 +0000

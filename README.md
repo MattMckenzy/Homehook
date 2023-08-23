@@ -1,21 +1,17 @@
 # HomeHook
 
-Simple API meant to handle Google Assistant webhooks and to cast Jellyfin media.
-
+Suite of services to help you get that open source casting system you always wanted!
 
 ## Description
-
-This application will help configure and serve incoming and outgoing webhooks to help you route Google Assistant spoken or text commands to your Google Cast devices.
 
 Please see swagger at homehook/swagger page on deployed API to see available hooks, how to call them and try them out.
 
 Currently available hooks:
 * [Jellyfin Simple Phrase](#jellyfin-simple-phrase) - Will parse a simple search term, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
-* [Jellyfin Conversation Phrase](#jellyfin-conversation-phrase) - Will receive a conversation intent from Google Actions, search for media links on a configured Jellyfin server, create a Jellyfin session, and play them on the selected or default Cast device.
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-1)
 
-[A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook)
+[A container is also available at Docker Hub.](https://hub.docker.com/repository/docker/mattmckenzy/homehook2)
 
 [See the Docker section below for more information.](#docker)
 
@@ -49,8 +45,6 @@ This endpoint expects to receive a Google Conversation Action webhook POST to ho
 4. Device
 5. UserName 
 6. PathTerm
-
-[Please read the Google Actions documentation for information on configuring its advanced phrase parsing features.](https://console.actions.google.com/)
 
 ### Home Assistant
 
@@ -88,6 +82,8 @@ rest_command:
 ```
 
 ## <a id="configuration-1">Configuration</a>
+
+NEEDS UPDATING
 
 Configuring the API is done either the appsettings.json found at "/HomehookService", or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 
@@ -139,15 +135,15 @@ Services:Language:DevicePrepositions | on,to | List of available prepositions to
 Services:Language:PathTermPrepositions | from,in,inside | List of available prepositions to identify a path term used to filter results further by its path.
 Services:Language:WordMappings | | A dynamic list of key words, with values of comma delimited words. Used to map commonly misheard spoken words (i.e. Services:Language:WordMappings:Geoff = Jeff,Geoffry,Jeffry).
 
-# HomeHook App
+# HomeHook
 
-A web application that offers a real-time hub to all Google cast devices in home.
+A web application that offers a real-time hub to all Homecast devices in home.
 
 ## Description
 
-The HomeHook web app will offer full control over all in-home Google cast devices through it's main (and currently only) page. You can control playback, media speed, repeat mode, queue items (move, add and remove) and volume. Whatever features the google API permit with the currently playing media should be available!
+The HomeHook web app will offer full control over all in-home Homecast devices through it's main (and currently only) page. You can control playback, media speed, repeat mode, queue items (move, add and remove) and volume.
 
-The cast hub page also gives an easy way to launch a new Jellyfin media queue.
+The cast hub page also gives an easy way to launch a new Jellyfin or Youtube media queue.
 
 Configuration is done via appsettings.json found at root. [See the configuration section below.](#configuration-2)
 
@@ -171,7 +167,7 @@ You can use the media type icon show in the image here to launch a new Jellyfin 
 
 ## <a id="configuration-2">Configuration</a>
 
-Configuring the web app is done either the appsettings.json found in "/HomehookApp", or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
+Configuring the web app is done either the appsettings.json found in "/Homehook", or with associated environment variables (great for docker). Here's a list and small description of available configuration variables:
 
 Variable | Default | Description
 ---|---|---
@@ -184,15 +180,16 @@ Services:HomeHook:AccessToken | | Authentication token used for the SignalR conn
 
 # Docker
 
-If you wish to install HomeHook and HomeHook App via docker, here are a couple of considerations:
-* Use "Host" network mode: unfortunately, Google Cast devices need a whole range of ports that are hard to track down. This includes some used for UDP multicast. Using "Host" network mode should alleviate any connection problems. If HomeHook still can't see your devices, either click the refresh button a few times in HomeHook App or give it some time. HomeHook searches for new devices every 10 minutes and cound find them at one point.
-* If you wish to use HomeHook App, make sure you fill in the HomeHook Service URI configuration variable and assign the same randomly generated token to both HomeHook and HomeHook App. [This website is always useful for such things.](https://www.guidgenerator.com/)
+If you wish to install HomeHook via docker, here are a couple of considerations:
+* Make sure you fill in the HomeHook and Homecast configuration variables and assign the same randomly generated token to both. [This website is always useful for such things.](https://www.guidgenerator.com/)
 * If you want to host HomeHook/HomeHook App on a server behind a reverse proxy, make sure you configure it like I have below: 
   * Open up your firewall for a loopback on the docker interface for the appropriate ports. 
   * Also make sure your firewall permits communication on the Bonjour protocol (UDP ports 1900 and 5353 for device discovery)
   * Make sure to replace your upstream_app to an appropriate IP. In my case, it's my Docker network bridge gateway.
 
 Here's how I configure my installation (the GUIDs are randomized, please change them for your installation!) :
+
+NEEDS UPDATING
 
 ## docker-compose.yaml
 ```yaml

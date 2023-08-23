@@ -38,10 +38,10 @@ RUN apt update \
 	&& while dquilt push; do dquilt refresh; done \
 	|| echo "No prior package."
 
+RUN mkdir /package
 RUN cd /homecast-$VERSION && dpkg-source -b .
-RUN cp /homecast_${VERSION}.debian.tar.xz /package
+RUN cp /homecast_${VERSION}.tar.xz /package
 RUN cp /homecast_${VERSION}.dsc /package
-RUN mkdir /package && cp /homecast_${VERSION}_${TARGETARCH}.* /package
 RUN cd /homecast-$VERSION && dpkg-buildpackage --host-arch=$TARGETARCH -b --no-sign
 RUN cp /homecast_${VERSION}_${TARGETARCH}.* /package
 

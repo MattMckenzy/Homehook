@@ -1,0 +1,4 @@
+#!/bin/bash
+# This `debian/preinst` script is run pre-installation
+systemctl list-unit-files homecast.service &>/dev/null && systemctl stop homecast || true
+test -e /home/homecast/data/device.json && rm /home/homecast/data/device.json || true

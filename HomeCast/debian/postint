@@ -1,3 +1,6 @@
 #!/bin/bash
 # This `debian/postinst` script is run post-installation
-adduser --system homecast
+id -u homecast &>/dev/null || adduser --system homecast
+chown homecast:homecast /home/homecast/.config/mpv
+systemctl enable homecast
+systemctl start homecast

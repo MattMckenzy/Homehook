@@ -49,9 +49,14 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityRequirement(new() { { openApiSecurityScheme, Array.Empty<string>() } });
 });
 
+builder.Services.AddSingleton(typeof(LoggingService<>));
 builder.Services.AddSingleton<LanguageService>();
+builder.Services.AddSingleton<GotifyService>();
 builder.Services.AddSingleton<JellyfinService>();
 builder.Services.AddSingleton<SearchService>();
+builder.Services.AddSingleton<CastService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CastService>());
+
 
 builder.Services.AddHttpClient<StaticTokenCaller<GotifyServiceAppProvider>>();
 builder.Services.AddHttpClient<AccessTokenCaller<JellyfinServiceAppProvider>>();
@@ -60,12 +65,6 @@ builder.Services.AddHttpClient<AccessTokenCaller<JellyfinAuthenticationServiceAp
 builder.Services.AddSingleton<GotifyServiceAppProvider>();
 builder.Services.AddSingleton<JellyfinServiceAppProvider>();
 builder.Services.AddSingleton<JellyfinAuthenticationServiceAppProvider>();
-
-builder.Services.AddSingleton<GotifyService>();
-builder.Services.AddSingleton(typeof(LoggingService<>));
-
-builder.Services.AddSingleton<CastService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<CastService>());
 
 WebApplication app = builder.Build();
 

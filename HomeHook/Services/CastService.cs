@@ -4,6 +4,7 @@ using HomeHook.Models;
 using HomeHook.Services;
 using Microsoft.AspNetCore.SignalR.Client;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace HomeHook
 {
@@ -20,7 +21,7 @@ namespace HomeHook
 
         #region Public Properties
 
-        public ConcurrentDictionary<string, DeviceService> DeviceServices { get; set; } = new(StringComparer.InvariantCultureIgnoreCase);
+        public ConcurrentDictionary<string, DeviceService?> DeviceServices { get; set; } = new(StringComparer.InvariantCultureIgnoreCase);
 
         public event EventHandler? DeviceServicesUpdated;
 
@@ -46,14 +47,12 @@ namespace HomeHook
 
         #region Service Control Methods
 
-        // TODO: handle offline devices better, add OFFLINE status and update card as necessary
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _ = Task.Run(async () =>
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    List<string> newDevicesAdded = new();
                     foreach (DeviceConfiguration deviceConfiguration in Configuration.GetSection("Services:HomeHook:Devices").Get<DeviceConfiguration[]>() ?? Array.Empty<DeviceConfiguration>())
                     {
                         try
@@ -71,7 +70,7 @@ namespace HomeHook
                                 continue;
                             }
 
-                            if (DeviceServices.TryGetValue(deviceConfiguration.Name, out _))
+                            if (DeviceServices.TryGetValue(deviceConfiguration.Name, out DeviceService? deviceService) && deviceService != null)
                                 continue;
 
                             HubConnection hubConnection = new HubConnectionBuilder()
@@ -85,46 +84,24 @@ namespace HomeHook
                             .Build();
 
                             hubConnection.Reconnecting += async (Exception? exception) => await DeviceConnectionReconnecting(deviceConfiguration.Name, exception);
-                            hubConnection.Reconnected += async (string? message) => await DeviceConnectionReconnected(deviceConfiguration.Name, message);
+                            hubConnection.Reconnected += async (string? message) => await DeviceConnectionReconnected(deviceConfiguration.Name, message, hubConnection, cancellationToken);
                             hubConnection.Closed += async (Exception? exception) => await DeviceConnectionClosed(deviceConfiguration.Name, exception);
 
                             await hubConnection.StartAsync(cancellationToken);
-                            Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
 
-                            DeviceService deviceService = new(JellyfinService, SearchService)
-                            {
-                                Device = device,                                
-                                HubConnection = hubConnection
-                            };
-                            if (DeviceServices.TryAdd(deviceConfiguration.Name, deviceService))
-                            {
-                                newDevicesAdded.Add(deviceConfiguration.Name);
-                            }
-
-                            hubConnection.On("UpdateDevice", async (Device device) =>
-                                await deviceService.UpdateDevice(device));
-
-                            hubConnection.On("UpdateCurrentTime", async (double currentTime) =>
-                                await deviceService.UpdateCurrentTime(currentTime));
-
-                            hubConnection.On("UpdateMediaItemCache", async (string mediaItemId, CacheStatus cacheStatus, double cacheRatio) =>
-                                await deviceService.UpdateMediaItemCache(mediaItemId, cacheStatus, cacheRatio));
+                            await AddOrUpdateDeviceService(deviceConfiguration.Name, hubConnection, cancellationToken);
                         }
                         catch (Exception exception)
                         {
                             await LoggingService.LogDebug("Cast Service Error.", $"Error while connecting to device \"{deviceConfiguration.Name}\": {string.Join("; ", exception.Message, exception.InnerException?.Message)}");
+
+                            if (deviceConfiguration.Name != null)
+                                await AddOrUpdateDeviceService(deviceConfiguration.Name);
                         }
                     }
 
                     RefreshDevicesCancellationTokenSource = new();
-                    RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));
-
-                    if (newDevicesAdded.Any())
-                    {
-                        await LoggingService.LogDebug("Refreshed receivers.", $"Refreshed devices and found {newDevicesAdded.Count} new devices ({string.Join(", ", newDevicesAdded)}).");
-                        DeviceServicesUpdated?.Invoke(this, EventArgs.Empty);
-                    }
-
+                    RefreshDevicesCancellationTokenSource.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
                 }
             }, cancellationToken);
 
@@ -133,23 +110,122 @@ namespace HomeHook
 
         private async Task DeviceConnectionReconnecting(string deviceName, Exception? exception)
         {
-            await LoggingService.LogDebug($"{deviceName} reconnecting.", exception?.Message ?? "Connection reconnecting...");
+            await LoggingService.LogDebug($"{deviceName} reconnecting.", exception?.Message ?? "Connection reconnecting...");            
+            await AddOrUpdateDeviceService(deviceName);
         }
 
-        private async Task DeviceConnectionReconnected(string deviceName, string? message)
+        private async Task DeviceConnectionReconnected(string deviceName, string? message, HubConnection hubConnection, CancellationToken cancellationToken)
         {
             await LoggingService.LogDebug($"{deviceName} reconnected.", message ?? "Succesfully reconnected.");
+            await AddOrUpdateDeviceService(deviceName, hubConnection, cancellationToken);
         }
 
         private async Task DeviceConnectionClosed(string deviceName, Exception? exception)
         {
-            await LoggingService.LogDebug($"{deviceName} onnection closed.", exception?.Message ?? "Connection closed.");
-            DeviceServices.TryRemove(deviceName, out _);
+            await LoggingService.LogDebug($"{deviceName} connection closed.", exception?.Message ?? "Connection closed.");
+            await AddOrUpdateDeviceService(deviceName);
+        }
+
+        public async Task AddOrUpdateDeviceService(string deviceName, HubConnection? hubConnection = null, CancellationToken cancellationToken = default)
+        {
+            if (hubConnection == null || cancellationToken == default) 
+            {
+                DeviceServices.AddOrUpdate(deviceName,
+                    (_) => {
+                        return null;
+                    },
+                    (name, oldDeviceService) =>
+                    {
+                        oldDeviceService?.Dispose();
+                        return null;
+                    });
+            }
+            else
+            {
+                DeviceServices.AddOrUpdate(deviceName,
+                    (_) => {
+                        return CreateDeviceService(hubConnection, cancellationToken).GetAwaiter().GetResult();
+                    },
+                    (name, oldDeviceService) =>
+                    {
+                        oldDeviceService?.Dispose();
+                        return CreateDeviceService(hubConnection, cancellationToken).GetAwaiter().GetResult();
+                    });
+            }
+
+            await LoggingService.LogDebug("New device!", $"Found and registered new device: {deviceName}.");
+            DeviceServicesUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        private async Task<DeviceService> CreateDeviceService(HubConnection hubConnection, CancellationToken cancellationToken)
+        {
+            Device device = await hubConnection.InvokeAsync<Device>("GetDevice", cancellationToken);
+
+            DeviceService deviceService = new(JellyfinService, SearchService)
+            {
+                Device = device,
+                HubConnection = hubConnection
+            };
+
+            RegisterCallbacks(hubConnection, deviceService);
+
+            return deviceService;
+        }
+
+        private static void RegisterCallbacks(HubConnection hubConnection, DeviceService deviceService)
+        {
+            hubConnection.On(DeviceHubConstants.DeviceStatusUpdateMethod, async (DeviceStatus deviceStatus) =>
+                await deviceService.UpdateDeviceStatus(deviceStatus));
+
+            hubConnection.On(DeviceHubConstants.StatusMessageUpdateMethod, async (string? statusMessage) =>
+                await deviceService.UpdateStatusMessage(statusMessage));
+
+            hubConnection.On(DeviceHubConstants.CurrentMediaItemIdUpdateMethod, async (string? currentMediaItemId) =>
+                await deviceService.UpdateCurrentMediaItemId(currentMediaItemId));
+
+            hubConnection.On(DeviceHubConstants.CurrentTimeUpdateMethod, async (double currentTime) =>
+                await deviceService.UpdateCurrentTime(currentTime));
+
+            hubConnection.On(DeviceHubConstants.StartTimeUpdateMethod, async (double startTime) =>
+                await deviceService.UpdateStartTime(startTime));
+
+            hubConnection.On(DeviceHubConstants.RepeatModeUpdateMethod, async (RepeatMode repeatMode) =>
+                await deviceService.UpdateRepeatMode(repeatMode));
+
+            hubConnection.On(DeviceHubConstants.VolumeUpdateMethod, async (float volume) =>
+                await deviceService.UpdateVolume(volume));
+
+            hubConnection.On(DeviceHubConstants.IsMutedUpdateMethod, async (bool isMuted) =>
+                await deviceService.UpdateIsMuted(isMuted));
+
+            hubConnection.On(DeviceHubConstants.PlaybackRateUpdateMethod, async (float playbackRate) =>
+                await deviceService.UpdatePlaybackRate(playbackRate));
+
+            hubConnection.On(DeviceHubConstants.MediaItemsAddMethod, async (List<MediaItem> mediaItems, bool launch, string? insertBeforeMediaItemId) =>
+                await deviceService.UpdateAdddedMediaItems(mediaItems, launch, insertBeforeMediaItemId));
+
+            hubConnection.On(DeviceHubConstants.MediaItemsRemoveMethod, async (IEnumerable<string> mediaItemIds) =>
+                await deviceService.UpdateRemovedMediaItems(mediaItemIds));
+
+            hubConnection.On(DeviceHubConstants.MediaItemsMoveUpMethod, async (IEnumerable<string> mediaItemIds) =>
+                await deviceService.MoveUpMediaItems(mediaItemIds));
+
+            hubConnection.On(DeviceHubConstants.MediaItemsMoveDownMethod, async (IEnumerable<string> mediaItemIds) =>
+                await deviceService.MoveDownMediaItems(mediaItemIds));
+
+            hubConnection.On(DeviceHubConstants.MediaItemsClearMethod, async () =>
+                await deviceService.ClearMediaItems());
+
+            hubConnection.On(DeviceHubConstants.MediaQueueOrderUpdateMethod, async (IEnumerable<string> mediaItemIds) =>
+                await deviceService.OrderMediaQueue(mediaItemIds));
+
+            hubConnection.On(DeviceHubConstants.MediaItemCacheUpdateMethod, async (string mediaItemId, CacheStatus cacheStatus, double cacheRatio) =>
+                await deviceService.UpdateMediaItemCache(mediaItemId, cacheStatus, cacheRatio));
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            foreach (DeviceService deviceService in DeviceServices.Values)
+            foreach (DeviceService deviceService in DeviceServices.Values.Where(deviceService => deviceService != null).Cast<DeviceService>())
                 deviceService.Dispose();
 
             DeviceServices.Clear();
@@ -165,19 +241,19 @@ namespace HomeHook
         {
             if (!DeviceServices.TryGetValue(deviceName, out DeviceService? deviceService) || deviceService == null)
             {
-                await LoggingService.LogError("Jellyfin Session Start", "The given device name cannot be found!!");
+                await LoggingService.LogError("Device not found!", $"The given device name \"{deviceName}\" cannot be found!!");
                 return (false, null);
             }
             else if (deviceService.HubConnection.State != HubConnectionState.Connected)
             {
                 CancellationToken waitForConnectionCancellationToken = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
-                while (waitForConnectionCancellationToken.IsCancellationRequested &&
+                while (!waitForConnectionCancellationToken.IsCancellationRequested &&
                     (deviceService.HubConnection.State == HubConnectionState.Reconnecting || deviceService.HubConnection.State == HubConnectionState.Connecting))
                     await Task.Delay(TimeSpan.FromSeconds(1));
 
                 if (deviceService.HubConnection.State != HubConnectionState.Connected)
                 {
-                    await LoggingService.LogError("Jellyfin Session Start", $"The given device \"{deviceService.Device.Name}\" at \"{deviceService.Device.Address}\" is not connected, please verify its status and try again.");
+                    await LoggingService.LogError("Device not connected.", $"The given device \"{deviceService.Device.Name}\" at \"{deviceService.Device.Address}\" is not connected, please verify its status and try again.");
                     return (false, null);
                 }
             }
@@ -186,6 +262,5 @@ namespace HomeHook
         }
 
         #endregion
-
     }
 }

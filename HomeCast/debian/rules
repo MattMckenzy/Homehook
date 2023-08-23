@@ -10,6 +10,7 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	# install application
+	install -d debian/homecast/opt/homecast
 	install -D -m 755 publish/* debian/homecast/opt/homecast
 	
 	# remove pdb
@@ -20,8 +21,8 @@ override_dh_auto_install:
 	
 	# install app settings to config directory
 	install -D -m 755 debian/homecast/opt/homecast/appsettings.json debian/homecast/etc/homecast/appsettings.json
-	mkdir -p debian/homecast/home/homecast/.config/mpv
-	install -D -m 755 -o homecast -g homecast debian/mpv.conf debian/homecast/home/homecast/.config/mpv
+	install -d debian/homecast/home/homecast/.config/mpv
+	install -D -m 755 debian/mpv.conf debian/homecast/home/homecast/.config/mpv/mpv.conf
 		
 	# auto-install disabled
 	

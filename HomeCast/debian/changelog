@@ -1,15 +1,49 @@
-homecast (1.0.8) UNRELEASED; urgency=medium
+homecast (1.0.15) RELEASED; urgency=medium
+
+  * Revamped MPV process start to stabilize media initialization.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Wed, 23 Aug 2023 12:24:14 +0000
+
+homecast (1.0.14) RELEASED; urgency=medium
+
+  * Fixed caching deletion issue.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Thu, 17 Aug 2023 13:18:33 +0000
+
+ homecast (1.0.13) RELEASED; urgency=medium
+
+  * Slowed down caching updates.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Tue, 15 Aug 2023 03:04:16 +0000
+
+homecast (1.0.12) RELEASED; urgency=medium
+
+  * Fixed bad condition in caching service.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Tue, 15 Aug 2023 01:56:34 +0000
+
+homecast (1.0.11) RELEASED; urgency=medium
+
+  * Turned off logging for time updates.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Tue, 15 Aug 2023 01:07:49 +0000
+
+homecast (1.0.10) RELEASED; urgency=medium
+
+  * Fixed package install scripts.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Sun, 13 Aug 2023 19:33:53 +0000
+
+homecast (1.0.9) RELEASED; urgency=medium
+
+  * Fixed issue with caching algorithm stopping playback of large files.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Sun, 13 Aug 2023 12:18:08 +0000
+
+homecast (1.0.8) RELEASED; urgency=medium
 
   * Initial release.
-  * Updated command processing logic for local commands.
-  * Added user creation and fixed mpv-socket location.
   * Added configurable environment variables to appsettings for the MPV
     process.
-  * Fixed some mpv options and cache location.
-  * Changing cache temporary location.
-  * Fixed relative path issue.
-  * Fixed yt-dlp paths option.
-  * Rolled-back YoutubeDLSharp changes that borked caching and added new
-    device card dropdown menu and custom commands.
 
  -- MattMckenzy <mattmckenzy@outlook.com>  Mon, 17 Jul 2023 03:32:59 +0000

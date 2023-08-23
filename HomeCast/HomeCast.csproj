@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
-    <AssemblyVersion>1.0.8</AssemblyVersion>
-    <PackageReleaseNotes>Rolled-back YoutubeDLSharp changes that borked caching and added new device card dropdown menu and custom commands.</PackageReleaseNotes>
+    <AssemblyVersion>1.0.15</AssemblyVersion>
+    <PackageReleaseNotes>Revamped MPV process start to stabilize media initialization.</PackageReleaseNotes>
     <Configurations>Debug;Release</Configurations>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

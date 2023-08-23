@@ -1,9 +1,11 @@
 ﻿using HomeHook.Common.Exceptions;
 using HomeHook.Common.Models;
+using HomeHook.Common.Services;
 using HomeHook.Models.Jellyfin;
 using HomeHook.Models.Language;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
+using MediaSource = HomeHook.Common.Models.MediaSource;
 
 namespace HomeHook.Services
 {
@@ -25,9 +27,8 @@ namespace HomeHook.Services
         #region Public Variables
 
         public required Device Device { get; set; }
-        public required HubConnection HubConnection { get; set; }
 
-        // TODO: Seperate update events to minimize communication.
+        public required HubConnection HubConnection { get; set; }
 
         public DeviceEvent? DeviceUpdated;
 
@@ -78,66 +79,95 @@ namespace HomeHook.Services
                 foreach (MediaItem mediaItem in await JellyfinService.GetItems(languagePhrase, userId))
                 {                    
                     yield return mediaItem;
-                    await Task.Delay(333);
+                    await Task.Delay(200);
                 }
             }
             else
                 await foreach (MediaItem mediaItem in SearchService.Search(languagePhrase))
                     yield return mediaItem;
         }
+        
+        public async Task HubInvoke(Func<Task> invokeTask)
+        {
+            if (HubConnection.State != HubConnectionState.Connected)
+            {
+                CancellationToken waitForConnectionCancellationToken = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+                while (!waitForConnectionCancellationToken.IsCancellationRequested &&
+                    (HubConnection.State == HubConnectionState.Reconnecting || HubConnection.State == HubConnectionState.Connecting))
+                    await Task.Delay(TimeSpan.FromMilliseconds(500));
+            }
+
+            if (HubConnection.State == HubConnectionState.Connected)
+            {
+                try
+                {
+                    await invokeTask.Invoke();
+                }
+                catch (Exception _) 
+                {
+                    Device.StatusMessage = "Command failed";
+                    DeviceUpdated?.Invoke(this, Device);
+                }
+            }
+            else
+            {
+                Device.StatusMessage = "Connection failed";
+                DeviceUpdated?.Invoke(this, Device);
+            }
+        }
 
         public async Task PlayMediaItem(string mediaItemId) =>
-            await HubConnection.InvokeAsync("PlayMediaItem", mediaItemId);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("PlayMediaItem", mediaItemId));
 
         public async Task AddMediaItems(List<MediaItem> mediaItems, bool launch = false, string? insertBeforeMediaItemId = null)
         {
             if (mediaItems.Any())
-                await HubConnection.InvokeAsync("AddMediaItems", mediaItems.ToArray(), launch, insertBeforeMediaItemId);
+                await HubInvoke(async () => await HubConnection.InvokeAsync("AddMediaItems", mediaItems.ToArray(), launch, insertBeforeMediaItemId));
         }
 
         public async Task RemoveMediaItems(IEnumerable<string> mediaItemIds) =>
-            await HubConnection.InvokeAsync("RemoveMediaItems", mediaItemIds);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("RemoveMediaItems", mediaItemIds));
 
         public async Task MoveMediaItemsUp(IEnumerable<string> mediaItemIds) =>
-            await HubConnection.InvokeAsync("MoveMediaItemsUp", mediaItemIds);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("MoveMediaItemsUp", mediaItemIds));
 
         public async Task MoveMediaItemsDown(IEnumerable<string> mediaItemIds) =>
-            await HubConnection.InvokeAsync("MoveMediaItemsDown", mediaItemIds);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("MoveMediaItemsDown", mediaItemIds));
 
         public async Task Seek(double seekSeconds) =>
-            await HubConnection.InvokeAsync("Seek", seekSeconds);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("Seek", seekSeconds));
        
         public async Task SeekRelative(double relativeSeconds) =>
-            await HubConnection.InvokeAsync("SeekRelative", relativeSeconds);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("SeekRelative", relativeSeconds));
         
         public async Task PlayPause()
         {
-            if (Device.DeviceStatus == PlayerStatus.Playing)
-                await HubConnection.InvokeAsync("Pause");
+            if (Device.DeviceStatus == DeviceStatus.Playing)
+                await HubInvoke(async () => await HubConnection.InvokeAsync("Pause"));
             else
-                await HubConnection.InvokeAsync("Play");
+                await HubInvoke(async () => await HubConnection.InvokeAsync("Play"));
         }
 
         public async Task Stop() =>
-            await HubConnection.InvokeAsync("Stop");
+            await HubInvoke(async () => await HubConnection.InvokeAsync("Stop"));
 
         public async Task Previous() =>
-            await HubConnection.InvokeAsync("Previous");
+            await HubInvoke(async () => await HubConnection.InvokeAsync("Previous"));
 
         public async Task Next() =>
-            await HubConnection.InvokeAsync("Next");
+            await HubInvoke(async () => await HubConnection.InvokeAsync("Next"));
 
         public async Task SetRepeatMode(RepeatMode repeatMode) =>
-            await HubConnection.InvokeAsync("ChangeRepeatMode", repeatMode);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("ChangeRepeatMode", repeatMode));
 
         public async Task SetPlaybackRate(double playBackRate) =>
-            await HubConnection.InvokeAsync("SetPlaybackRate", playBackRate);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("SetPlaybackRate", playBackRate));
 
         public async Task SetVolume(float volume) =>
-            await HubConnection.InvokeAsync("SetVolume", volume);
+            await HubInvoke(async () => await HubConnection.InvokeAsync("SetVolume", volume));
 
         public async Task ToggleMute() =>
-            await HubConnection.InvokeAsync("ToggleMute");
+            await HubInvoke(async () => await HubConnection.InvokeAsync("ToggleMute"));
 
         #endregion
 
@@ -152,34 +182,85 @@ namespace HomeHook.Services
             {
                 switch (Device.DeviceStatus)
                 {
-                    case PlayerStatus.Playing:
+                    case DeviceStatus.Playing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case PlayerStatus.Paused:
+                    case DeviceStatus.Paused:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case PlayerStatus.Pausing:
+                    case DeviceStatus.Pausing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Pause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case PlayerStatus.Unpausing:
+                    case DeviceStatus.Unpausing:
                         await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.Unpause), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case PlayerStatus.Starting:
+                    case DeviceStatus.Starting:
                         await JellyfinService.UpdateProgress(GetProgress(), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
                         break;
-                    case PlayerStatus.Finished:
+                    case DeviceStatus.Finished:
                         await JellyfinService.MarkPlayed(Device.CurrentMedia?.User, Device.CurrentMedia?.MediaId);
                         break;
-                    case PlayerStatus.Stopping:
+                    case DeviceStatus.Stopping:
                         await JellyfinService.UpdateProgress(GetProgress(finished: null), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version, true);
                         break;
-                    case PlayerStatus.Buffering:
-                    case PlayerStatus.Ended:
-                    case PlayerStatus.Stopped:
+                    case DeviceStatus.Buffering:
+                    case DeviceStatus.Ended:
+                    case DeviceStatus.Stopped:
                     default:
                         break;
                 }
             }
+        }     
+
+        private Progress? GetProgress(ProgressEvents? progressEvent = null, bool? finished = false)
+        {
+            if (Device.CurrentMedia == null)
+                return null;
+
+            Progress returningProgress = new()
+            {
+                EventName = progressEvent,
+                ItemId = Device.CurrentMedia.MediaId,
+                MediaSourceId = Device.CurrentMedia.MediaId,
+                VolumeLevel = Convert.ToInt32(Device.Volume * 100),
+                IsMuted = Device.IsMuted,
+                IsPaused = Device.DeviceStatus == DeviceStatus.Paused,
+                PlaybackRate = Device.PlaybackRate,
+                PlayMethod = PlayMethod.DirectPlay
+            };
+
+            if (finished != null)
+                returningProgress.PositionTicks = (long)((finished == true ? Device.CurrentMedia.Runtime : Device.CurrentTime) * 10000000d);
+
+            return returningProgress;
+        }
+
+        #endregion
+
+        #region Device Callbacks
+
+        public Task UpdateDeviceStatus(DeviceStatus deviceStatus)
+        {
+            Device.DeviceStatus = deviceStatus;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateStatusMessage(string? statusMessage)
+        {
+            Device.StatusMessage = statusMessage;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateCurrentMediaItemId(string? currentMediaItemId)
+        {
+            Device.CurrentMediaItemId = currentMediaItemId;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
         }
 
         public async Task UpdateCurrentTime(double currentTime)
@@ -191,14 +272,102 @@ namespace HomeHook.Services
             {
                 switch (Device.DeviceStatus)
                 {
-                    case PlayerStatus.Playing:
+                    case DeviceStatus.Playing:
                         if (Math.Round(Device.CurrentTime) % 5 == 0)
                             await JellyfinService.UpdateProgress(GetProgress(ProgressEvents.TimeUpdate), Device.CurrentMedia?.User, Device.Name, ServiceName, Device.Version);
-                        break;                   
+                        break;
                     default:
                         break;
                 }
             }
+        }
+
+        public Task UpdateStartTime(double startTime)
+        {
+            if (Device.CurrentMedia != null)
+                Device.CurrentMedia.StartTime = startTime;
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateRepeatMode(RepeatMode repeatMode)
+        {
+            Device.RepeatMode = repeatMode;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateVolume(float volume)
+        {
+            Device.Volume = volume;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateIsMuted(bool isMuted)
+        {
+            Device.IsMuted = isMuted;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdatePlaybackRate(float playbackRate)
+        {
+            Device.PlaybackRate = playbackRate;
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAdddedMediaItems(List<MediaItem> mediaItems, bool launch, string? insertBeforeMediaItemId)
+        {
+            Device.AddMediaItems(mediaItems, launch, insertBeforeMediaItemId);
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateRemovedMediaItems(IEnumerable<string> mediaItemIds)
+        {
+            Device.RemoveMediaItems(mediaItemIds); 
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task MoveUpMediaItems(IEnumerable<string> mediaItemIds)
+        {
+            Device.MoveUpMediaItems(mediaItemIds);
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task MoveDownMediaItems(IEnumerable<string> mediaItemIds)
+        {
+            Device.MoveDownMediaItems(mediaItemIds);
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task ClearMediaItems()
+        {
+            Device.MediaQueue.Clear();
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
+        }
+
+        public Task OrderMediaQueue(IEnumerable<string> mediaItemIds)
+        {
+            Device.OrderMediaItems(mediaItemIds);
+            DeviceUpdated?.Invoke(this, Device);
+
+            return Task.CompletedTask;
         }
 
         public Task UpdateMediaItemCache(string mediaItemId, CacheStatus cacheStatus, double cacheRatio)
@@ -214,29 +383,6 @@ namespace HomeHook.Services
             }
 
             return Task.CompletedTask;
-        }
-
-        private Progress? GetProgress(ProgressEvents? progressEvent = null, bool? finished = false)
-        {
-            if (Device.CurrentMedia == null)
-                return null;
-
-            Progress returningProgress = new()
-            {
-                EventName = progressEvent,
-                ItemId = Device.CurrentMedia.MediaId,
-                MediaSourceId = Device.CurrentMedia.MediaId,
-                VolumeLevel = Convert.ToInt32(Device.Volume * 100),
-                IsMuted = Device.IsMuted,
-                IsPaused = Device.DeviceStatus == PlayerStatus.Paused,
-                PlaybackRate = Device.PlaybackRate,
-                PlayMethod = PlayMethod.DirectPlay
-            };
-
-            if (finished != null)
-                returningProgress.PositionTicks = (long)((finished == true ? Device.CurrentMedia.Runtime : Device.CurrentTime) * 10000000d);
-
-            return returningProgress;
         }
 
         #endregion

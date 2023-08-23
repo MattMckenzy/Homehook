@@ -7,9 +7,9 @@ namespace HomeHook.Services
     /// </summary>
     public sealed class AccessTokenCaller<T> : IRestServiceCaller where T : IRestServiceProvider
     {
-        private readonly T _restServiceProvider;
-        private readonly HttpClient _httpClient;
-        private readonly Dictionary<string, string> accessTokens = new();
+        private T RestServiceProvider { get; }
+        private HttpClient HttpClient { get; }
+        private Dictionary<string, string> AccessTokens { get; } = new();
 
         /// <summary>
         /// Default constructor.
@@ -18,8 +18,8 @@ namespace HomeHook.Services
         /// <param name="httpClient">An instance of a configured HttpClient.</param>
         public AccessTokenCaller(T restServiceProvider, HttpClient httpClient)
         {
-            _restServiceProvider = restServiceProvider;
-            _httpClient = httpClient;
+            RestServiceProvider = restServiceProvider;
+            HttpClient = httpClient;
         }
 
         /// <summary>
@@ -30,27 +30,35 @@ namespace HomeHook.Services
         {
             HttpRequestMessage returningHttpRequestMessage = new()
             {
-                RequestUri = _restServiceProvider.GetServiceUri()
+                RequestUri = RestServiceProvider.GetServiceUri()
             };
 
-            string headerValue = _restServiceProvider.GetScope() ?? throw new InvalidOperationException("Scope must be provided for the access token caller!");
+            string headerValue = RestServiceProvider.GetScope() ?? throw new InvalidOperationException("Scope must be provided for the access token caller!");
 
             if (headerValue.Contains("{0}"))
             {
-                if (credential != null && accessTokens.TryGetValue(credential, out string? code) && code != null && accessTokenDelegate == null)
+                if (credential != null && AccessTokens.TryGetValue(credential, out string? code) && code != null)
                     headerValue = string.Format(headerValue, code);
-                else if (credential != null && _restServiceProvider.GetCredentials().TryGetValue(credential, out code) && code != null && accessTokenDelegate != null)
+                else if (credential != null && RestServiceProvider.GetCredentials().TryGetValue(credential, out code) && code != null && accessTokenDelegate != null)
                 {
-                    accessTokens[credential] = await accessTokenDelegate(credential, code);
-                    headerValue = string.Format(headerValue, accessTokens[credential]);
+                    AccessTokens[credential] = await accessTokenDelegate(credential, code);
+                    headerValue = string.Format(headerValue, AccessTokens[credential]);
                 }
                 else
-                    headerValue = string.Format(headerValue, _restServiceProvider.GetToken());
+                    headerValue = string.Format(headerValue, RestServiceProvider.GetToken());
             }
 
-            returningHttpRequestMessage.Headers.Add(_restServiceProvider.GetHeader() ?? throw new InvalidOperationException("Header must be provided for the access token caller!"), headerValue);
+            returningHttpRequestMessage.Headers.Add(RestServiceProvider.GetHeader() ?? throw new InvalidOperationException("Header must be provided for the access token caller!"), headerValue);
 
             return returningHttpRequestMessage;
+        }
+
+        public async Task RefreshAccessToken(string credential, Func<string, string, Task<string>> accessTokenDelegate)
+        {
+            if (RestServiceProvider.GetCredentials().TryGetValue(credential, out string? code) && code != null)
+            {
+                AccessTokens[credential] = await accessTokenDelegate(credential, code);
+            }
         }
 
         /// <summary>
@@ -59,7 +67,7 @@ namespace HomeHook.Services
         /// <returns>The response message.</returns>
         public async Task<HttpResponseMessage> SendRequest(HttpRequestMessage httpRequestMessage)
         {
-            return await _httpClient.SendAsync(httpRequestMessage).ConfigureAwait(false);
+            return await HttpClient.SendAsync(httpRequestMessage).ConfigureAwait(false);
         }
     }
 }

@@ -23,7 +23,7 @@
     private ElementReference CommandButtonRef { get; set; }
 
     private async Task CallCommand(string commandName) =>
-        await DeviceService.HubConnection.InvokeAsync<IEnumerable<CommandDefinition>>("CallCommand", commandName);
+        await DeviceService.HubInvoke(async () => await DeviceService.HubConnection.InvokeAsync("CallCommand", commandName));
 
     private async Task OnMouseEnter()
     {

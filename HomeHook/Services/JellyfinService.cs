@@ -125,7 +125,7 @@ namespace HomeHook.Services
         {
             List<Item> returningItems = new();
 
-            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "includeItemTypes","Audio,Video,Movie,Episode,Photo,MusicVideo" }, { "fields", "DateCreated,Path,Height,Width,Overview,SeriesStudio,Studios" }, { "filters", $"IsNotFolder{(phrase.OrderType == OrderType.Continue ? ", IsResumable" : string.Empty)}" } };
+            Dictionary<string, string> queryParameters = new() { { "recursive", "true" }, { "includeItemTypes","Audio,Video,Movie,Episode,Photo,MusicVideo" }, { "fields", "DateCreated,Path,Height,Width,Overview,SeriesStudio,Studios,MediaSources" }, { "filters", $"IsNotFolder{(phrase.OrderType == OrderType.Continue ? ", IsResumable" : string.Empty)}" } };
             if (!string.IsNullOrWhiteSpace(parentId))
                 queryParameters.Add("parentId", parentId);
             else
@@ -203,29 +203,66 @@ namespace HomeHook.Services
 
         private List<MediaItem> ItemsToMediaQueue(IEnumerable<Item> items, LanguagePhrase phrase, string userId)
         {
-            return items.Select((item, index) => 
+            List<MediaItem> returningMediaItems = new();
+            HashSet<string> returningMediaIds = new();
+
+            foreach(Item item in items)
             {
                 MediaItemKind? mediaKind = GetMediaKind(item.MediaType, item.Type);
+
                 if (!mediaKind.HasValue)
-                    return null;
+                    continue;
                 else
-                    return new MediaItem
+                {
+                    if (item.MediaSources?.Count() > 1)
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        MediaId = item.Id,
-                        Location = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?static=true&api_key={userId}",
-                        MediaSource = phrase.MediaSource,
-                        Container = Path.GetExtension(item.Path ?? ".unknown"),
-                        Size = item.Size ?? 0,
-                        MediaItemKind = (MediaItemKind)mediaKind,
-                        Metadata = GetMetadata((MediaItemKind)mediaKind, item, userId),
-                        StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
-                        Runtime = (float)(item.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(item.RunTimeTicks.Value).TotalSeconds),
-                        User = phrase.User,
-                        CacheStatus = phrase.PlaybackMethod == PlaybackMethod.Cached ? CacheStatus.Uncached : CacheStatus.Off
-                    };
+                        foreach (Models.Jellyfin.MediaSource mediaSource in item.MediaSources)
+                        {
+                            if (returningMediaIds.Contains(mediaSource.Id))
+                                returningMediaItems.RemoveAll(item => item.MediaId == mediaSource.Id);
+                            else                            
+                                returningMediaIds.Add(mediaSource.Id);
+
+                            returningMediaItems.Add(new MediaItem
+                            {
+                                Id = Guid.NewGuid().ToString(),
+                                MediaId = mediaSource.Id,
+                                Location = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?static=true&api_key={userId}",
+                                MediaSource = phrase.MediaSource,
+                                Container = Path.GetExtension(item.Path ?? ".unknown"),
+                                Size = mediaSource.Size ?? 0,
+                                MediaItemKind = (MediaItemKind)mediaKind,
+                                Metadata = GetMetadata((MediaItemKind)mediaKind, item, userId, $"{item.Name} {mediaSource.Name}", mediaSource.Path),
+                                StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
+                                Runtime = (float)(mediaSource.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(mediaSource.RunTimeTicks.Value).TotalSeconds),
+                                User = phrase.User,
+                                CacheStatus = phrase.PlaybackMethod == PlaybackMethod.Cached ? CacheStatus.Uncached : CacheStatus.Off
+                            });
+                        }
+                    }
+                    else if (!returningMediaIds.Contains(item.Id))
+                    {
+                        returningMediaIds.Add(item.Id);
+                        returningMediaItems.Add(new MediaItem
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            MediaId = item.Id,
+                            Location = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Videos/{item.Id}/stream?static=true&api_key={userId}",
+                            MediaSource = phrase.MediaSource,
+                            Container = Path.GetExtension(item.Path ?? ".unknown"),
+                            Size = item.MediaSources?.FirstOrDefault()?.Size ?? 0,
+                            MediaItemKind = (MediaItemKind)mediaKind,
+                            Metadata = GetMetadata((MediaItemKind)mediaKind, item, userId, item.Name, item.Path),
+                            StartTime = (phrase.OrderType == OrderType.Continue || phrase.OrderType == OrderType.Unplayed || phrase.OrderType == OrderType.Watch) && item.UserData?.PlaybackPositionTicks != null ? Convert.ToInt32(Math.Round(Convert.ToDecimal(item.UserData.PlaybackPositionTicks / 10000000), 0, MidpointRounding.ToZero)) : 0,
+                            Runtime = (float)(item.RunTimeTicks == null ? 0 : TimeSpan.FromTicks(item.RunTimeTicks.Value).TotalSeconds),
+                            User = phrase.User,
+                            CacheStatus = phrase.PlaybackMethod == PlaybackMethod.Cached ? CacheStatus.Uncached : CacheStatus.Off
+                        });
+                    }
+                }
             }
-            ).Where(media => media != null).Cast<MediaItem>().ToList();
+            
+            return returningMediaItems;
         }
 
         private static MediaItemKind? GetMediaKind(string? mediaType, string? type)
@@ -242,17 +279,17 @@ namespace HomeHook.Services
             };
         }
 
-        private MediaMetadata GetMetadata(MediaItemKind mediaKind, Item item, string userId)
+        private MediaMetadata GetMetadata(MediaItemKind mediaKind, Item item, string userId, string? title, string? path)
         {
             return mediaKind switch
             {
                 MediaItemKind.SeriesEpisode => new SeriesEpisodeMetadata
                 {
-                    Title = item.Name,
+                    Title = title,
                     Subtitle = $"{item.SeriesName}{(item.ParentIndexNumber != null && item.IndexNumber != null ? $" - S{item.ParentIndexNumber}E{item.IndexNumber}" : string.Empty)}",
                     CreationDate = item.PremiereDate ?? item.DateCreated,
                     Overview = item.Overview,
-                    SeriesTitle = item.SeriesName ?? item.Path,
+                    SeriesTitle = item.SeriesName ?? path,
                     SeriesStudio = item.SeriesStudio,
                     SeasonNumber = item.ParentIndexNumber,
                     EpisodeNumber = item.IndexNumber,
@@ -260,7 +297,7 @@ namespace HomeHook.Services
                 },
                 MediaItemKind.Movie => new MovieMetadata
                 {
-                    Title = item.Name,
+                    Title = title,
                     Subtitle = item.Studios == null ? null : string.Join(", ", item.Studios.Select(studio => studio.Name)),
                     CreationDate = item.PremiereDate ?? item.DateCreated,
                     Overview = item.Overview,
@@ -269,17 +306,17 @@ namespace HomeHook.Services
                 },
                 MediaItemKind.MusicVideo => new MediaMetadata
                 {
-                    Title = item.Name,
-                    Subtitle = item.Path,
+                    Title = title,
+                    Subtitle = path,
                     CreationDate = item.PremiereDate ?? item.DateCreated,
                     ThumbnailUri = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
                 },
                 MediaItemKind.Song => new SongMetadata
                 {
-                    Title = $"{(item.IndexNumber != null ? $"{item.IndexNumber}. " : string.Empty)}{item.Name}",
+                    Title = $"{(item.IndexNumber != null ? $"{item.IndexNumber}. " : string.Empty)}{title}",
                     Subtitle = $"{item.AlbumArtist ?? string.Empty}{(item.Album != null ? $"'s {item.Album}" : string.Empty)}",
                     CreationDate = item.PremiereDate ?? item.DateCreated,
-                    AlbumName = string.IsNullOrWhiteSpace(item.Album) ? item.Path : item.Album,
+                    AlbumName = string.IsNullOrWhiteSpace(item.Album) ? path : item.Album,
                     AlbumArtist = item.AlbumArtist,
                     Artist = item.Artists == null ? null : string.Join(", ", item.Artists),
                     DiscNumber = item.ParentIndexNumber,
@@ -288,15 +325,15 @@ namespace HomeHook.Services
                 },
                 MediaItemKind.Photo => new PhotoMetadata
                 {
-                    Title = item.Name,
-                    Subtitle = item.Path,
+                    Title = title,
+                    Subtitle = path,
                     CreationDate = item.PremiereDate ?? item.DateCreated,
                     ThumbnailUri = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
                 },
                 MediaItemKind.Video => new MediaMetadata
                 {
-                    Title = item.Name,
-                    Subtitle = item.Path,
+                    Title = title,
+                    Subtitle = path,
                     CreationDate = item.PremiereDate ?? item.DateCreated,
                     ThumbnailUri = $"{Configuration["Services:Jellyfin:ServiceUri"]}/Items/{item.Id}/Images/Primary?api_key={userId}"
                 },

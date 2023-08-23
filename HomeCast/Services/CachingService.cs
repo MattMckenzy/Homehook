@@ -3,6 +3,7 @@ using HomeCast.Models;
 using HomeHook.Common.Models;
 using HomeHook.Common.Services;
 using System.Collections.Concurrent;
+using System.Runtime;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
 
@@ -66,6 +67,15 @@ namespace HomeCast.Services
                 SubLangs = "all",
                 AddHeader = $"User-Agent:{Configuration["Services:Caching:UserAgent"] ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"}"
             };
+
+            _ = Task.Run(async () =>
+            {
+                while (await PeriodicTimer.WaitForNextTickAsync())
+                {
+                    if (CachingUpdateCallback != null && CurrentCachingInformation != null)
+                        await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
+                }
+            });
         }
 
         #endregion
@@ -87,6 +97,8 @@ namespace HomeCast.Services
         private CancellationTokenSource CachingCancellationTokenSource = new();
         private SemaphoreQueue CachingLock { get; } = new(1);
 
+        private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromMilliseconds(500));
+
         private YoutubeDL YoutubeDL { get; } = new();
         private OptionSet OptionSet { get; } = new();
 
@@ -101,11 +113,11 @@ namespace HomeCast.Services
         public async Task<(bool, CachingInformation)> TryGetOrQueueCacheItem(MediaItem mediaItem)
         {
             if (CacheFileInfos.TryGetValue($"{mediaItem.MediaId}-{CacheFormat}", out FileInfo? cacheFileInfo) && cacheFileInfo != null)
-                return (false, new CachingInformation { CacheFileInfo = cacheFileInfo, MediaId = mediaItem.MediaId, CacheRatio = 1, CacheStatus = CacheStatus.Cached });
+                return (false, new CachingInformation { CacheFileInfo = cacheFileInfo, MediaId = mediaItem.MediaId, CachedRatio = 1, CacheStatus = CacheStatus.Cached });
             else if (CurrentCachingInformation != null && CurrentCachingInformation.MediaId == mediaItem.MediaId)
                 return (true, CurrentCachingInformation);
             else if (CachingQueue.Any(queueItem => $"{queueItem.MediaItem.MediaId}-{CacheFormat}" == $"{mediaItem.MediaId}-{CacheFormat}"))
-                return (true, new CachingInformation { CacheFileInfo = null, MediaId = mediaItem.MediaId, CacheRatio = 0, CacheStatus = CacheStatus.Queued });
+                return (true, new CachingInformation { CacheFileInfo = null, MediaId = mediaItem.MediaId, CachedRatio = 0, CacheStatus = CacheStatus.Queued });
             else
                 return await QueueCacheItem(mediaItem);  
         }
@@ -120,7 +132,7 @@ namespace HomeCast.Services
                     CacheFileInfo = null,
                     MediaId = mediaItem.MediaId,
                     CacheStatus = CacheStatus.Cached,
-                    CacheRatio = 1
+                    CachedRatio = 1
                 };
             else return null;
         }
@@ -145,7 +157,7 @@ namespace HomeCast.Services
                             CacheFileInfo = null,
                             MediaId = mediaItem.MediaId,
                             CacheStatus = CacheStatus.Uncached,
-                            CacheRatio = 0
+                            CachedRatio = 0
                         });            
 
             CachingQueue.Clear();
@@ -169,13 +181,14 @@ namespace HomeCast.Services
             neededBytes += CachingQueue.Sum(queueItem => queueItem.MediaItem.Size) + CurrentCachingMediaItem?.Size ?? 0;
 
             DriveInfo driveInfo = new(CacheDirectoryInfo.Root.FullName);
-            if (driveInfo.AvailableFreeSpace > neededBytes)
-                return true;
-            else if (CacheSizeBytes > neededBytes)
+            if (CacheSizeBytes < neededBytes)
             {
                 await LoggingService.LogWarning("Caching Service", $"Configured cache size not enough to cache item. Missing {(neededBytes - CacheSizeBytes).GetBytesReadable()}.");
                 return false;
             }
+            else if (CacheSizeBytes - await Task.Run(() => CacheDirectoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length)) > neededBytes &&
+                driveInfo.AvailableFreeSpace > neededBytes)
+                return true;
             else
             {
                 DateTime minimumLastAccessed = CacheFileInfos.Values.Min(cacheFileInfo => cacheFileInfo.LastAccessTime);
@@ -186,14 +199,15 @@ namespace HomeCast.Services
                 long largestSize = CacheFileInfos.Values.Max(cacheFileInfo => cacheFileInfo.Length);
                 long sizeDifference = largestSize - smallestSize;
 
-                Dictionary<FileInfo, int> scoredCacheFileInfos = new();
+                Dictionary<FileInfo, double> scoredCacheFileInfos = new();
                 foreach (FileInfo cacheFileInfo in CacheFileInfos.Values)
-                    scoredCacheFileInfos.Add(cacheFileInfo, Convert.ToInt32(Math.Round(Math.Exp(
+                    scoredCacheFileInfos.Add(cacheFileInfo, Math.Round(Math.Exp(
                         (((maximumLastAccessed - minimumLastAccessed).Ticks / lastAccessedDifference) * 100 * (1 - CacheAlgorithmRatio)) +
-                        (((maximumLastAccessed - minimumLastAccessed).Ticks / lastAccessedDifference) * 100 * CacheAlgorithmRatio)))));
+                        (((maximumLastAccessed - minimumLastAccessed).Ticks / lastAccessedDifference) * 100 * CacheAlgorithmRatio))));
 
-                IEnumerable<FileInfo> orderedCacheFileInfos = scoredCacheFileInfos.OrderByDescending(scoredCacheItem => scoredCacheItem.Value).Select(scoredCacheItem => scoredCacheItem.Key);
-                while (driveInfo.AvailableFreeSpace < neededBytes)
+                List<FileInfo> orderedCacheFileInfos = scoredCacheFileInfos.OrderByDescending(scoredCacheItem => scoredCacheItem.Value).Select(scoredCacheItem => scoredCacheItem.Key).ToList();
+                while (CacheSizeBytes - await Task.Run(() => CacheDirectoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length)) < neededBytes ||
+                    driveInfo.AvailableFreeSpace < neededBytes)
                 {
                     FileInfo? deletingCacheFileInfo = orderedCacheFileInfos.FirstOrDefault();
 
@@ -207,6 +221,7 @@ namespace HomeCast.Services
                         string cacheKey = Path.GetFileNameWithoutExtension(deletingCacheFileInfo.Name);
                         await LoggingService.LogDebug("Caching Service", $"Deleting cache item \"{cacheKey}\".");
 
+                        orderedCacheFileInfos.Remove(deletingCacheFileInfo);
                         CacheFileInfos.Remove(cacheKey);
                         deletingCacheFileInfo.Delete();
                     }
@@ -226,7 +241,7 @@ namespace HomeCast.Services
                     CacheFileInfo = null,
                     MediaId = mediaItem.MediaId,
                     CacheStatus = CacheStatus.Uncached,
-                    CacheRatio = 0
+                    CachedRatio = 0
                 });
             }
 
@@ -242,7 +257,7 @@ namespace HomeCast.Services
                 CacheFileInfo = null,
                 MediaId = mediaItem.MediaId,
                 CacheStatus = CacheStatus.Queued,
-                CacheRatio = 0
+                CachedRatio = 0
             });
         }
 
@@ -260,7 +275,7 @@ namespace HomeCast.Services
                         CacheFileInfo = null,
                         MediaId = queueItem.MediaItem.MediaId,
                         CacheStatus = CacheStatus.Caching,
-                        CacheRatio = 0
+                        CachedRatio = 0
                     };
 
                     MediaItem mediaItem = queueItem.MediaItem;
@@ -271,11 +286,9 @@ namespace HomeCast.Services
                     {
                         await LoggingService.LogDebug("Caching Service", $"Caching \"{mediaItem.Metadata.Title}\" from \"{mediaItem.Location}\".");
 
-                        Progress<DownloadProgress> downloadProgress = new(async downloadProgress =>
+                        Progress<DownloadProgress> downloadProgress = new(downloadProgress =>
                         {
-                            CurrentCachingInformation.CacheRatio = downloadProgress.Progress;
-                            if (CachingUpdateCallback != null)
-                                await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
+                            CurrentCachingInformation.CachedRatio = downloadProgress.Progress;
                         });
 
                         OptionSet optionSet = (OptionSet)OptionSet.Clone();                        
@@ -308,14 +321,14 @@ namespace HomeCast.Services
 
                             CurrentCachingInformation.CacheFileInfo = cacheFileInfo;
                             CurrentCachingInformation.CacheStatus = CacheStatus.Cached;
-                            CurrentCachingInformation.CacheRatio = 1;
+                            CurrentCachingInformation.CachedRatio = 1;
                             if (CachingUpdateCallback != null)
                                 await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
                         }
                         else
                         {
                             CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
-                            CurrentCachingInformation.CacheRatio = 0;
+                            CurrentCachingInformation.CachedRatio = 0;
                             if (CachingUpdateCallback != null)
                                 await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
 
@@ -325,7 +338,7 @@ namespace HomeCast.Services
                     catch (TaskCanceledException)
                     {
                         CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
-                        CurrentCachingInformation.CacheRatio = 0;
+                        CurrentCachingInformation.CachedRatio = 0;
                         if (CachingUpdateCallback != null)
                             await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
 
@@ -334,7 +347,7 @@ namespace HomeCast.Services
                     catch (Exception exception)
                     {
                         CurrentCachingInformation.CacheStatus = CacheStatus.Uncached;
-                        CurrentCachingInformation.CacheRatio = 0;
+                        CurrentCachingInformation.CachedRatio = 0;
                         if (CachingUpdateCallback != null)
                             await CachingUpdateCallback.InvokeAsync(CurrentCachingInformation);
 

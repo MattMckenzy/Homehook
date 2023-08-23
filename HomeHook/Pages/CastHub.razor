@@ -1,9 +1,23 @@
 ﻿@page "/"
 
 <div class="d-flex flex-wrap m-0 justify-content-center">
-    @foreach (DeviceService deviceService in DeviceServices)
+    @foreach (KeyValuePair<string, DeviceService?> keyValuePair in CastService.DeviceServices.OrderBy(keyValuePair => keyValuePair.Key))
     {
-        <DeviceCard DeviceService=@deviceService />
+        if (keyValuePair.Value == null)
+        {
+            <div class="card bg-dark text-white card-receiver m-2" style="height: 250px;">
+                <div class="card-img-overlay">
+                    <div class="row m-0 receiver-title position-absolute fixed-top w-100">
+                        <h4 class="col text-truncate text-stroke m-2 p-0">@keyValuePair.Key</h4>
+                        <h6 class="col d-flex align-items-center justify-content-end card-title text-truncate text-stroke m-2 p-0">OFFLINE</h6>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <DeviceCard DeviceService=@keyValuePair.Value />                            
+        }
     }
 </div>
 
@@ -11,16 +25,12 @@
     [Inject]
     private CastService CastService { get; set; } = null!;
 
-    private IEnumerable<DeviceService> DeviceServices { get; set; } = Array.Empty<DeviceService>();
-
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        DeviceServices = CastService.DeviceServices.Values.OrderBy(deviceService => deviceService.Device.Name).ToArray();
 
         CastService.DeviceServicesUpdated += async (_, _) =>
         {
-            DeviceServices = CastService.DeviceServices.Values.OrderBy(deviceService => deviceService.Device.Name).ToArray();
             await InvokeAsync(StateHasChanged);
         };
     }

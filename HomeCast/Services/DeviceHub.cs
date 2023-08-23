@@ -1,7 +1,6 @@
 ﻿using HomeHook.Common.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using System.ComponentModel.Design;
 
 namespace HomeCast.Services
 {

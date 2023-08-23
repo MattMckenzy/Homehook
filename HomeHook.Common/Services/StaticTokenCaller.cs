@@ -35,6 +35,11 @@
             return Task.FromResult(returningHttpRequestMessage);
         }
 
+        public Task RefreshAccessToken(string _, Func<string, string, Task<string>> __)
+        {
+            return Task.CompletedTask;
+        }
+
         /// <summary>
         /// Sends the given http request message with configurated request message..
         /// </summary>

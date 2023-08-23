@@ -151,6 +151,26 @@ a, .btn-link {
     position: relative;
 }
 
+.card-receiver {
+    height: 250px;
+    width: 500px;
+    overflow: hidden;
+    -webkit-transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    border-color: #6c757d;
+}
+
+    .card-receiver img {
+        filter: blur(3px) brightness(75%);
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+    }
+
+.receiver-title {
+    background-image: linear-gradient(to top, rgba(52, 58, 64,0), rgba(52, 58, 64, 0.8));
+}
+
 .dropdown-menu {
     border: solid 1px #6c757d;
     display: block !important;

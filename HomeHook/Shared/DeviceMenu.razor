@@ -50,7 +50,7 @@
         {
             CommandDefinitions = await DeviceService.HubConnection.InvokeAsync<IEnumerable<CommandDefinition>>("GetCommands") ?? Array.Empty<CommandDefinition>();            
         }
-        catch (HubException _)
+        catch (HubException)
         {
             await LoggingService.LogDebug("Commands not supported.", $"Commands are not supported on device \"{DeviceService.Device.Name}\"");
         }

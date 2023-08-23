@@ -7,6 +7,6 @@ namespace HomeCast.Models
         public required FileInfo? CacheFileInfo { get; set; } 
         public required string MediaId { get; set; }
         public required CacheStatus CacheStatus { get; set; }
-        public required double CacheRatio { get; set; }
+        public required double CachedRatio { get; set; }
     }
 }

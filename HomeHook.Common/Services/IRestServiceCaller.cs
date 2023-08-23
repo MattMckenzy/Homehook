@@ -22,6 +22,12 @@ namespace HomeHook.Common.Services
         Task<HttpRequestMessage> GetBaseRequestMessage(string? credential = null, Func<string, string, Task<string>>? accessTokenDelegate = null);
 
         /// <summary>
+        /// Refreshes the access token for a given credential.
+        /// </summary>
+        /// <param name="credential">Credential's access token to refresh.</param>
+        Task RefreshAccessToken(string credential, Func<string, string, Task<string>> accessTokenDelegate);
+
+        /// <summary>
         /// Sends the given http request message.
         /// </summary>
         /// <returns>The response message.</returns>
@@ -161,10 +167,10 @@ namespace HomeHook.Common.Services
 
             if(!response.IsSuccessStatusCode)
             {
-                if (response.StatusCode == HttpStatusCode.Unauthorized && accessTokenDelegate != null)
+                if (response.StatusCode == HttpStatusCode.Unauthorized && accessTokenDelegate != null && credential != null)
                 {
-                    await GetBaseRequestMessage(credential, accessTokenDelegate);
-                    return await SendAsync<T>(httpMethod, route, credential, queryParameters: queryParameters, postContent: postContent, contentType: contentType);
+                    await RefreshAccessToken(credential, accessTokenDelegate);
+                    return await SendAsync<T>(httpMethod, route, credential, null, headerReplacements, queryParameters, postContent, contentType);
                 }
                 else throw response.StatusCode switch
                 {

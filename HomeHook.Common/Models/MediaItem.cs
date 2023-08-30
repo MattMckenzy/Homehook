@@ -1,4 +1,6 @@
-﻿namespace HomeHook.Common.Models
+﻿using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace HomeHook.Common.Models
 {
     public class MediaItem
     {
@@ -20,6 +22,11 @@
         public double Runtime { get; set; } = 0;
         public required MediaItemKind MediaItemKind { get; set; }
         public required MediaMetadata Metadata { get; set; }
+
+        public required IEnumerable<Chapter> Chapters { get; set; } = Array.Empty<Chapter>();
+        public required IEnumerable<Track> VideoTracks { get; set; } = Array.Empty<Track>();
+        public required IEnumerable<Track> AudioTracks { get; set; } = Array.Empty<Track>();
+        public required IEnumerable<Track> SubtitleTracks { get; set; } = Array.Empty<Track>();
 
     }
 }

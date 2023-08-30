@@ -164,9 +164,12 @@ namespace HomeCast.Services
 
             foreach (MediaItem mediaItem in mediaItems)
             {
-                (bool ItemQueued, CachingInformation CachingInformation) = await TryGetOrQueueCacheItem(mediaItem);
-                if (ItemQueued)
-                    returningStatuses.Add(CachingInformation);
+                if (mediaItem.CacheStatus != CacheStatus.Off)
+                {
+                    (bool ItemQueued, CachingInformation CachingInformation) = await TryGetOrQueueCacheItem(mediaItem);
+                    if (ItemQueued)
+                        returningStatuses.Add(CachingInformation);
+                }
             }
 
             return returningStatuses;

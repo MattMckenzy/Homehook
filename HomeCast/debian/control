@@ -18,7 +18,9 @@ Depends:
  python3,
  yt-dlp,
  ffmpeg,
- adduser
+ adduser,
+ cec-utils,
+ xprintidle
 Description: MPV wrapper for media devices.
  HomeCast provides an easy to use and consume interface, through a SignalR Hub, 
  to start and control MPV sessions on the media device.

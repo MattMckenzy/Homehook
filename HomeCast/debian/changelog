@@ -1,3 +1,27 @@
+homecast (1.1.2) RELEASED; urgency=medium
+
+  * Added environment variables to CEC service.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Mon, 28 Aug 2023 13:09:43 +0000
+
+homecast (1.1.1) RELEASED; urgency=medium
+
+  * Added more rules for CEC standby.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Mon, 28 Aug 2023 12:43:48 +0000
+
+homecast (1.1.0) RELEASED; urgency=medium
+
+  * Added CecService and remote control functionalities.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Sun, 27 Aug 2023 21:43:16 +0000
+
+homecast (1.0.16) RELEASED; urgency=medium
+
+  * Replaced file system watcher with polling for compatibility.
+
+ -- MattMckenzy <mattmckenzy@outlook.com>  Wed, 23 Aug 2023 15:40:49 +0000
+
 homecast (1.0.15) RELEASED; urgency=medium
 
   * Revamped MPV process start to stabilize media initialization.

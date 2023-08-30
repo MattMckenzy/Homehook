@@ -161,7 +161,7 @@ else
                     <div class="list-group list-group-flush bg-transparent">
                         @foreach (MediaItem mediaItem in DeviceService.Device.MediaQueue)
                         {
-                            // TODO: Add controls for audio and subtitles, chapter skip, ab-loop.
+                            // TODO: Add controls for audio and subtitles, add default audio and subtitles to homehook, chapter skip, ab-loop.
                             <label class="media-item list-group-item list-group-item-action @(DeviceService.Device.CurrentMedia == mediaItem ? "active" : string.Empty) px-2 bg-transparent form-check-label" for="@(mediaItem.Id)Check" aria-current="@(DeviceService.Device.CurrentMedia == mediaItem)">
                                 @if (DeviceService.Device.CurrentMedia == mediaItem)
                                 {

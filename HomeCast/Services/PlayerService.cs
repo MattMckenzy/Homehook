@@ -41,12 +41,18 @@ namespace HomeCast.Services
 
         private ConcurrentDictionary<long, WaitingCommand> WaitingCommands { get; } = new();
         private long LatestRequestId = 0;
-        private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromMilliseconds(500));
+        private PeriodicTimer PeriodicTimer { get; } = new(TimeSpan.FromSeconds(1));
         private CancellationTokenSource PeriodicTimerCancellationTokenSource { get; } = new();
         private HashSet<string> IgnoredOutputs { get; } = new();
         private Dictionary<string, string?> EnvironmentVariables { get; } = new();
 
         private bool IsDisposed { get; set; }
+
+        #endregion
+
+        #region Public Properties
+
+        public Func<Task>? MediaPlayCallback { get; set; }
 
         #endregion
 
@@ -133,16 +139,6 @@ namespace HomeCast.Services
                     }
                 }
             });
-
-            FileInfo socketFileInfo = new(MPVSocketLocation);
-            FileSystemWatcher socketWatcher = new(socketFileInfo.Directory?.FullName ?? "/");
-            socketWatcher.Created +=
-                (object _, FileSystemEventArgs fileSystemEventArgs) =>
-                {
-                    if (fileSystemEventArgs.FullPath == MPVSocketLocation)
-                        StartSocket();
-                };
-            socketWatcher.EnableRaisingEvents = true;
         }
 
         #endregion
@@ -175,6 +171,7 @@ namespace HomeCast.Services
                 {
                     await StopMedia();
                     Device.CurrentMediaItemId = mediaItemId;
+                    await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.CurrentMediaItemIdUpdateMethod, Device.CurrentMediaItemId);
                     await PlayMedia();
                 }
                 finally
@@ -307,13 +304,16 @@ namespace HomeCast.Services
 
                         if (await SendCommandAsync(new string[] { "set", "pause", "no" }, true))
                         {
+                            if (MediaPlayCallback != null)
+                                await MediaPlayCallback.Invoke();
+
                             Device.DeviceStatus = DeviceStatus.Playing;
                             await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.DeviceStatusUpdateMethod, Device.DeviceStatus);                            
                         }
                         else
                         {
                             await SendStatusMessage("Player Error"); 
-                            await Stop();
+                            await StopMedia();
                         }
                     }
                     else
@@ -333,21 +333,26 @@ namespace HomeCast.Services
         {
             if (Device.IsCommandAvailable(PlayerCommand.Stop))
             {
+                await DeviceLock.WaitAsync();
+
                 try
                 {
                     await StopMedia();
 
                     Device.CurrentMediaItemId = null;
-                    Device.MediaQueue.Clear();
-                    Device.DeviceStatus = DeviceStatus.Stopped;
-
                     await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.CurrentMediaItemIdUpdateMethod, null);
+
+                    Device.MediaQueue.Clear();
                     await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.MediaItemsClearMethod);
+
+                    Device.DeviceStatus = DeviceStatus.Stopped;
                     await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.DeviceStatusUpdateMethod, Device.DeviceStatus);
+
                 }
                 finally
                 {
                     SaveDeviceFile();
+                    DeviceLock.Release();
                 }
             }
         }
@@ -371,7 +376,7 @@ namespace HomeCast.Services
                     else
                     {
                         await SendStatusMessage("Player Error"); 
-                        await Stop();
+                        await StopMedia();
                     }
                 }
                 finally
@@ -436,7 +441,7 @@ namespace HomeCast.Services
                     if (!await SendCommandAsync(new string[] { "seek", Math.Min(Math.Max(timeToSeek, 0), Device.CurrentMedia!.Runtime).ToString(), "absolute" }, true))
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }
                 }
                 finally
@@ -458,7 +463,7 @@ namespace HomeCast.Services
                     if (!await SendCommandAsync(new string[] { "seek", timeDifference.ToString() }, true))
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }             
                 }
                 finally
@@ -519,7 +524,7 @@ namespace HomeCast.Services
                     else
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }
                 }
                 finally
@@ -546,7 +551,7 @@ namespace HomeCast.Services
                     else
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }
                 }
                 finally
@@ -573,7 +578,7 @@ namespace HomeCast.Services
                     else
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }                    
                 }
                 finally
@@ -588,13 +593,11 @@ namespace HomeCast.Services
 
         #region Process Methods
 
-        private void StartProcesses()
+        private async Task StartProcesses()
         {
             IsPlayerReady = false;
             Player?.Dispose();
 
-            // TODO: Add HDMI-CEC support.
-            // TODO: Create HTML GUI for local control.
             // TODO: Add EQ presets.
             // TODO: Add EQ bars control.
 
@@ -666,12 +669,28 @@ namespace HomeCast.Services
 
             Player.BeginOutputReadLine();
             Player.BeginErrorReadLine();
+
+            await StartSocket();
         }
 
-        private void StartSocket()
+        private async Task StartSocket()
         {
             IsPlayerReady = false;
             Socket?.Dispose();
+
+            CancellationToken socketWaitToken = new CancellationTokenSource(TimeSpan.FromSeconds(ProcessTimeoutSeconds)).Token;
+            while (!File.Exists(MPVSocketLocation))
+            {
+                if (socketWaitToken.IsCancellationRequested)
+                {
+                    await LoggingService.LogError("Player Process Timeout", $"Socket could not be started since player process is not available.");
+                    await SendStatusMessage("Player Error");
+                    await StopMedia();
+                    return;
+                }
+
+                await Task.Delay(100);
+            }
 
             List<string> socketArguments = new()
             {
@@ -699,18 +718,17 @@ namespace HomeCast.Services
             Socket.Exited += Socket_Exited;
 
             Socket.Start();
-            Task.Delay(100).GetAwaiter().GetResult();
 
             Socket.BeginOutputReadLine();
             Socket.BeginErrorReadLine();
 
-            if (!SendCommandAsync(new string[] { "disable_event", "all" }, true, noSocketCheck: true).GetAwaiter().GetResult() ||
-            !SendCommandAsync(new string[] { "enable_event", "end-file" }, true, noSocketCheck: true).GetAwaiter().GetResult() ||
-            !SendCommandAsync(new string[] { "enable_event", "seek" }, true, noSocketCheck: true).GetAwaiter().GetResult() ||
-            !SendCommandAsync(new string[] { "enable_event", "playback-restart" }, true, noSocketCheck: true).GetAwaiter().GetResult())
+            if (!await SendCommandAsync(new string[] { "disable_event", "all" }, true, noSocketCheck: true) ||
+            !await SendCommandAsync(new string[] { "enable_event", "end-file" }, true, noSocketCheck: true) ||
+            !await SendCommandAsync(new string[] { "enable_event", "seek" }, true, noSocketCheck: true) ||
+            !await SendCommandAsync(new string[] { "enable_event", "playback-restart" }, true, noSocketCheck: true))
             {
-                SendStatusMessage("Player Error").GetAwaiter().GetResult();
-                Stop().GetAwaiter().GetResult();
+                await SendStatusMessage("Player Error");
+                await StopMedia();
             }
 
             IsPlayerReady = true;
@@ -819,8 +837,14 @@ namespace HomeCast.Services
                             break;
 
                         case "playback-restart":
-                            Device.DeviceStatus = DeviceStatus.Playing;
-                            await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.DeviceStatusUpdateMethod, Device.DeviceStatus);
+                            await SendCommandAsync(new string[] { "get_property", "pause" }, true, true, async (object? result) =>
+                            {
+                                if (result != null && Convert.ToBoolean(result))
+                                    Device.DeviceStatus = DeviceStatus.Paused;
+                                else
+                                    Device.DeviceStatus = DeviceStatus.Playing;
+                                await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.DeviceStatusUpdateMethod, Device.DeviceStatus);
+                            });
                             await UpdateCurrentTime();
                             break;
                     }
@@ -848,7 +872,6 @@ namespace HomeCast.Services
 
         #region Private Methods
 
-        // Return if command failed or not, and decide when called if processes should be failed or not
         private async Task<bool> SendCommandAsync(IEnumerable<object> commandSegments, bool waitForResponse = false, bool doLog = true, Func<object?, Task>? postProcessing = null, bool noSocketCheck = false)
         {
             long requestId = Interlocked.Increment(ref LatestRequestId);
@@ -932,7 +955,7 @@ namespace HomeCast.Services
             if (Device.CurrentMedia == null)
                 return;
 
-            StartProcesses();
+            await StartProcesses();
 
             string? playLocation = string.Empty;
 
@@ -979,7 +1002,21 @@ namespace HomeCast.Services
                 if (!await SendCommandAsync(new string[] { "loadfile", playLocation, "replace", $"start={Device.CurrentMedia.StartTime},title=\\\"{Device.CurrentMedia.Metadata.Title}\\\"" }, true))
                 {
                     await SendStatusMessage("Player Error");
-                    await Stop();
+                    await StopMedia();
+                }
+                else if (MediaPlayCallback != null)
+                {
+                    await MediaPlayCallback.Invoke();
+                    await SendCommandAsync(new string[] { "get_property", "track-list"}, true, postProcessing: async (object? data) => 
+                    {
+                        if (data != null && data is string stringData &&
+                            stringData.TryParseJson(out IEnumerable<Track>? commandResponse) 
+                            && commandResponse != null
+                    });
+                    await SendCommandAsync(new string[] { "get_property", "chapter-list" }, true, postProcessing: async (object? data) =>
+                    {
+
+                    });
                 }
             }
             else
@@ -1008,7 +1045,11 @@ namespace HomeCast.Services
                     }
                 });
 
-                await SendCommandAsync(new string[] { "stop" }, true);
+                if (!await SendCommandAsync(new string[] { "stop" }, true))
+                {
+                    Device.DeviceStatus = DeviceStatus.Ended;
+                    await DeviceHubContext.Clients.All.SendAsync(DeviceHubConstants.DeviceStatusUpdateMethod, Device.DeviceStatus);
+                }
 
                 StopProcesses();
             }
@@ -1066,8 +1107,6 @@ namespace HomeCast.Services
             
             try
             {
-                // TODO: make sure pause=true works when cached is done on paused media.
-
                 if (cachingUpdateEventArgs.CacheStatus == CacheStatus.Cached &&
                         cachingUpdateEventArgs.MediaId == Device.CurrentMedia?.MediaId &&
                         cachingUpdateEventArgs.CacheFileInfo != null &&
@@ -1082,7 +1121,7 @@ namespace HomeCast.Services
                         }, true))
                     {
                         await SendStatusMessage("Player Error");
-                        await Stop();
+                        await StopMedia();
                     }
 
                 foreach(MediaItem mediaItem in Device.MediaQueue.Where(mediaItem => mediaItem.MediaId == cachingUpdateEventArgs.MediaId))

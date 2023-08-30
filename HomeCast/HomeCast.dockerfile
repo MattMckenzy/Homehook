@@ -8,6 +8,8 @@ RUN apt install -y python3
 RUN apt install -y ffmpeg
 RUN apt install -y yt-dlp
 RUN apt install -y mpv
+RUN apt install -y cec-utils
+RUN apt install -y xprintidle
 WORKDIR /app
 EXPOSE 8121
 

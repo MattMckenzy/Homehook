@@ -1,13 +1,13 @@
+using HomeCast.Services;
+using HomeHook.Common.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Primitives;
 using System.Security.Claims;
-using HomeHook.Common.Services;
-using HomeCast;
-using HomeCast.Services;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<PlayerService>();
+builder.Services.AddSingleton<CecService>();
 builder.Services.AddSingleton<CachingService>();
 builder.Services.AddSingleton<CommandService>();
 
@@ -55,11 +55,14 @@ builder.Services.AddSignalR(hubOptions =>
     })
     .AddNewtonsoftJsonProtocol();
 
-var app = builder.Build();
+WebApplication webApplication = builder.Build();
 
-app.UseAuthentication();
-app.UseAuthorization();
+if (builder.Configuration.GetValue<bool?>("Services:Cec:Enabled") ?? false)
+    webApplication.Services.GetRequiredService<CecService>();
 
-app.MapHub<DeviceHub>("/devicehub");
+webApplication.UseAuthentication();
+webApplication.UseAuthorization();
 
-app.Run();
+webApplication.MapHub<DeviceHub>("/devicehub");
+
+webApplication.Run();
